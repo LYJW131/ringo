@@ -46,7 +46,7 @@ func (a *app) loadAccount(lib *library) {
 			first := !lib.accountAsked
 			lib.accountAsked = true
 			if err != nil {
-				a.problem(lib, err, T("Couldn't reach this plugin"))
+				a.problem(lib, err, T("Couldn't reach Apple Music"))
 				return
 			}
 			was := lib.account
@@ -207,7 +207,7 @@ func (a *app) signInDialog(c *ui.Context, p palette, settings bool) {
 				c.After(left)
 			}
 		}
-		text := T("You'll finish signing in with the plugin, on a page it opens.")
+		text := T("You'll sign in on Apple's own page, in a window that opens.")
 		switch {
 		case d.err != "":
 			text = d.err
@@ -337,7 +337,7 @@ func (a *app) accountMenu(c *ui.Context, row ui.Element) {
 		first := true
 		if acc := a.library.account; acc != nil && acc.Page != "" {
 			first = false
-			if a.menuItem(c, iconUser, T("My Page"), "").AutoFocus().Clicked() {
+			if a.menuItem(c, iconUser, T("Profile"), "").AutoFocus().Clicked() {
 				a.accountOpen = false
 				a.openMyPage(a.library)
 			}

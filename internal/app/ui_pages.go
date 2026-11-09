@@ -424,7 +424,7 @@ func (a *app) likedPage(c *ui.Context) {
 	a.trackRows(c, lib.likedList, true, header, func(c *ui.Context) {
 		a.pageFoot(c, &lib.likedPaged, func() { a.loadLikedPage(lib) })
 		if len(lib.likedList) == 0 {
-			a.empty(c, T("Songs you like will show here"))
+			a.empty(c, T("Songs you favorite will show here"))
 		}
 	})
 }
@@ -444,7 +444,7 @@ func (a *app) loadLikedPage(lib *library) {
 		a.post(func() {
 			lib.likedPaged.loading = false
 			if err != nil {
-				lib.likedPaged.err = a.problem(lib, err, T("Couldn't load your liked songs"))
+				lib.likedPaged.err = a.problem(lib, err, T("Couldn't load your favorite songs"))
 				return
 			}
 			lib.likedList = append(lib.likedList, page.Tracks...)

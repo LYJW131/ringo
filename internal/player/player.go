@@ -802,7 +802,7 @@ func (p *Player) loadFailed(source string, err error, at, skipped, dir int) {
 func errorText(err error) string {
 	switch {
 	case errors.Is(err, errNoSource):
-		return i18n.T("The plugin of this song is gone")
+		return i18n.T("This song isn't available")
 	case errors.Is(err, music.ErrUnavailable):
 		return i18n.T("This song isn't available")
 	case errors.Is(err, music.ErrSignIn):
@@ -811,7 +811,7 @@ func errorText(err error) string {
 		if reason := music.Reason(err); reason != "" {
 			return reason
 		}
-		return i18n.T("The plugin needs setting up")
+		return i18n.T("Apple Music needs setting up")
 	}
 	return err.Error()
 }

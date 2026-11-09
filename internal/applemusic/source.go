@@ -255,7 +255,7 @@ func (s *Source) Info() music.Info {
 			{
 				Key:   "listeningHistory",
 				Label: i18n.T("Use Listening History"),
-				Help:  i18n.T("Songs you play here show in Recently Played and count toward Replay and recommendations, as in Apple's own apps. Empty means on; type off to turn it off."),
+				Help:  i18n.T("Songs you play here show in Recently Played and count toward Apple Music Replay and recommendations, as in Apple's own apps. Empty means on; type off to turn it off."),
 			},
 		},
 		Navigation: []music.NavItem{

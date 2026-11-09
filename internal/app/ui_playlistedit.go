@@ -81,9 +81,9 @@ func (a *app) toggleSaved(pl music.Playlist) {
 				lib.setSaved(pl, !save, max(at, 0))
 				a.actionFailed(lib, err, T("That didn't work. Try again later."))
 			case save:
-				a.toast = T("Saved")
+				a.toast = T("Added to Library")
 			default:
-				a.toast = T("Removed from Saved")
+				a.toast = T("Deleted From Library")
 			}
 		})
 	}()
@@ -404,13 +404,13 @@ func (a *app) playlistNameDialog(c *ui.Context) {
 			Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.94}, Exit: &ui.Motion{Scale: 0.96}})
 		title, action := T("New Playlist"), T("Create")
 		if d.rename != "" {
-			title, action = T("Rename Playlist"), T("Save")
+			title, action = T("Edit Playlist"), T("Done")
 		}
 		if d.busy {
 			action = T("Creating…")
 		}
 		ui.Text(c, title).FontSize(17).FontWeight(700)
-		in := ui.TextInput(c.Key("name"), &d.name).Placeholder(T("Playlist Name")).Label(T("Playlist Name")).FontSize(14).AutoFocus()
+		in := ui.TextInput(c.Key("name"), &d.name).Placeholder(T("Playlist title")).Label(T("Playlist title")).FontSize(14).AutoFocus()
 		if in.Submitted() {
 			a.submitName()
 		}

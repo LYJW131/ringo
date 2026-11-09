@@ -82,7 +82,7 @@ func (a *app) searchField(c *ui.Context) {
 		ui.Icon(c, iconSearch).Size(14, 14).TextColor(p.muted).Absolute().Left(10).Top(8).IgnoreInput(true)
 		if clearable {
 			x := ui.ButtonBase(c.Key("clear-search")).Size(22, 22).Center().Absolute().Right(4).Top(4).
-				KeepFocus().FocusRing(false).Label(T("Clear Search"))
+				KeepFocus().FocusRing(false).Label(T("Clear"))
 			fill := p.faint
 			if x.Hovered() {
 				fill = p.muted
@@ -150,13 +150,13 @@ func (a *app) searchField(c *ui.Context) {
 				})
 			}
 			if q == "" {
-				panel.Label(T("Recent Searches"))
-				header(T("Recent Searches"))
+				panel.Label(T("Recently Searched"))
+				header(T("Recently Searched"))
 				for _, h := range a.settings.SearchHistory {
 					option("history:"+h, h, 400)
 				}
 				ui.Box(c).Height(0.5).Margin(4, 8).Background(pop.edge)
-				option("clear", T("Clear Recent Searches"), 400)
+				option("clear", T("Clear Searches"), 400)
 				return
 			}
 			panel.Label(T("Suggestions"))

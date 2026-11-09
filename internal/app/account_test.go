@@ -67,10 +67,10 @@ func TestAccountMyPage(t *testing.T) {
 
 	tt.Click("小明")
 	tt.Frame()
-	if !tt.Focused("My Page") {
+	if !tt.Focused("Profile") {
 		t.Fatal("My Page isn't first in the menu")
 	}
-	if err := tt.Click("My Page"); err != nil {
+	if err := tt.Click("Profile"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -87,7 +87,7 @@ func TestAccountMyPage(t *testing.T) {
 	tt.Frame()
 	tt.Click("小明")
 	tt.Frame()
-	tt.Click("My Page")
+	tt.Click("Profile")
 	wait(t, asked, "the page again")
 }
 

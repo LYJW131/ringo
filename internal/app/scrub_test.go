@@ -26,7 +26,7 @@ func TestScrubSeeksOnRelease(t *testing.T) {
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Advance(time.Second)
 	tt.Frame()
-	bar, ok := tt.Find("Progress")
+	bar, ok := tt.Find("Playback Progress")
 	if !ok {
 		t.Fatal("no progress bar")
 	}

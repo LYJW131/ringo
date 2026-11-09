@@ -23,7 +23,7 @@ func TestNowPlayingClosesAsOneLayer(t *testing.T) {
 	tt.Frame()
 	tt.Advance(time.Second)
 	tt.Frame()
-	if !tt.HasText("Up Next") {
+	if !tt.HasText("Wall") {
 		t.Fatal("now playing did not open")
 	}
 	// Mid-way out, it still covers the page and the sidebar alike.
@@ -42,7 +42,7 @@ func TestNowPlayingClosesAsOneLayer(t *testing.T) {
 	}
 	tt.Advance(2 * time.Second)
 	tt.Frame()
-	if tt.HasText("Up Next") {
+	if tt.HasText("Wall") {
 		t.Error("now playing still shows after closing")
 	}
 }
@@ -219,7 +219,7 @@ func pullNowPlaying(t *testing.T, dy float32, steps int, rest time.Duration) (*a
 // Pulled down far and let go, Now Playing closes.
 func TestPullNowPlayingDownCloses(t *testing.T) {
 	a, tt := pullNowPlaying(t, 320, 12, 300*time.Millisecond)
-	if a.nowPlaying || tt.HasText("Up Next") {
+	if a.nowPlaying || tt.HasText("Wall") {
 		t.Error("still open after a long pull")
 	}
 }
@@ -227,7 +227,7 @@ func TestPullNowPlayingDownCloses(t *testing.T) {
 // A short, slow pull springs back, Now Playing still open and at rest.
 func TestShortPullSpringsBack(t *testing.T) {
 	a, tt := pullNowPlaying(t, 60, 6, 300*time.Millisecond)
-	if !a.nowPlaying || !tt.HasText("Up Next") {
+	if !a.nowPlaying || !tt.HasText("Wall") {
 		t.Fatal("closed after a short pull")
 	}
 	if a.npShift != 0 || a.npPull != 0 {
@@ -306,10 +306,10 @@ func TestNowPlayingSlidesUpUnlessItGrows(t *testing.T) {
 		tt.Advance(60 * time.Millisecond)
 		tt.Frame()
 		during = at()
-		mid, _ := tt.Find("Up Next")
+		mid, _ := tt.Find("Wall")
 		tt.Advance(time.Second)
 		tt.Frame()
-		rest, ok := tt.Find("Up Next")
+		rest, ok := tt.Find("Wall")
 		if !ok {
 			t.Fatal("now playing did not open")
 		}

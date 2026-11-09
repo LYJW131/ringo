@@ -192,7 +192,7 @@ func (a *app) playlistRows(c *ui.Context, lists []music.Playlist, mine bool) {
 			b.ContextMenu(func(m *ui.Menu) { a.playlistMenu(m, pl) })
 		case !mine && a.can("savePlaylist"):
 			b.ContextMenu(func(m *ui.Menu) {
-				if m.Item(T("Remove from Saved")).Chosen() {
+				if m.Item(T("Delete From Library")).Chosen() {
 					a.toggleSaved(*pl)
 				}
 			})

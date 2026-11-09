@@ -126,7 +126,7 @@ func (a *app) trayMenu() *mygo.Menu {
 		{Label: T("Play/Pause"), Click: run(func() { a.pl.TogglePlay() })},
 		{Label: T("Next"), Click: run(func() { a.pl.Next() })},
 		{Label: T("Previous"), Click: run(func() { a.pl.Prev() })},
-		{Label: T("Like/Unlike"), Click: run(a.likeCurrent)},
+		{Label: T("Favorite/Undo Favorite"), Click: run(a.likeCurrent)},
 		mygo.Separator(),
 		{Label: T("Settings…"), Click: run(front(a.openSettings))},
 		{Label: T("Check for Updates…"), Click: run(front(checkForUpdates))},

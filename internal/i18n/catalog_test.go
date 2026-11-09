@@ -136,11 +136,11 @@ func TestNoChineseInCode(t *testing.T) {
 func TestSwitchingLanguage(t *testing.T) {
 	defer SetLanguage(English)
 	SetLanguage(Chinese)
-	if got := T("1 song"); got != "1 首" {
+	if got := T("1 Song"); got != "1 首歌曲" {
 		t.Errorf("Chinese: %q", got)
 	}
 	SetLanguage("fr")
-	if got := T("1 song"); got != "1 song" || Language() != English {
+	if got := T("1 Song"); got != "1 Song" || Language() != English {
 		t.Errorf("another language: %q, %s", got, Language())
 	}
 	if got := T("no such text"); got != "no such text" {
@@ -149,18 +149,18 @@ func TestSwitchingLanguage(t *testing.T) {
 }
 
 // A text in a context has its own translation, and reads as itself in English:
-// keeping a playlist's new name isn't adding it to the library.
+// the app's About is about the app, and an artist's About is their profile.
 func TestTextInContext(t *testing.T) {
 	defer SetLanguage(English)
 	SetLanguage(Chinese)
-	if got := T("Save"); got != "保存" {
-		t.Errorf("Save: %q", got)
+	if got := T("About %s"); got != "关于%s" {
+		t.Errorf("About the app: %q", got)
 	}
-	if got := TC("Save", "library"); got != "收藏" {
-		t.Errorf("Save to the library: %q", got)
+	if got := TC("About %s", "Apple Music"); got != "%s简介" {
+		t.Errorf("About an artist: %q", got)
 	}
 	SetLanguage(English)
-	if got := TC("Save", "library"); got != "Save" {
+	if got := TC("About %s", "Apple Music"); got != "About %s" {
 		t.Errorf("English: %q", got)
 	}
 }

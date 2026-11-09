@@ -345,7 +345,7 @@ func (a *app) centered(c *ui.Context, err string, retry func()) {
 		ui.Text(c, err).TextColor(a.pal.muted).FontSize(13).TextAlign(ui.Center).MaxWidth(520)
 		ui.Row(c).Gap(10).Children(func() {
 			a.remedy(c)
-			if retry != nil && ui.Button(c.Key("retry"), T("Retry")).Clicked() {
+			if retry != nil && ui.Button(c.Key("retry"), T("Try Again")).Clicked() {
 				retry()
 			}
 		})

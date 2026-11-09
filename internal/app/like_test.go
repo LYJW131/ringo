@@ -346,7 +346,7 @@ func TestSmokeFrames(t *testing.T) {
 		tt.SetDark(dark)
 		tt.Advance(2 * time.Second)
 		tt.Frame()
-		r, ok := tt.Find("Progress")
+		r, ok := tt.Find("Playback Progress")
 		if !ok {
 			t.Fatal("no progress bar")
 		}

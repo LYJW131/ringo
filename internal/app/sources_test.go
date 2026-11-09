@@ -351,7 +351,7 @@ func TestPageErrorRetries(t *testing.T) {
 			if !tt.HasText("offline") {
 				t.Errorf("doesn't say what's wrong: %q", tt.Texts())
 			}
-			if err := tt.Click("Retry"); err != nil {
+			if err := tt.Click("Try Again"); err != nil {
 				t.Fatalf("%v: %q", err, tt.Texts())
 			}
 			runPost(t, ch)
@@ -360,7 +360,7 @@ func TestPageErrorRetries(t *testing.T) {
 			if tries.Load() != 2 {
 				t.Errorf("asked %d times", tries.Load())
 			}
-			if _, ok := tt.Find("Retry"); ok || !tt.HasText("Answered") {
+			if _, ok := tt.Find("Try Again"); ok || !tt.HasText("Answered") {
 				t.Errorf("once it answered, shows %q", tt.Texts())
 			}
 		})
@@ -386,7 +386,7 @@ func TestHomeErrorRetries(t *testing.T) {
 	if !tt.HasText("offline") {
 		t.Errorf("doesn't say what's wrong: %q", tt.Texts())
 	}
-	if err := tt.Click("Retry"); err != nil {
+	if err := tt.Click("Try Again"); err != nil {
 		t.Fatal(err)
 	}
 	runPost(t, ch)
@@ -419,7 +419,7 @@ func TestErrSignInAsksOnce(t *testing.T) {
 		t.Fatal("Cancel left the dialog open")
 	}
 
-	if err := tt.Click("Retry"); err != nil {
+	if err := tt.Click("Try Again"); err != nil {
 		t.Fatal(err)
 	}
 	runPost(t, ch)

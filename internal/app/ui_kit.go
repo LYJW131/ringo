@@ -337,7 +337,7 @@ func (a *app) pageFoot(c *ui.Context, pg *paged, next func()) {
 			ui.Text(c, T("Loading…")).FontSize(12.5).TextColor(a.pal.muted)
 		case pg.err != "":
 			ui.Text(c, pg.err).FontSize(12.5).TextColor(a.pal.muted)
-			if ui.Button(c.Key("retry"), T("Retry")).Clicked() {
+			if ui.Button(c.Key("retry"), T("Try Again")).Clicked() {
 				next()
 			}
 		}

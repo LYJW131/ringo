@@ -257,7 +257,7 @@ func TestBrowseLoadsNext(t *testing.T) {
 	runPost(t, ch)
 	tt.Frame()
 	fails = false
-	if err := tt.Click("Retry"); err != nil {
+	if err := tt.Click("Try Again"); err != nil {
 		t.Fatalf("no way to try again: %v", err)
 	}
 	wait(t, asked, "the next part again")

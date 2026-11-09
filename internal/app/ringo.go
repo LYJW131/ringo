@@ -39,7 +39,7 @@ func (a *app) appleMusicSettings(c *ui.Context, row settingsRow, block settingsB
 	for _, st := range info.Settings {
 		if st.Key == historySetting {
 			// The source reads "off" for it: here it's a switch.
-			row(T("Use Listening History"), T("Songs you play here show in Recently Played and count toward Replay and recommendations, as in Apple's own apps"), func() {
+			row(T("Use Listening History"), T("Songs you play here show in Recently Played and count toward Apple Music Replay and recommendations, as in Apple's own apps"), func() {
 				on := !strings.EqualFold(strings.TrimSpace(lib.src.Setting(historySetting)), "off")
 				if ui.Switch(c.Key("history"), &on).Label(T("Use Listening History")).Changed() {
 					value := ""

@@ -36,7 +36,7 @@ func TestUnsavePlaylistFromSidebar(t *testing.T) {
 	if err := tt.RightClick("飙升榜"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Remove from Saved"); err != nil {
+	if err := tt.ChooseMenuItem("Delete From Library"); err != nil {
 		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
 	}
 	tt.Frame()

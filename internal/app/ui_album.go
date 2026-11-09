@@ -192,7 +192,7 @@ func (a *app) albumTrackRow(c *ui.Context, tracks []music.Track, i int, various 
 		ui.Box(c).Absolute().Top(0).Left(8).Right(8).Height(0.5).Background(p.hairline)
 		ui.Box(c).Width(12).Center().Children(func() {
 			if tr.Popular {
-				ui.Icon(c, iconStarFill).Size(9, 9).TextColor(p.faint).Label(T("Popular"))
+				ui.Icon(c, iconStarFill).Size(9, 9).TextColor(p.faint).Label(T("Popular Track"))
 			}
 		})
 		ui.Box(c).Width(24).Center().Children(func() {

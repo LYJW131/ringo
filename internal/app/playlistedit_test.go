@@ -175,7 +175,7 @@ func TestRenamePlaylist(t *testing.T) {
 	tt.Frame()
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("助眠")
-	if err := tt.Click("Save"); err != nil {
+	if err := tt.Click("Done"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()

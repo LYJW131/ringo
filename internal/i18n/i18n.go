@@ -68,10 +68,6 @@ func T(text string) string {
 		if zh, ok := zhCN[text]; ok {
 			return zh
 		}
-		return text
-	}
-	if en, ok := reworded[text]; ok {
-		return en
 	}
 	return text
 }
@@ -142,9 +138,9 @@ func Today(t time.Time) string {
 // Songs says how many songs there are.
 func Songs(n int) string {
 	if n == 1 {
-		return T("1 song")
+		return T("1 Song")
 	}
-	return Tf("%d songs", n)
+	return Tf("%d Songs", n)
 }
 
 // Count says a count shortly, as people read it in the language.

@@ -110,7 +110,7 @@ func TestClearSearch(t *testing.T) {
 		}
 		before := a.route
 		tt.Frame()
-		if err := tt.Click("Clear Search"); err != nil {
+		if err := tt.Click("Clear"); err != nil {
 			t.Fatal(err)
 		}
 		tt.Frame()
@@ -139,7 +139,7 @@ func TestClearRecentSearches(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if err := tt.Click("Clear Recent Searches"); err != nil {
+	if err := tt.Click("Clear Searches"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Advance(time.Second)

@@ -60,7 +60,7 @@ func (a *app) setMenu() {
 			{Label: T("Next"), Accelerator: "CmdOrCtrl+Right", Click: run(func() { a.pl.Next() })},
 			{Label: T("Previous"), Accelerator: "CmdOrCtrl+Left", Click: run(func() { a.pl.Prev() })},
 			mygo.Separator(),
-			{Label: T("Like/Unlike"), Accelerator: "CmdOrCtrl+D", Click: run(a.likeCurrent)},
+			{Label: T("Favorite/Undo Favorite"), Accelerator: "CmdOrCtrl+D", Click: run(a.likeCurrent)},
 			mygo.Separator(),
 			{Label: T("Shuffle"), Click: run(func() { a.pl.ToggleShuffle() })},
 			{Label: T("Change Repeat Mode"), Click: run(func() { a.pl.CycleRepeat() })},

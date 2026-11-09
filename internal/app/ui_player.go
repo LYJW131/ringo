@@ -34,7 +34,7 @@ func (a *app) scrubber(c *ui.Context, st *scrubState, track, fill ui.Color, heig
 	if !st.active && !st.held {
 		st.v = pl.Position().Seconds()
 	}
-	s := ui.SliderBase(c, &st.v, 0, max(dur, 1)).Height(height).FocusRing(false).Label(T("Progress")).Cursor(ui.CursorPointer)
+	s := ui.SliderBase(c, &st.v, 0, max(dur, 1)).Height(height).FocusRing(false).Label(T("Playback Progress")).Cursor(ui.CursorPointer)
 	// The press and its release come to the bar wherever the pointer is,
 	// and go on to the slider, which follows the pointer.
 	s.HandleInput(func(ev ui.InputEvent) bool {
@@ -434,7 +434,7 @@ func (a *app) playerBar(c *ui.Context) {
 			if iconButton(c.Key("lyrics"), iconLyrics, 16, lyr, T("Lyrics")).Clicked() && tr != nil {
 				a.nowPlaying, a.npPane = true, a.lyricsPaneChosen()
 			}
-			if iconButton(c.Key("queue"), iconQueue, 16, p.muted, T("Queue")).Clicked() && tr != nil {
+			if iconButton(c.Key("queue"), iconQueue, 16, p.muted, T("Up Next")).Clicked() && tr != nil {
 				a.nowPlaying, a.npPane = true, paneQueue
 			}
 			a.volumeButton(c, p.text.Alpha(0.75))

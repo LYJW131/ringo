@@ -385,7 +385,7 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 	}
 
 	add("playback", T("Playback"), iconVolume, func(row settingsRow, block settingsBlock) {
-		row(T("Quality"), T("What's asked of plugins that have a choice, from the next song on"), func() {
+		row(T("Quality"), T("From the next song on. Lossless plays through a wrapper, set up under Apple Music, and songs play as AAC without one"), func() {
 			labels := make([]string, len(qualityLevels))
 			at := 1
 			for i, q := range qualityLevels {
@@ -399,7 +399,7 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 				a.changed()
 			}
 		})
-		row(T("Even Out Loudness"), T("Adjust each song's volume by what its plugin measured of it, for them to sound as loud as each other"), func() {
+		row(T("Even Out Loudness"), T("Adjust each song's volume by how loud it was measured to be, for them to sound as loud as each other"), func() {
 			if ui.Switch(c.Key("normalize"), &s.Normalize).Label(T("Even Out Loudness")).Changed() {
 				a.pl.SetVolume(a.volume)
 				a.changed()
