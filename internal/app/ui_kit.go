@@ -214,18 +214,11 @@ func clock(d time.Duration) string {
 	return fmt.Sprintf("%d:%02d", s/60, s%60)
 }
 
-// greeting returns what to say at this hour.
-func greeting(now time.Time) string {
-	switch h := now.Hour(); {
-	case h < 5:
-		return T("Good night")
-	case h < 12:
-		return T("Good morning")
-	case h < 18:
-		return T("Good afternoon")
-	default:
-		return T("Good evening")
+func b2f(b bool) float32 {
+	if b {
+		return 1
 	}
+	return 0
 }
 
 // bars draws n bars of an equalizer in r, from the levels of what plays,

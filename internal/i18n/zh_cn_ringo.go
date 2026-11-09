@@ -32,6 +32,21 @@ var ringoChinese = map[string]string{
 	"What's asked of plugins that have a choice, from the next song on": "下一首歌曲开始生效。无损通过 wrapper 播放，在“Apple Music”里设置；没有 wrapper 时以 AAC 播放",
 	"You'll finish signing in with the plugin, on a page it opens.":     "你将在随后打开的 Apple 登录页面中完成登录。",
 	"%s needs MyGo Music %s or later. Update MyGo Music first.":         "%s 需要 MyGo Music %s 带来的功能，请先更新 Ringo。",
+
+	// The sidebar and pages as Apple Music names them, over the names MyGo
+	// Music's catalog gives some of them.
+	"Home":          "主页",
+	"New":           "新发现",
+	"Radio":         "广播",
+	"Library":       "资料库",
+	"Artists":       "艺人",
+	"Made for You":  "专属推荐",
+	"Playlists":     "播放列表",
+	"All Playlists": "所有播放列表",
+	"Explicit":      "儿童不宜",
+	"No items":      "无项目",
+	"Previous Page": "上一页",
+	"Next Page":     "下一页",
 }
 
 func init() {

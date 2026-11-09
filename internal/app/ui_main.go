@@ -150,8 +150,8 @@ func (a *app) load(r route) {
 		a.freshenHome()
 	case pagePlaylist:
 		a.loadPlaylist(lib, r.id, false)
-	case pageSearch:
-		a.loadSearch(r, false)
+	case pageSearch, pageBrowse:
+		a.loadBrowse(lib, browseID(r), false)
 	case pageArtist:
 		a.loadArtist(lib, r.id)
 	case pageAlbum:
@@ -171,12 +171,6 @@ func (a *app) load(r route) {
 	case pageSavedAlbums:
 		if !lib.savedAlbumsPaged.loaded {
 			a.loadSavedAlbums(lib)
-		}
-	case pageBrowse:
-		a.loadBrowse(lib, r.id, false)
-	case pageSection:
-		if r.id != "" {
-			a.loadBrowse(lib, r.id, false)
 		}
 	}
 }
@@ -210,69 +204,14 @@ func (a *app) goForward() {
 	a.show(r)
 }
 
-func (a *app) sidebar(c *ui.Context) {
-	// Under the window buttons where they sit over the sidebar, as the
-	// traffic lights do; elsewhere, as close to the top as to the sides.
-	top := float32(14)
-	if c.TitleBar().Left > 0 {
-		top = topBar(c) + 4
-	}
-	// Where nothing in it takes the press, the sidebar moves the window, as
-	// the title bar it reaches up into would.
-	ui.Column(c).Fill().Padding(top, 14, 14, 14).Gap(4).DragWindow().Children(func() {
-		if a.can("search") {
-			a.searchField(c)
-		}
-
-		ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(4).Children(func() {
-			for _, n := range a.sidebarItems() {
-				a.navItem(c, n.icon, n.label, n.route)
-			}
-			if a.searched.query != "" && a.searched.src == a.id {
-				a.navItem(c, iconSearch, T("Search Results"), a.searched)
-			}
-			if a.can("playlists") {
-				a.myPlaylists(c, T("My Playlists"), a.mine, true, &a.mineCollapsed)
-				a.myPlaylists(c, T("Saved Playlists"), a.saved, false, &a.savedCollapsed)
-			}
-		})
-
-		a.accountRow(c)
-	})
-}
-
-func (a *app) navItem(c *ui.Context, icon *ui.SVG, label string, r route) {
-	p := a.pal
-	selected := a.route.page == r.page && !a.nowPlaying && (r.page != pageBrowse || a.route.id == r.id)
-	b := ui.ButtonBase(c.Key(label)).Height(34).PaddingX(10).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
-	bg := ui.Transparent
-	switch {
-	case selected:
-		bg = p.press
-	case b.Hovered():
-		bg = p.hover
-	}
-	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
-	color := p.text
-	if selected {
-		color = p.accent
-	}
-	b.Children(func() {
-		ui.Icon(c, icon).Size(17, 17).TextColor(color)
-		ui.Text(c, label).FontSize(13.5).FontWeight(500).TextColor(p.text)
-	})
-	if b.Clicked() {
-		a.open(r)
-	}
-}
-
 // clearSearch empties the field and forgets the search last shown, which
-// the sidebar goes back to; on its page, it goes Home.
+// the sidebar goes back to; on its page, it goes to what Search shows before
+// a word is typed.
 func (a *app) clearSearch() {
 	a.searched, a.query = route{}, ""
 	a.dismissSuggestions()
-	if a.route.page == pageSearch && !a.nowPlaying {
-		a.open(route{page: pageHome})
+	if a.route.page == pageSearch && a.route.query != "" && !a.nowPlaying {
+		a.open(route{page: pageSearch})
 	}
 }
 
@@ -378,6 +317,7 @@ func (a *app) content(c *ui.Context) {
 	// list, as a page's tabs in its header, opens it as the list builds.
 	if a.scrolled != a.route {
 		a.trackList, a.pageScroll, a.scrolled = ui.ListState{}, ui.ScrollState{}, a.route
+		a.shelves, a.shelfSongs = nil, nil
 	}
 	// Pages mark where their content is, as they scroll.
 	a.underTop, a.underBottom = false, false
@@ -404,8 +344,6 @@ func (a *app) content(c *ui.Context) {
 		a.savedAlbumsPage(c)
 	case pageBrowse:
 		a.browsePage(c)
-	case pageSection:
-		a.sectionPage(c)
 	}
 }
 
@@ -580,68 +518,13 @@ func firstPlayable(tracks []music.Track) int {
 	return 0
 }
 
-// sidebarItem is an entry of the sidebar.
-type sidebarItem struct {
-	icon  *ui.SVG
-	label string
-	route route
-}
-
-// builtinPages are the app's pages a source's sidebar can have, each with what
-// it needs the source to do, and how it's called and looks by default.
-var builtinPages = map[string]struct {
-	page  pageKind
-	needs string
-	label string
-	icon  func() *ui.SVG
-}{
-	"home":        {pageHome, "", "Home", func() *ui.SVG { return iconHome }},
-	"liked":       {pageLiked, "liked", "Liked Songs", func() *ui.SVG { return iconHeart }},
-	"savedAlbums": {pageSavedAlbums, "savedAlbums", "Saved Albums", func() *ui.SVG { return iconAlbum }},
-	"stations":    {pageStations, "stations", "Radio", func() *ui.SVG { return iconRadio }},
-	"shows":       {pageShows, "shows", "Podcasts", func() *ui.SVG { return iconPodcast }},
-}
-
-// sidebarItems is what the source's Navigation says the sidebar has, or else an
-// entry for each of the app's pages it can do.
-func (a *app) sidebarItems() []sidebarItem {
-	var items []sidebarItem
-	nav := a.src.Info().Navigation
-	if len(nav) == 0 {
-		for _, name := range []string{"home", "liked", "savedAlbums", "stations", "shows"} {
-			nav = append(nav, music.NavItem{Builtin: name})
-		}
-	}
-	for _, n := range nav {
-		if n.Builtin == "" {
-			if a.can("browse") {
-				items = append(items, sidebarItem{navIcon(n.Icon), n.Title, route{page: pageBrowse, id: n.Page}})
-			}
-			continue
-		}
-		b, ok := builtinPages[n.Builtin]
-		if !ok || b.needs != "" && !a.can(b.needs) {
-			continue
-		}
-		item := sidebarItem{b.icon(), n.Title, route{page: b.page}}
-		if item.label == "" {
-			item.label = T(b.label)
-		}
-		if n.Icon != "" {
-			item.icon = navIcon(n.Icon)
-		}
-		items = append(items, item)
-	}
-	return items
-}
-
-// builtinTitle is what the source calls one of the app's pages, or else what the
-// app does.
+// builtinTitle is what the app calls one of its pages.
 func (a *app) builtinTitle(name string) string {
-	for _, n := range a.src.Info().Navigation {
-		if n.Builtin == name && n.Title != "" {
-			return n.Title
-		}
+	switch name {
+	case "stations":
+		return T("Radio")
+	case "shows":
+		return T("Podcasts")
 	}
-	return T(builtinPages[name].label)
+	return ""
 }

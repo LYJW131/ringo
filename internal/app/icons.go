@@ -60,34 +60,16 @@ var (
 // draws them.
 var iconThumbFill = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M2.9 10.9h2.3v10.2H2.9z"/><path d="M9 10.4 12 2a3.13 3.13 0 0 1 3 3.88L14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H9z"/></svg>`))
 
-// navIcon is the icon a source names for an entry of the sidebar.
-func navIcon(name string) *ui.SVG {
-	switch name {
-	case "home":
-		return iconHome
-	case "album":
-		return iconAlbum
-	case "artist":
-		return iconUser
-	case "playlist":
-		return iconPlaylist
-	case "radio":
-		return iconRadio
-	case "podcast":
-		return iconPodcast
-	case "chart":
-		return iconCharts
-	case "calendar":
-		return iconCalendar
-	case "heart":
-		return iconHeart
-	case "search":
-		return iconSearch
-	case "star":
-		return iconStar
-	}
-	return iconNote
-}
+// The sidebar's, after Music's.
+var (
+	iconNew        = strokeIcon(`<rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/>`)
+	iconClock      = strokeIcon(`<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>`)
+	iconMic        = strokeIcon(`<rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21.5"/>`)
+	iconAlbumStack = strokeIcon(`<rect x="3" y="6" width="15" height="15" rx="2.5"/><path d="M7 3h11.5A2.5 2.5 0 0 1 21 5.5V17"/><circle cx="10.5" cy="13.5" r="3"/>`)
+	iconForYou     = strokeIcon(`<circle cx="9" cy="8" r="4"/><path d="M2.5 20.5a6.5 6.5 0 0 1 10.5-5.1"/><path d="M18 20.5s-3.5-2.1-3.5-4.4a1.75 1.75 0 0 1 3.5-.4 1.75 1.75 0 0 1 3.5.4c0 2.3-3.5 4.4-3.5 4.4z"/>`)
+	iconExternal   = strokeIcon(`<path d="M7 17 17 7"/><path d="M8 7h9v9"/>`)
+	iconGrid       = strokeIcon(`<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M3.5 12h17"/><path d="M12 3.5v17"/>`)
+)
 
 var (
 	iconUpDown   = strokeIcon(`<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>`)

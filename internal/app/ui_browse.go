@@ -1,13 +1,12 @@
 package app
 
 import (
-	"strconv"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/i18n"
 	"mygo-music/internal/music"
 )
 
@@ -22,13 +21,29 @@ type browseData struct {
 	at      time.Time // when page came
 	loading bool
 	err     string
+	// next is how the page's next part, its Next, is coming along.
+	next paged
+}
+
+// browseID is the page of the source's that r shows, if it shows one.
+func browseID(r route) string {
+	switch r.page {
+	case pageBrowse:
+		return r.id
+	case pageSearch:
+		if r.query == "" {
+			return music.PageSearchLanding
+		}
+		return music.PageSearch + r.query
+	}
+	return ""
 }
 
 // loadBrowse loads a page, unless it has, or again. One loaded longer than
 // listsFresh ago is asked for anew, as it may change as the app plays, such
 // as songs played lately, and shows as it was while it is.
 func (a *app) loadBrowse(lib *library, page string, again bool) {
-	if lib == nil {
+	if lib == nil || page == "" {
 		return
 	}
 	d := lib.browses[page]
@@ -48,31 +63,110 @@ func (a *app) loadBrowse(lib *library, page string, again bool) {
 				d.err = a.problem(lib, err, T("Couldn't load this page"))
 				return
 			}
-			d.page, d.at = b, time.Now()
+			d.page, d.at, d.next = b, time.Now(), paged{loaded: true, more: b.Next != ""}
 		})
 	}()
 }
 
+// loadNext loads the part of a page that follows what it has, its Next: its
+// sections go on from the last one's, items after items.
+func (a *app) loadNext(lib *library, d *browseData) {
+	if d.page == nil || d.page.Next == "" || d.next.loading {
+		return
+	}
+	was := d.page
+	d.next.loading, d.next.err = true, ""
+	go func() {
+		b, err := answered(lib.src.Browse(was.Next))
+		a.post(func() {
+			d.next.loading = false
+			// Loaded anew meanwhile, from its start.
+			if d.page != was {
+				return
+			}
+			if err != nil {
+				d.next.err = a.problem(lib, err, T("Couldn't load this page"))
+				return
+			}
+			d.page = joinPages(was, b)
+			d.next.more = d.page.Next != ""
+		})
+	}()
+}
+
+// joinPages is page and its next part, as one: the next one's first section
+// goes on from page's last. Neither is changed, as page may be showing.
+func joinPages(page, next *music.Browse) *music.Browse {
+	joined := *page
+	joined.Next = next.Next
+	joined.Sections = slices.Clone(page.Sections)
+	more := next.Sections
+	if n := len(joined.Sections); n > 0 && len(more) > 0 {
+		last, add := joined.Sections[n-1], more[0]
+		last.Items = slices.Concat(last.Items, add.Items)
+		last.Tracks = slices.Concat(last.Tracks, add.Tracks)
+		last.Albums = slices.Concat(last.Albums, add.Albums)
+		last.Artists = slices.Concat(last.Artists, add.Artists)
+		last.Playlists = slices.Concat(last.Playlists, add.Playlists)
+		last.Shows = slices.Concat(last.Shows, add.Shows)
+		last.Stations = slices.Concat(last.Stations, add.Stations)
+		last.Links = slices.Concat(last.Links, add.Links)
+		joined.Sections[n-1] = last
+		more = more[1:]
+	}
+	joined.Sections = append(joined.Sections, more...)
+	return &joined
+}
+
 func (a *app) browsePage(c *ui.Context) {
+	a.browseView(c, a.route.id)
+}
+
+// browseView shows the page id of the source's, as it loads.
+func (a *app) browseView(c *ui.Context, id string) {
 	lib := a.library
-	id := a.route.id
 	d := lib.browses[id]
 	if d == nil || d.page == nil {
 		if d != nil && !d.loading {
 			a.centered(c, d.err, func() { a.loadBrowse(lib, id, true) })
 			return
 		}
-		a.trackSkeleton(c, a.pageShimmer(c), true, func(c *ui.Context) {})
+		a.scrollPage(c, func() {
+			ui.Box(c).PaddingX(12).Children(func() { a.browseHeader(c, &music.Browse{}, id) })
+			a.shelfSkeleton(c, a.pageShimmer(c))
+		})
 		return
 	}
-	a.browseRows(c, d.page, id, func(c *ui.Context) { a.browseHeader(c, d.page) })
+	a.browseRows(c, d.page, id, func(c *ui.Context) { a.browseHeader(c, d.page, id) }, d)
+}
+
+// pageTitles are what the app calls the pages it opens of the source's
+// itself, for those the source leaves untitled.
+var pageTitles = map[string]string{
+	music.PageNew:           N("New"),
+	music.PageRadio:         N("Radio"),
+	music.PageRecentlyAdded: N("Recently Added"),
+	music.PageLibraryArtist: N("Artists"),
+	music.PageLibraryAlbums: N("Albums"),
+	music.PageLibrarySongs:  N("Songs"),
+	music.PageMadeForYou:    N("Made for You"),
+	music.PageAllPlaylists:  N("All Playlists"),
 }
 
 // browseHeader heads a page the source made up: its title, and what it says
 // of it, a line to each line. With a picture, it's of someone, and headed as
 // an artist's page is.
-func (a *app) browseHeader(c *ui.Context, page *music.Browse) {
+func (a *app) browseHeader(c *ui.Context, page *music.Browse, id string) {
 	p := a.pal
+	if page.Title == "" && pageTitles[id] != "" {
+		titled := *page
+		titled.Title = T(pageTitles[id])
+		page = &titled
+	}
+	if page.WideURL != "" {
+		a.wideHeader(c, page)
+		return
+	}
 	var lines []string
 	for line := range strings.SplitSeq(page.Description, "\n") {
 		if line = strings.TrimSpace(line); line != "" {
@@ -119,19 +213,47 @@ func (a *app) browseHeader(c *ui.Context, page *music.Browse) {
 	})
 }
 
-// A browseRow is a row of a page: a section's title, or its tracks one to a
-// row, or its cards so many to a row.
+// wideHeader heads a page with a picture across it, its title over it in
+// the picture's colors.
+func (a *app) wideHeader(c *ui.Context, page *music.Browse) {
+	p := a.pal
+	w := a.shelfMetrics(c).inner
+	h := min(w*0.36, 320)
+	ui.Box(c).Height(h).Radius(artRadius+3).Margin(0, 0, 26, 0).Background(hexColor(page.Colors.BG, p.hover)).Children(func() {
+		bmp := bitmap(a.art.get(sized(music.Wide(page.WideURL, wideArt, wideArt*9/16), wideArt), false))
+		box := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(artRadius + 3)
+		in := artIn(box, bmp)
+		box.Children(func() { artImage(c, bmp, artRadius+3, in) })
+		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(h * 0.55).Radius(artRadius + 3).
+			LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
+				{Color: ui.RGBA(0, 0, 0, 0), At: 0},
+				{Color: ui.RGBA(0, 0, 0, 0.45), At: 1},
+			}})
+		ui.Column(c).Absolute().Left(24).Right(24).Bottom(20).Gap(4).Children(func() {
+			if page.Subtitle != "" {
+				ui.Text(c, page.Subtitle).FontSize(12).FontWeight(600).TextColor(hexColor(page.Colors.Text2, white.Alpha(0.8))).SingleLine()
+			}
+			ui.Text(c, page.Title).FontSize(30).FontWeight(800).LetterSpacing(-0.6).TextColor(hexColor(page.Colors.Text1, white)).MaxLines(2)
+		})
+	})
+}
+
+// A browseRow is a row of a page: a section's title, a shelf of its items,
+// a row of them where they wrap or are a line each, or, of a section without
+// a style, its tracks one to a row or its cards so many to a row.
 type browseRow struct {
 	kind     rowKind
 	section  int
 	from, to int
+	// spaced keeps the first row of a section without a title off the
+	// section before.
+	spaced bool
 }
 
 type rowKind int
 
 const (
-	rowFeature rowKind = iota
-	rowTitle
+	rowTitle rowKind = iota
 	rowTrack
 	rowAlbums
 	rowArtists
@@ -140,106 +262,48 @@ const (
 	rowStations
 	rowLinks
 	rowEmpty
+	// The rows of shelves.
+	rowShelf
+	rowGrid
+	rowTiles
+	rowSong
+	rowLink
+	rowFeatured
+	rowText
 )
 
-// browseLayout lays out page in rows. The first section of Home, if tracks, is
-// the card that leads it.
-func browseLayout(page *music.Browse, pageID string, cols int) []browseRow {
-	var rows []browseRow
-	cards := func(kind rowKind, s, n int) {
-		for from := 0; from < n; from += cols {
-			rows = append(rows, browseRow{kind, s, from, min(from+cols, n)})
-		}
-	}
-	for s := range page.Sections {
-		sec := &page.Sections[s]
-		if s == 0 && pageID == "" && len(sec.Tracks) > 0 {
-			rows = append(rows, browseRow{rowFeature, s, 0, 0})
-			if len(sec.Albums)+len(sec.Artists)+len(sec.Playlists)+len(sec.Shows)+len(sec.Stations)+len(sec.Links) == 0 {
-				continue
-			}
-		} else if sec.Title != "" || sec.MorePage != "" {
-			rows = append(rows, browseRow{rowTitle, s, 0, 0})
-		}
-		if s != 0 || pageID != "" {
-			for i := range sec.Tracks {
-				rows = append(rows, browseRow{rowTrack, s, i, i})
-			}
-		}
-		cards(rowAlbums, s, len(sec.Albums))
-		cards(rowArtists, s, len(sec.Artists))
-		cards(rowPlaylists, s, len(sec.Playlists))
-		cards(rowShows, s, len(sec.Shows))
-		cards(rowStations, s, len(sec.Stations))
-		cards(rowLinks, s, len(sec.Links))
-		if sec.Empty != "" && len(sec.Tracks)+len(sec.Albums)+len(sec.Artists)+len(sec.Playlists)+len(sec.Shows)+len(sec.Stations)+len(sec.Links) == 0 {
-			rows = append(rows, browseRow{rowEmpty, s, 0, 0})
-		}
-	}
-	return rows
-}
-
-// browseRows shows a page under a header, which scrolls with it.
-func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, header func(c *ui.Context)) {
-	cols := a.columns(c, 156)
-	layout := browseLayout(page, pageID, cols)
+// browseRows shows a page under a header, which scrolls with it, and asks
+// for its next part as its foot comes near, if d says it has one.
+func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, header func(c *ui.Context), d *browseData) {
+	layout := a.shelfLayout(c, page.Sections, pageID == music.PageSearchLanding)
 	top, bottom := a.insets(c)
 	a.underTop, a.underBottom = true, true
+	foot := d != nil && (d.next.more || d.next.err != "")
 	rows := len(layout) + 1
-	now := c.Now()
+	if foot {
+		rows++
+	}
+	lib := a.library
 	ui.List(c.Key(a.route), &a.trackList, rows, func(i int) {
 		if i == 0 {
 			ui.Column(c).PaddingX(12).Children(func() {
 				a.startMark(c)
 				header(c)
+				if len(page.Sections) == 0 && page.Next == "" {
+					a.empty(c, T("No items"))
+				}
 			})
 			return
 		}
 		if i == rows-1 {
 			defer a.endMark(c)
 		}
-		r := layout[i-1]
-		sec := &page.Sections[r.section]
-		switch r.kind {
-		case rowFeature:
-			// What else its section has follows it untitled, as the card has
-			// the title, so the card keeps it off as rows of cards keep apart.
-			below := float32(0)
-			if i < len(layout) && layout[i].section == r.section {
-				below = cardRowGap
-			}
-			ui.Box(c).Padding(0, 12, below, 12).Children(func() { a.featureCard(c, sec, pageID, r.section, now) })
-		case rowTitle:
-			a.browseTitle(c, sec, r.section == 0)
-		case rowTrack:
-			a.trackRow(c, sec.Tracks, r.from, true, "")
-		case rowEmpty:
-			ui.Column(c).Margin(0, 12, cardRowGap, 12).Children(func() { a.empty(c, sec.Empty) })
-		default:
-			a.cardRow(c, sec, r, cols)
+		if i > len(layout) {
+			a.pageFoot(c, &d.next, func() { a.loadNext(lib, d) })
+			return
 		}
+		a.shelfRow(c, page.Sections, layout[i-1])
 	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
-}
-
-// browseTitle is a section's title, with a way to all of it if there's more.
-func (a *app) browseTitle(c *ui.Context, sec *music.Section, first bool) {
-	margin := float32(34)
-	if first {
-		margin = 0
-	}
-	ui.Row(c).Margin(margin, 12, 14, 12).AlignItems(ui.Baseline).Children(func() {
-		ui.Text(c, sec.Title).FontSize(19).FontWeight(700).LetterSpacing(-0.3).Grow(1).Shrink(1).MinWidth(0)
-		if sec.MorePage != "" {
-			more := ui.ButtonBase(c.Key("more")).Padding(2, 8).Radius(6).FocusRing(false).Label(T("See All"))
-			if more.Hovered() {
-				more.Background(a.pal.hover)
-			}
-			more.Children(func() { ui.Text(c, T("See All")).FontSize(13).TextColor(a.pal.muted) })
-			if more.Clicked() {
-				a.open(route{page: pageBrowse, id: sec.MorePage})
-			}
-		}
-	})
 }
 
 // cardRowGap is the room under a row of cards.
@@ -268,52 +332,5 @@ func (a *app) cardRow(c *ui.Context, sec *music.Section, r browseRow, cols int) 
 				}
 			}
 		}
-	})
-}
-
-// sectionOf finds the section a section's page shows.
-func (a *app) sectionOf(r route) *music.Section {
-	page := a.library.home
-	if r.id != "" {
-		if d := a.library.browses[r.id]; d != nil {
-			page = d.page
-		}
-	}
-	at, err := strconv.Atoi(r.query)
-	if page == nil || err != nil || at < 0 || at >= len(page.Sections) {
-		return nil
-	}
-	return &page.Sections[at]
-}
-
-// sectionPage lists the tracks of a section the feature card shows only a few
-// of. It's headed as the card is: the day over the first cover's colors, and
-// the day's date over the title.
-func (a *app) sectionPage(c *ui.Context) {
-	sec := a.sectionOf(a.route)
-	if sec == nil {
-		a.centered(c, T("This page is gone"), nil)
-		return
-	}
-	p := a.pal
-	now := c.Now()
-	title := sec.PageTitle
-	if title == "" {
-		title = sec.Title
-	}
-	about := i18n.Songs(len(sec.Tracks))
-	if sec.Subtitle != "" {
-		about += " · " + sec.Subtitle
-	}
-	a.trackRows(c, sec.Tracks, true, func(c *ui.Context) {
-		ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
-			a.dayCover(c, sec.Tracks, now)
-			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
-				ui.Text(c, i18n.Today(now)).FontSize(12).FontWeight(600).LetterSpacing(0.3).TextColor(p.muted).MaxLines(1)
-				ui.Text(c, title).FontSize(30).FontWeight(800).LetterSpacing(-0.6).MaxLines(2).LineHeight(1.2)
-				ui.Text(c, about).FontSize(13).TextColor(p.muted).MaxLines(2)
-				ui.Row(c).Gap(10).Margin(8, 0, 0, 0).Children(func() { a.playButtons(c, sec.Tracks) })
-			})
-		})
 	})
 }

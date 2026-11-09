@@ -17,6 +17,20 @@ type Artist struct {
 	ImageURL string `json:"imageUrl,omitempty"`
 	// Following says the listener follows them, for a source with followArtist.
 	Following bool `json:"following,omitempty"`
+
+	Genre string `json:"genre,omitempty"`
+	// Bio is what Apple Music writes of them, in paragraphs, and Born and
+	// Origin when they were born or formed and where they're from.
+	Bio    string `json:"bio,omitempty"`
+	Born   string `json:"born,omitempty"`
+	Origin string `json:"origin,omitempty"`
+	// WideURL is the picture that heads their page, wider than tall (Wide).
+	WideURL string `json:"wideUrl,omitempty"`
+	// VideoURL is that picture moving, an HLS stream.
+	VideoURL string `json:"videoUrl,omitempty"`
+	Colors   Colors `json:"colors,omitzero"`
+	Favorite bool   `json:"favorite,omitempty"`
+	URL      string `json:"url,omitempty"`
 }
 
 type Album struct {
@@ -27,6 +41,25 @@ type Album struct {
 	Released string   `json:"released,omitempty"` // as the source has it, such as 2024-03-01
 	// Saved says the listener saved it, for a source with saveAlbum.
 	Saved bool `json:"saved,omitempty"`
+
+	Explicit bool   `json:"explicit,omitempty"`
+	Traits   Traits `json:"traits,omitzero"`
+	Colors   Colors `json:"colors,omitzero"`
+	// Notes are what Apple Music's editors wrote of it, in paragraphs, and
+	// Tagline a few words of theirs, such as "New Album".
+	Notes   string `json:"notes,omitempty"`
+	Tagline string `json:"tagline,omitempty"`
+	Genre   string `json:"genre,omitempty"`
+	// Label and Copyright are as the album's page ends: who released it,
+	// and the line that starts with ℗.
+	Label      string `json:"label,omitempty"`
+	Copyright  string `json:"copyright,omitempty"`
+	TrackCount int    `json:"trackCount,omitempty"`
+	Single     bool   `json:"single,omitempty"`
+	// VideoURL is its cover moving, an HLS stream.
+	VideoURL string `json:"videoUrl,omitempty"`
+	Favorite bool   `json:"favorite,omitempty"`
+	URL      string `json:"url,omitempty"`
 }
 
 type Track struct {
@@ -42,6 +75,20 @@ type Track struct {
 	URL string `json:"url,omitempty"`
 	// Unavailable says the listener can't play it, for a source that knows.
 	Unavailable bool `json:"unavailable,omitempty"`
+
+	// Number and Disc are its place on its album, from 1, where the source
+	// says.
+	Number   int    `json:"number,omitempty"`
+	Disc     int    `json:"disc,omitempty"`
+	Explicit bool   `json:"explicit,omitempty"`
+	Traits   Traits `json:"traits,omitzero"`
+	// Popular marks the songs of an album most played, which its page stars.
+	Popular  bool   `json:"popular,omitempty"`
+	Composer string `json:"composer,omitempty"`
+	// Video says it's a music video, whose picture is wider than tall.
+	Video bool `json:"video,omitempty"`
+	// Saved says it's in the listener's library.
+	Saved bool `json:"saved,omitempty"`
 
 	// An episode of a podcast is a track like any other, that says which show
 	// it's of, what it's about and when it came out, as the source has it.
@@ -72,6 +119,20 @@ type Playlist struct {
 	Saved       bool    `json:"saved,omitempty"` // saved from someone else
 	Fixed       bool    `json:"fixed,omitempty"` // the listener's, but kept by the source: liked songs, say
 	Tracks      []Track `json:"tracks,omitempty"`
+
+	// OwnerPage is the Browse page of who made it, such as a curator's.
+	OwnerPage string `json:"ownerPage,omitempty"`
+	// Modified is when it last changed, as the source has it, such as
+	// 2026-03-01T08:00:00Z.
+	Modified string `json:"modified,omitempty"`
+	Colors   Colors `json:"colors,omitzero"`
+	Traits   Traits `json:"traits,omitzero"`
+	// VideoURL is its cover moving, an HLS stream.
+	VideoURL string `json:"videoUrl,omitempty"`
+	Favorite bool   `json:"favorite,omitempty"`
+	URL      string `json:"url,omitempty"`
+	// Sections follow its songs: its featured artists, more by who made it.
+	Sections []Section `json:"sections,omitempty"`
 }
 
 // ArtistPage is what an artist's page shows.
@@ -79,12 +140,20 @@ type ArtistPage struct {
 	Artist Artist  `json:"artist"`
 	Tracks []Track `json:"tracks,omitempty"`
 	Albums []Album `json:"albums,omitempty"`
+	// Sections are the page as Apple Music lays it out, in order: the latest
+	// release, top songs, albums, singles, videos, similar artists and the
+	// rest. With any, the page shows them, and Tracks and Albums are only
+	// what its Play button plays and what older views list.
+	Sections []Section `json:"sections,omitempty"`
 }
 
 // AlbumPage is what an album's page shows.
 type AlbumPage struct {
 	Album  Album   `json:"album"`
 	Tracks []Track `json:"tracks,omitempty"`
+	// Sections follow the songs: more by the artist, other versions, what
+	// it's featured on, and what else a listener might like.
+	Sections []Section `json:"sections,omitempty"`
 }
 
 // Account is who is signed in to a source.
@@ -163,6 +232,13 @@ type Station struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	ImageURL    string `json:"imageUrl,omitempty"`
+
+	// Live says it's on the air now, as Apple Music 1 is, rather than made
+	// of songs, and Subtitle what's on, or who hosts it.
+	Live     bool   `json:"live,omitempty"`
+	Subtitle string `json:"subtitle,omitempty"`
+	WideURL  string `json:"wideUrl,omitempty"`
+	Colors   Colors `json:"colors,omitzero"`
 }
 
 // Comment is what a listener said of a track.
@@ -194,6 +270,15 @@ type Browse struct {
 	// Description goes under the title, a line to each line of it.
 	Description string    `json:"description,omitempty"`
 	Sections    []Section `json:"sections,omitempty"`
+
+	// WideURL is a picture that heads the page across its width (Wide), and
+	// Colors go with it.
+	WideURL string `json:"wideUrl,omitempty"`
+	Colors  Colors `json:"colors,omitzero"`
+	// Next is the Browse page with what follows this one, for a page that
+	// comes in parts, as a library's songs do: its sections go on from the
+	// last of this one's, items after items.
+	Next string `json:"next,omitempty"`
 }
 
 // Section is a heading over what it lists. A section may hold several kinds,
@@ -219,6 +304,13 @@ type Section struct {
 	// Subtitle follows the count of songs on that page, such as "Picked for
 	// your taste, new every day at 6:00".
 	Subtitle string `json:"subtitle,omitempty"`
+
+	// Style is how the section is laid out (the Shelf constants). With one,
+	// it shows Items, in a shelf that scrolls sideways unless the style says
+	// otherwise, and the fields above but Title, Subtitle and MorePage are
+	// left alone.
+	Style string `json:"style,omitempty"`
+	Items []Item `json:"items,omitempty"`
 }
 
 // Link opens another Browse page.

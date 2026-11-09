@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"runtime"
 	"time"
 
@@ -395,71 +394,6 @@ func (a *app) avatar(c *ui.Context, url string, size float32, empty ui.Color) {
 		box.Background(empty)
 	}
 	box.Children(func() { artImage(c, bmp, size/2, in) })
-}
-
-// myPlaylists lists the listener's playlists under a header that opens
-// and closes them: those they made, if mine, with a button to make one
-// and a menu to rename them, or else with a menu to unsave them.
-func (a *app) myPlaylists(c *ui.Context, title string, lists []music.Playlist, mine bool, collapsed *bool) {
-	canCreate := mine && a.can("createPlaylist")
-	if len(lists) == 0 && !canCreate {
-		return
-	}
-	p := a.pal
-	ui.Row(c.Key(fmt.Sprint("lists-", mine))).AlignItems(ui.Center).Margin(18, 4, 6, 6).Children(func() {
-		b := ui.ButtonBase(c.Key("toggle")).Grow(1).Height(26).PaddingX(4).Gap(6).Radius(6).
-			AlignItems(ui.Center).Justify(ui.Start).Role(ui.RoleDisclosure).Label(title)
-		if b.Clicked() {
-			*collapsed = !*collapsed
-		}
-		b.Expanded(!*collapsed)
-		if b.Hovered() {
-			b.Background(p.hover)
-		}
-		b.Children(func() {
-			ui.Text(c, title).FontSize(11.5).FontWeight(600).TextColor(p.faint).Grow(1)
-			arrow := iconDown
-			if *collapsed {
-				arrow = iconForward
-			}
-			ui.Icon(c, arrow).Size(12, 12).TextColor(p.faint)
-		})
-		if canCreate && iconButton(c.Key("new"), iconPlus, 13, p.faint, T("New Playlist")).Size(26, 26).Radius(6).Clicked() {
-			a.newPlaylist(nil)
-		}
-	})
-	if *collapsed {
-		return
-	}
-	for i := range lists {
-		pl := &lists[i]
-		selected := a.route.page == pagePlaylist && a.route.id == pl.ID && !a.nowPlaying
-		b := ui.ButtonBase(c.Key(pl.ID)).Height(34).PaddingX(8).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(pl.Name)
-		switch {
-		case selected:
-			b.Background(p.press)
-		case b.Hovered():
-			b.Background(p.hover)
-		}
-		b.Children(func() {
-			a.cover(c, pl.ImageURL, 80, 22, 5)
-			ui.Text(c, pl.Name).FontSize(13).SingleLine().Shrink(1).MinWidth(0)
-		})
-		switch {
-		case mine && pl.Fixed:
-		case mine && (a.can("renamePlaylist") || a.can("deletePlaylist")):
-			b.ContextMenu(func(m *ui.Menu) { a.playlistMenu(m, pl) })
-		case !mine && a.can("savePlaylist"):
-			b.ContextMenu(func(m *ui.Menu) {
-				if m.Item(T("Remove from Saved")).Chosen() {
-					a.toggleSaved(*pl)
-				}
-			})
-		}
-		if b.Clicked() {
-			a.open(route{page: pagePlaylist, id: pl.ID})
-		}
-	}
 }
 
 // playlistMenu has what can be done with a playlist of the listener's, as far

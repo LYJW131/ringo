@@ -20,13 +20,9 @@ var skeletonScenes = []struct {
 		a.route = route{page: pagePlaylist, src: "fake", id: "7"}
 		a.loadingPl["7"] = true
 	}},
-	{"search", func(a *app) {
-		a.route = route{page: pageSearch, src: "fake", query: "迷星叫", kind: music.SearchTracks}
-		a.searches[a.route] = &searchData{page: paged{loading: true}}
-	}},
-	{"artists", func(a *app) {
-		a.route = route{page: pageSearch, src: "fake", query: "迷星叫", kind: music.SearchArtists}
-		a.searches[a.route] = &searchData{page: paged{loading: true}}
+	{"browse", func(a *app) {
+		a.route = route{page: pageBrowse, src: "fake", id: music.PageNew}
+		a.browses[music.PageNew] = &browseData{loading: true}
 	}},
 	{"comments", func(a *app) {
 		a.nowPlaying, a.npPane = true, paneComments

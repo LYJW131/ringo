@@ -93,7 +93,6 @@ type library struct {
 	albums    map[string]*albumData
 	shows     map[string]*showData
 	browses   map[string]*browseData
-	searches  map[route]*searchData
 	searched  route // the search last shown, which the sidebar goes back to
 
 	subscribed     []music.Show
@@ -127,7 +126,6 @@ func (l *library) forget() {
 	l.albums = map[string]*albumData{}
 	l.shows = map[string]*showData{}
 	l.browses = map[string]*browseData{}
-	l.searches = map[route]*searchData{}
 	l.liked = nil
 	l.likedList, l.likedPaged, l.likedAt = nil, paged{}, time.Time{}
 	l.savedAlbums, l.savedAlbumsPaged = nil, paged{}
@@ -295,16 +293,13 @@ func (a *app) libraryChanged(lib *library) {
 			if d := was.artists[r.id]; d != nil && d.page != nil {
 				lib.artists[r.id] = d
 			}
-		case pageSearch:
-			if d := was.searches[r]; d != nil {
-				lib.searches[r] = d
-			}
 		case pageLiked:
 			lib.likedList, lib.likedPaged = was.likedList, was.likedPaged
 		}
 	}
+	shown := browseID(a.route)
 	for page := range lib.browses {
-		if a.route.page != pageBrowse || a.route.id != page || a.route.src != lib.id {
+		if shown != page || a.route.src != lib.id {
 			delete(lib.browses, page)
 		}
 	}
@@ -317,8 +312,8 @@ func (a *app) libraryChanged(lib *library) {
 
 // reload loads what the page of r shows anew.
 func (a *app) reload(r route) {
-	if r.page == pageBrowse {
-		a.loadBrowse(a.libOf(r.src), r.id, true)
+	if id := browseID(r); id != "" {
+		a.loadBrowse(a.libOf(r.src), id, true)
 		return
 	}
 	a.load(r)

@@ -271,7 +271,7 @@ func TestLikedPagePaging(t *testing.T) {
 	a.account = &music.Account{ID: "1"}
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
-	if err := tt.Click("Liked Songs"); err != nil {
+	if err := tt.Click("Favorite Songs"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()

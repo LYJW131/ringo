@@ -29,7 +29,6 @@ const (
 	pageLiked
 	pageSavedAlbums
 	pageBrowse
-	pageSection
 )
 
 type route struct {
@@ -39,11 +38,9 @@ type route struct {
 	src string
 	// id is the playlist, artist, album, show or browse page shown.
 	id string
-	// query and kind are what a search page searched for. On a section's page
-	// (pageSection), id is the browse page it's of, "" for Home, and query
-	// which of its sections.
+	// query is what a search page searched for: none for what Search shows
+	// before a word is typed.
 	query string
-	kind  music.SearchKind
 }
 
 // app is the state both windows show. Everything in it is read and changed
@@ -80,8 +77,6 @@ type app struct {
 	naming      nameDialog         // the name of a playlist asked for
 	deleting    deleteDialog       // whether to delete a playlist, asked
 	toast       string             // a message to show once
-	dailySpin   spinState          // the record on the feature card
-	dailyBars   barState           // the bars on its play button
 	settingText map[string]*string // the settings of sources, as being typed
 
 	trackList ui.ListState
@@ -90,11 +85,20 @@ type app struct {
 	pageScroll ui.ScrollState
 	navScroll  ui.ScrollState
 	scrolled   route // the page trackList and pageScroll are of
+	// shelves are where the shelves of the page that scroll sideways are
+	// scrolled, by their section: kept here, as a shelf scrolled out of the
+	// list is not built.
+	shelves map[int]*ui.ScrollState
+	// shelfSongs are the songs of the page's sections, by their section.
+	shelfSongs map[int]*shelfTracks
 
-	mineCollapsed, savedCollapsed bool
+	libraryCollapsed, mineCollapsed bool
 
 	query     string
 	searchBox ui.Handle
+	// searchFocused says the search field had the focus as last built: it
+	// opens Search as it takes it.
+	searchFocused bool
 
 	settingsPage      string // the settings' page that shows
 	settingsQuery     string // what's searched for in the settings

@@ -98,6 +98,22 @@ func (a *app) searchField(c *ui.Context) {
 			}
 		}
 		q := strings.TrimSpace(a.query)
+		// Taking the focus, the field opens Search, as Music's does: the
+		// search last shown, if the field still holds it, or else what
+		// Search shows before a word is typed, as it does once the field
+		// is emptied.
+		focused := in.Focused()
+		switch {
+		case focused && !a.searchFocused && (a.route.page != pageSearch || a.nowPlaying):
+			r := route{page: pageSearch}
+			if a.searched.query != "" && a.searched.src == a.id && q == a.searched.query {
+				r = a.searched
+			}
+			a.open(r)
+		case focused && q == "" && a.route.page == pageSearch && a.route.query != "":
+			a.open(route{page: pageSearch})
+		}
+		a.searchFocused = focused
 		s := &a.suggestions
 		switch {
 		case in.Focused() && cb.Open() && q != "":

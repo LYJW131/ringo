@@ -94,18 +94,36 @@ func boneWidth(i int) float32 { return boneWidths[i%len(boneWidths)] }
 // Skeletons of the pages, shaped as homePage, trackRows and the cards they
 // show.
 
-// homeSkeleton is homePage's cards while they load, or with feature, as
-// browseRows starts a source's own Home: the card of its first songs, then a
-// row of cards under a title.
-func (a *app) homeSkeleton(c *ui.Context, s shimmer, feature bool) {
+// homeSkeleton is homePage's cards while they load, or with shelves, as
+// browseRows starts a source's own Home.
+func (a *app) homeSkeleton(c *ui.Context, s shimmer, shelves bool) {
+	if shelves {
+		a.shelfSkeleton(c, s)
+		return
+	}
 	ui.Column(c.Key("home-skeleton")).PaddingX(12).Children(func() {
-		if !feature {
-			a.playlistCardsSkeleton(c.Key("cards"), s, a.columns(c, 168)*2, 168, false)
-			return
+		a.playlistCardsSkeleton(c.Key("cards"), s, a.columns(c, 168)*2, 168, false)
+	})
+}
+
+// shelfSkeleton is a page of shelves while it loads: titles over rows of
+// squares, as many as fit across.
+func (a *app) shelfSkeleton(c *ui.Context, s shimmer) {
+	n, w := a.shelfMetrics(c).fit(squareMin)
+	ui.Column(c.Key("shelf-skeleton")).PaddingX(12).Children(func() {
+		for row := range 2 {
+			ui.Column(c.Key(row)).Margin(float32(row)*sectionGap, 0, 0, 0).Gap(12).Children(func() {
+				s.text(c, 18, 1.3).Width(140)
+				ui.Row(c).Gap(shelfGap).Children(func() {
+					for i := range n {
+						ui.Column(c.Key(i)).Width(w).Gap(7).Children(func() {
+							s.bone(c, artRadius).Size(w, w)
+							s.text(c, 12.5, 1.3).WidthPercent(boneWidth(i + row))
+						})
+					}
+				})
+			})
 		}
-		s.bone(c, dailyRadius).Height(dailyHeight)
-		ui.Box(c).Margin(34, 0, 14, 0).Children(func() { s.text(c, 19, 1.3).Width(120) })
-		a.playlistCardsSkeleton(c.Key("cards"), s, a.columns(c, 156), 156, false)
 	})
 }
 

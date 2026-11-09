@@ -34,23 +34,12 @@ func (a *app) section(c *ui.Context, title string) ui.Element {
 	return ui.Text(c, title).FontSize(19).FontWeight(700).LetterSpacing(-0.3).Margin(34, 0, 14, 0)
 }
 
-// homeHello is the heading of Home: a greeting, to whoever is signed in, and
-// the day.
-func (a *app) homeHello(c *ui.Context, now time.Time) {
-	hello := greeting(now)
-	if a.account != nil && a.account.Name != "" {
-		hello = Tf("%s, %s", hello, a.account.Name)
-	}
-	a.heading(c, hello, i18n.Today(now))
-}
-
 // homePage is what the source makes up itself, if it does; else what it played
 // lately and its playlists; else, with nothing yet, a way to get started.
 func (a *app) homePage(c *ui.Context) {
-	now := c.Now()
 	lib := a.library
 	if lib.home != nil && len(lib.home.Sections) > 0 {
-		a.browseRows(c, lib.home, "", func(c *ui.Context) { a.homeHello(c, now) })
+		a.browseRows(c, lib.home, "", func(c *ui.Context) { a.heading(c, T("Home"), "") }, nil)
 		return
 	}
 	loading := lib.homeLoading || !lib.started || lib.accountUnknown()
@@ -69,7 +58,7 @@ func (a *app) homePage(c *ui.Context) {
 	ui.Scroll(c.Key(a.route)).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad-12, bottom+48, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
 		a.startMark(c)
 		defer a.endMark(c)
-		ui.Box(c).PaddingX(12).Children(func() { a.homeHello(c, now) })
+		ui.Box(c).PaddingX(12).Children(func() { a.heading(c, T("Home"), "") })
 		if nothing {
 			a.homeSkeleton(c, a.pageShimmer(c), lib.can("home"))
 			return
@@ -299,7 +288,7 @@ func (a *app) likedPage(c *ui.Context) {
 				Children(func() { ui.Icon(c, iconHeartFill).Size(84, 84) })
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 				ui.Text(c, T("Playlist")).FontSize(12).FontWeight(600).TextColor(p.accent)
-				ui.Text(c, T("Liked Songs")).FontSize(30).FontWeight(800).LetterSpacing(-0.6)
+				ui.Text(c, T("Favorite Songs")).FontSize(30).FontWeight(800).LetterSpacing(-0.6)
 				if lib.likedPaged.loaded {
 					ui.Text(c, i18n.Songs(len(lib.likedList))).FontSize(13).TextColor(p.muted)
 				}

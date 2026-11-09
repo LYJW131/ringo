@@ -1,3 +1,5 @@
+//go:build !nosource
+
 package app
 
 import (

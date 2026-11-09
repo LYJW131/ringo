@@ -39,6 +39,8 @@ func TestSwitchSource(t *testing.T) {
 	other.playlists = func() ([]music.Playlist, error) {
 		return []music.Playlist{{ID: "1", Name: "Other's list", Mine: true}}, nil
 	}
+	other.account = func() (*music.Account, error) { return &music.Account{ID: "2", Name: "Other's listener"}, nil }
+	a.account = &music.Account{ID: "1", Name: "小明"}
 	other.home = func() (*music.Browse, error) {
 		return &music.Browse{Sections: []music.Section{{Title: "Other's shelf", Albums: []music.Album{{ID: "8", Name: "Other's album"}}}}}, nil
 	}
@@ -53,7 +55,7 @@ func TestSwitchSource(t *testing.T) {
 	if a.library != lib || a.route != (route{page: pageHome, src: "other"}) {
 		t.Fatalf("active %q on %+v", a.library.id, a.route)
 	}
-	until(t, ch, func() bool { return len(lib.mine) > 0 && lib.home != nil })
+	until(t, ch, func() bool { return len(lib.mine) > 0 && lib.home != nil && lib.account != nil })
 	tt.Frame()
 	if _, ok := tt.Find("Other's list"); !ok {
 		t.Errorf("no playlist of its in the sidebar: %q", tt.Texts())
@@ -171,10 +173,8 @@ func TestHiddenWithoutCapability(t *testing.T) {
 		name, capability, label string
 		set                     func(a *app)
 	}{
-		{"liked songs", "liked", "Liked Songs", nil},
-		{"radio", "stations", "Radio", nil},
-		{"podcasts", "shows", "Podcasts", nil},
-		{"saved albums", "savedAlbums", "Saved Albums", nil},
+		{"favorite songs", "liked", "Favorite Songs", nil},
+		{"apple music's pages", "browse", "New", nil},
 		{"search", "search", "Search", nil},
 		{"new playlist", "createPlaylist", "New Playlist", nil},
 		{"heart", "like", "Like", playing},
@@ -372,12 +372,14 @@ func TestPageErrorRetries(t *testing.T) {
 				return &music.AlbumList{Albums: []music.Album{{ID: "1", Name: "Answered"}}}, nil
 			}
 		}},
-		{"search", route{page: pageSearch, query: "q", kind: music.SearchTracks}, func(f *fakeSource, fails func() error) {
-			f.search = func(string, music.SearchKind, int) (*music.SearchResult, error) {
+		{"search", route{page: pageSearch, query: "q"}, func(f *fakeSource, fails func() error) {
+			f.browse = func(page string) (*music.Browse, error) {
 				if err := fails(); err != nil {
 					return nil, err
 				}
-				return &music.SearchResult{Tracks: []music.Track{song("1", "Answered")}}, nil
+				return &music.Browse{Sections: []music.Section{{Style: music.ShelfList, Items: []music.Item{
+					{Kind: music.ItemSong, ID: "1", Title: "Answered", Track: &music.Track{ID: "1", Name: "Answered"}},
+				}}}}, nil
 			}
 		}},
 	} {
@@ -755,7 +757,6 @@ func TestSourceShowsAsItselfAtOnce(t *testing.T) {
 	a := newTestApp()
 	ch := posts(a)
 	f := newFakeSource("plugin")
-	f.info.Navigation = []music.NavItem{{Title: "Daily", Page: "daily"}}
 	answer := make(chan struct{})
 	f.account = func() (*music.Account, error) {
 		<-answer
@@ -768,8 +769,8 @@ func TestSourceShowsAsItselfAtOnce(t *testing.T) {
 	tt.Frame()
 	check := func() {
 		t.Helper()
-		if _, ok := tt.Find("Daily"); !ok {
-			t.Error("its own page isn't in the sidebar")
+		if _, ok := tt.Find("New"); !ok {
+			t.Error("Apple Music's pages aren't in the sidebar")
 		}
 		if tt.HasText("Sign in to plugin") || tt.HasText("Settings") {
 			t.Error("the account's row says what isn't known yet")
@@ -876,13 +877,13 @@ func TestSetLanguage(t *testing.T) {
 		t.Fatalf("language %q, kept %q", i18n.Language(), a.settings.Language)
 	}
 	tt.Frame()
-	if _, ok := tt.Find(T("Liked Songs")); !ok {
-		t.Errorf("no %q in %q", T("Liked Songs"), tt.Texts())
+	if _, ok := tt.Find(T("Home")); !ok {
+		t.Errorf("no %q in %q", T("Home"), tt.Texts())
 	}
 
 	onMainThread(func() { a.setLanguage(i18n.English) })
 	tt.Frame()
-	if _, ok := tt.Find("Liked Songs"); !ok {
+	if _, ok := tt.Find("Home"); !ok {
 		t.Errorf("English didn't come back: %q", tt.Texts())
 	}
 }

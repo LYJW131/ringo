@@ -1,7 +1,6 @@
 package app
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -11,7 +10,7 @@ import (
 )
 
 // A source's own Home shows what it makes up, as a card's click shows: its
-// first section of tracks as the feature card, and the rest as shelves.
+// sections without a style as they were before shelves.
 func TestHomeShowsTheSourcesSections(t *testing.T) {
 	a := newTestApp()
 	ch := posts(a)
@@ -27,7 +26,7 @@ func TestHomeShowsTheSourcesSections(t *testing.T) {
 	tt := ui.NewTester(a.view, 1200, 1400)
 	tt.Frame()
 	if _, ok := tt.Find("For You"); !ok {
-		t.Fatal("no feature card")
+		t.Fatal("no first section")
 	}
 	if err := tt.Click("迷跡波"); err != nil {
 		t.Fatal(err)
@@ -59,14 +58,14 @@ func browseApp() (*app, chan func(), chan string) {
 	return a, ch, asked
 }
 
-// A section's See All opens the page with the rest of it, once, which back
+// A section's title opens the page with the rest of it, once, which back
 // and forward go to and from without asking again.
 func TestSeeAllOpensBrowsePage(t *testing.T) {
 	a, ch, asked := browseApp()
 	a.home = &music.Browse{Sections: []music.Section{{Title: "New Albums", Albums: []music.Album{{ID: "8", Name: "迷跡波"}}, MorePage: "albums"}}}
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
-	if err := tt.Click("See All"); err != nil {
+	if err := tt.Click("New Albums"); err != nil {
 		t.Fatal(err)
 	}
 	browse := route{page: pageBrowse, src: "fake", id: "albums"}
@@ -105,7 +104,7 @@ func TestBrowsePageFreshensWhenOpenedLater(t *testing.T) {
 	a.home = &music.Browse{Sections: []music.Section{{Title: "New Albums", Albums: []music.Album{{ID: "8", Name: "迷跡波"}}, MorePage: "albums"}}}
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
-	if err := tt.Click("See All"); err != nil {
+	if err := tt.Click("New Albums"); err != nil {
 		t.Fatal(err)
 	}
 	wait(t, asked, "the page")
@@ -145,71 +144,6 @@ func TestLinkOpensBrowsePage(t *testing.T) {
 	}
 	if cur := a.pl.Current(); cur == nil || cur.ID != "calm-1" {
 		t.Errorf("playing %+v", cur)
-	}
-}
-
-// An entry a source adds to the sidebar opens the page it names, and is gone
-// with the capability of browsing.
-func TestNavItemOpensBrowsePage(t *testing.T) {
-	a, _, asked := browseApp()
-	fake(a).info.Navigation = []music.NavItem{{Title: "Top Songs", Page: "top", Icon: "chart"}}
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("Top Songs"); err != nil {
-		t.Fatal(err)
-	}
-	if a.route != (route{page: pageBrowse, src: "fake", id: "top"}) {
-		t.Fatalf("opened %+v", a.route)
-	}
-	if page := wait(t, asked, "the page"); page != "top" {
-		t.Fatalf("asked for %q", page)
-	}
-	without(a, "browse")
-	tt.Frame()
-	if _, ok := tt.Find("Top Songs"); ok {
-		t.Error("the entry stayed without browsing")
-	}
-}
-
-// A source's Navigation is its sidebar, in its order and by its names, leaving out
-// what it doesn't list and what it can't do; with none it gets the app's pages.
-func TestNavigationIsTheSidebar(t *testing.T) {
-	a, _, _ := browseApp()
-	f := fake(a)
-	f.caps["stations"], f.caps["liked"], f.caps["shows"] = true, true, true
-	f.info.Navigation = []music.NavItem{
-		{Title: "Top Songs", Page: "top", Icon: "chart"},
-		{Title: "My FM", Builtin: "stations"},
-		{Builtin: "home"},
-		{Title: "Not Possible", Builtin: "savedAlbums"},
-		{Title: "Nonsense", Builtin: "nope"},
-	}
-	a.library.caps = probeCaps(f)
-	without(a, "savedAlbums")
-	got := func() []string {
-		var labels []string
-		for _, item := range a.sidebarItems() {
-			labels = append(labels, item.label)
-		}
-		return labels
-	}
-	if labels := strings.Join(got(), ","); labels != "Top Songs,My FM,Home" {
-		t.Fatalf("sidebar: %s", labels)
-	}
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("My FM"); err != nil {
-		t.Fatal(err)
-	}
-	if a.route.page != pageStations {
-		t.Fatalf("opened %+v", a.route)
-	}
-	if _, ok := tt.Find("Liked Songs"); ok {
-		t.Error("an entry the source didn't list")
-	}
-	f.info.Navigation = nil
-	if labels := strings.Join(got(), ","); labels != "Home,Liked Songs,Radio,Podcasts" {
-		t.Fatalf("default sidebar: %s", labels)
 	}
 }
 

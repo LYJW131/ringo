@@ -14,6 +14,7 @@ import (
 // shows again where it was scrolled once Now Playing closes.
 func TestCoveredPageKeepsItsPlace(t *testing.T) {
 	a := newTestApp()
+	a.account = &music.Account{ID: "1", Name: "小明"}
 	tracks := make([]music.Track, 200)
 	for i := range tracks {
 		tracks[i] = music.Track{ID: fmt.Sprint(i + 1), Name: fmt.Sprintf("曲目%d", i+1)}
@@ -39,7 +40,7 @@ func TestCoveredPageKeepsItsPlace(t *testing.T) {
 		tt.Frame()
 		tt.Advance(time.Second)
 		tt.Frame()
-		if tt.HasText("Liked Songs") {
+		if _, ok := tt.Find("Recently Added"); ok {
 			t.Errorf("%+v: the sidebar is built under Now Playing", r)
 		}
 

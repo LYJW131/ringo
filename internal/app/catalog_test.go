@@ -7,6 +7,7 @@ import (
 	"image/draw"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,134 +18,20 @@ import (
 
 // searchRequest is a search asked of a source.
 type searchRequest struct {
-	query  string
-	kind   music.SearchKind
-	offset int
+	query string
 }
 
-// fakeSearch makes the source's search report what it was asked, and find
-// nothing, which lands nowhere without a window.
+// fakeSearch makes the source's pages of searches report what they were
+// asked, and find nothing, which lands nowhere without a window.
 func fakeSearch(a *app) chan searchRequest {
 	asked := make(chan searchRequest, 8)
-	fake(a).search = func(q string, kind music.SearchKind, offset int) (*music.SearchResult, error) {
-		asked <- searchRequest{q, kind, offset}
+	fake(a).browse = func(page string) (*music.Browse, error) {
+		if q, ok := strings.CutPrefix(page, music.PageSearch); ok {
+			asked <- searchRequest{q}
+		}
 		return nil, errors.New("offline")
 	}
 	return asked
-}
-
-// Enter searches songs for the query typed; a tab searches it for another
-// kind, which the next search keeps, and back leaves the search.
-func TestSearchKinds(t *testing.T) {
-	a := newTestApp()
-	asked := fakeSearch(a)
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("Search"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Type("迷星叫")
-	tt.Key(0, ui.KeyEnter)
-	tt.Frame()
-	if got := wait(t, asked, "the search"); got != (searchRequest{"迷星叫", music.SearchTracks, 0}) {
-		t.Fatalf("searched %+v", got)
-	}
-
-	if err := tt.Click("Artists"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if got := wait(t, asked, "the artists"); got != (searchRequest{"迷星叫", music.SearchArtists, 0}) {
-		t.Fatalf("searched %+v", got)
-	}
-	a.search("壱雫空")
-	if got := wait(t, asked, "the next search"); got.kind != music.SearchArtists {
-		t.Errorf("the next search looked for %q", got.kind)
-	}
-	if !slices.Equal(a.settings.SearchHistory, []string{"壱雫空", "迷星叫"}) {
-		t.Errorf("history %q", a.settings.SearchHistory)
-	}
-
-	tt.Key(0, ui.KeyBack)
-	tt.Key(0, ui.KeyBack)
-	if a.route.page != pageHome {
-		t.Errorf("back went to %+v", a.route)
-	}
-}
-
-// The tabs over a search's songs switch it to another kind: it crashed,
-// the list's state reset as the list built the tabs in its header.
-func TestSearchKindFromSongs(t *testing.T) {
-	a := catalogApp()
-	asked := fakeSearch(a)
-	a.open(route{page: pageSearch, query: "MyGO", kind: music.SearchTracks})
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("Artists"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if a.route.kind != music.SearchArtists {
-		t.Fatalf("on %+v", a.route)
-	}
-	if len(asked) > 0 {
-		t.Error("the artists found were searched for again")
-	}
-}
-
-// The Playlists tab searches playlists, and a playlist it found opens its
-// page.
-func TestSearchPlaylists(t *testing.T) {
-	a := catalogApp()
-	asked := fakeSearch(a)
-	a.open(route{page: pageSearch, query: "MyGO", kind: music.SearchTracks})
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("Playlists"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if got := wait(t, asked, "the playlists"); got != (searchRequest{"MyGO", music.SearchPlaylists, 0}) {
-		t.Fatalf("searched %+v", got)
-	}
-
-	a.searches[a.route] = &searchData{
-		res:  music.SearchResult{Playlists: []music.Playlist{{ID: "42", Name: "迷途人偶", TrackCount: 52}}},
-		page: paged{loaded: true},
-	}
-	a.playlists["42"] = &music.Playlist{ID: "42", Name: "迷途人偶"} // so its page loads nothing
-	tt.Frame()
-	if err := tt.Click("迷途人偶"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if a.route != (route{page: pagePlaylist, src: "fake", id: "42"}) {
-		t.Errorf("clicked through to %+v", a.route)
-	}
-}
-
-// A search's next page loads once its foot comes into view, from where the
-// last ended, and a search done again loads from its start.
-func TestSearchLoadsMore(t *testing.T) {
-	a := newTestApp()
-	asked := fakeSearch(a)
-	r := route{page: pageSearch, src: "fake", query: "迷星叫", kind: music.SearchPlaylists}
-	a.searches[r] = &searchData{
-		res:  music.SearchResult{Playlists: []music.Playlist{{ID: "1", Name: "甲"}, {ID: "2", Name: "乙"}}, More: true},
-		page: paged{loaded: true, more: true},
-	}
-	a.open(r)
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	tt.Frame()
-	if got := wait(t, asked, "the next page"); got != (searchRequest{"迷星叫", music.SearchPlaylists, 2}) {
-		t.Fatalf("asked for %+v", got)
-	}
-
-	a.search("迷星叫")
-	if got := wait(t, asked, "the search again"); got.offset != 0 {
-		t.Errorf("searched again from %d", got.offset)
-	}
 }
 
 // A search before, from the empty field's popup, searches again, clicked
@@ -206,8 +93,8 @@ func TestSearchFieldClickFocuses(t *testing.T) {
 	}
 }
 
-// The × in the search field empties it and takes Search Results out of the
-// sidebar, leaving the results' page for Home, but not another page.
+// The × in the search field empties it, leaving the results' page for what
+// Search shows before a word is typed, but not another page.
 func TestClearSearch(t *testing.T) {
 	for _, onPage := range []bool{true, false} {
 		a := newTestApp()
@@ -227,12 +114,12 @@ func TestClearSearch(t *testing.T) {
 			t.Fatal(err)
 		}
 		tt.Frame()
-		if tt.HasText("Search Results") || a.query != "" {
-			t.Errorf("on page %v: the results stay in the sidebar, field %q", onPage, a.query)
+		if a.query != "" || a.searched.query != "" {
+			t.Errorf("on page %v: field %q, search kept %+v", onPage, a.query, a.searched)
 		}
 		want := before
 		if onPage {
-			want = route{page: pageHome, src: "fake"}
+			want = route{page: pageSearch, src: "fake"}
 		}
 		if a.route != want {
 			t.Errorf("on page %v: showing %+v, want %+v", onPage, a.route, want)
@@ -290,7 +177,7 @@ func TestSearchPopupFrames(t *testing.T) {
 			if typed {
 				tt.Type("迷跡")
 				tt.Frame()
-				runPost(t, ch)
+				until(t, ch, func() bool { return len(a.suggestions.items) > 0 })
 			}
 			tt.Advance(time.Second)
 			tt.Frame()
@@ -320,7 +207,9 @@ func TestSuggestionSearches(t *testing.T) {
 	if q := wait(t, asked, "suggestions"); q != "迷跡" {
 		t.Fatalf("suggestions for %q", q)
 	}
-	runPost(t, ch)
+	// Search's categories, opened as the field took the focus, may come
+	// first.
+	until(t, ch, func() bool { return len(a.suggestions.items) > 0 })
 	tt.Frame()
 	if err := tt.Click("迷跡波 Live"); err != nil {
 		t.Fatal(err)
@@ -409,24 +298,6 @@ func TestShowOpensPublisher(t *testing.T) {
 	if want := (route{page: pageBrowse, src: "fake", id: "user:7"}); a.route != want {
 		t.Fatalf("route %+v", a.route)
 	}
-}
-
-// The sidebar's Podcasts opens the shows the listener subscribes to, which
-// it asks of the source then.
-func TestPodcastsPageLoads(t *testing.T) {
-	asked := make(chan struct{}, 4)
-	a := newTestApp()
-	fake(a).shows = func() ([]music.Show, error) { asked <- struct{}{}; return nil, errors.New("offline") }
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("Podcasts"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if a.route.page != pageShows {
-		t.Fatalf("opened %+v", a.route)
-	}
-	wait(t, asked, "the shows")
 }
 
 // A show's card opens its page; the button on its cover plays its first
@@ -589,17 +460,6 @@ func catalogApp() *app {
 	}
 	a.shows["5"] = &showData{show: show, episodes: episodes, page: paged{loaded: true}}
 	a.subscribed, a.subscribedOnce = []music.Show{*show}, true
-	for _, res := range []struct {
-		kind music.SearchKind
-		res  music.SearchResult
-	}{
-		{music.SearchTracks, music.SearchResult{Tracks: songs}},
-		{music.SearchArtists, music.SearchResult{Artists: []music.Artist{band, {ID: "10", Name: "Ave Mujica"}}}},
-		{music.SearchAlbums, music.SearchResult{Albums: albums}},
-		{music.SearchShows, music.SearchResult{Shows: []music.Show{*show}}},
-	} {
-		a.searches[route{page: pageSearch, src: "fake", query: "MyGO", kind: res.kind}] = &searchData{res: res.res, page: paged{loaded: true}}
-	}
 	return a
 }
 
@@ -609,10 +469,6 @@ var catalogScenes = []struct {
 	r    route
 	tab  int
 }{
-	{"search-songs", route{page: pageSearch, query: "MyGO", kind: music.SearchTracks}, 0},
-	{"search-artists", route{page: pageSearch, query: "MyGO", kind: music.SearchArtists}, 0},
-	{"search-albums", route{page: pageSearch, query: "MyGO", kind: music.SearchAlbums}, 0},
-	{"search-shows", route{page: pageSearch, query: "MyGO", kind: music.SearchShows}, 0},
 	{"artist", route{page: pageArtist, id: "7"}, artistSongs},
 	{"artist-albums", route{page: pageArtist, id: "7"}, artistAlbums},
 	{"album", route{page: pageAlbum, id: "8"}, 0},
@@ -620,7 +476,7 @@ var catalogScenes = []struct {
 	{"shows", route{page: pageShows}, 0},
 }
 
-// With MM_FRAMES set, saves the pages of searches, artists, albums and shows
+// With MM_FRAMES set, saves the pages of artists, albums and shows
 // in the light and the dark.
 func TestCatalogFrames(t *testing.T) {
 	dir := os.Getenv("MM_FRAMES")
@@ -645,7 +501,7 @@ func TestCatalogFrames(t *testing.T) {
 	}
 }
 
-// The pages of searches, artists, albums and shows ask for no frames once
+// The pages of artists, albums and shows ask for no frames once
 // shown.
 func TestCatalogFrameBudget(t *testing.T) {
 	for _, s := range catalogScenes {
