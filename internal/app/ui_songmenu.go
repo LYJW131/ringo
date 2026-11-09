@@ -38,12 +38,6 @@ func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 				copyText(tr.URL)
 			}
 		}
-		if a.canDownload(tr) {
-			m.Separator()
-			if m.Item(T("Download…")).Chosen() {
-				a.download(*tr)
-			}
-		}
 		// Its artists', album's and show's pages, those the source has.
 		linked := tr.Album.ID != "" && lib.can("album") || tr.ShowID != "" && lib.can("show")
 		for _, ar := range tr.Artists {

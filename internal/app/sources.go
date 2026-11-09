@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"mygo-music/internal/i18n"
-	"mygo-music/internal/local"
 	"mygo-music/internal/music"
 )
 
@@ -150,9 +149,6 @@ func (l *library) signedOut() bool {
 
 // name is what the listener knows the source as.
 func (l *library) name() string {
-	if l.id == local.ID {
-		return T("Local Files")
-	}
 	return l.src.Info().Name
 }
 
@@ -179,12 +175,8 @@ func (a *app) trackLib(tr *music.Track) *library {
 // The others are asked once they're needed: a plugin runs from when it's first
 // asked.
 func (a *app) boot() {
-	a.keepCheckingPlugins()
 	a.startLibrary(a.library)
 	a.restoreSession()
-	if a.local != nil {
-		a.local.Rescan()
-	}
 }
 
 // startLibrary loads what the sidebar and Home show of a source, once.
@@ -204,8 +196,6 @@ func (a *app) activate(lib *library) {
 		return
 	}
 	a.library = lib
-	a.settings.Source = lib.id
-	a.settings.save()
 	a.dismissSuggestions()
 	a.accountOpen = false
 	a.startLibrary(lib)

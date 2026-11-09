@@ -1,11 +1,6 @@
 package app
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -118,66 +113,6 @@ func TestSongMenuGoesToPages(t *testing.T) {
 	}
 	if err := tt.ChooseMenuItem("Go to Album: 迷跡波"); err == nil {
 		t.Error("offered the page of an album its source has no pages of")
-	}
-	tt.CloseMenu()
-}
-
-// Downloading a song from its menu saves what its source streams where the
-// listener picks, suggesting a name of its credits that can't lead out of the
-// folder: "AC/DC" made a folder of "AC" instead.
-func TestSongMenuDownloads(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("the song"))
-	}))
-	defer srv.Close()
-	dir := t.TempDir()
-	suggested := make(chan string, 1)
-	real := saveSongAs
-	saveSongAs = func(a *app, name string) string {
-		suggested <- name
-		return filepath.Join(dir, "picked.mp3")
-	}
-	defer func() { saveSongAs = real }()
-
-	a := newTestApp()
-	ch := posts(a)
-	fake(a).stream = func(id, quality string) (*music.Stream, error) {
-		return &music.Stream{URL: srv.URL, Type: "mp3"}, nil
-	}
-	a.playlists["42"] = &music.Playlist{ID: "42", Name: "飙升榜", Tracks: []music.Track{song("1", "Back in Black", "AC/DC")}}
-	a.route = route{page: pagePlaylist, src: "fake", id: "42"}
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-
-	if err := tt.RightClick("Back in Black"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.ChooseMenuItem("Download…"); err != nil {
-		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
-	}
-	if name := wait(t, suggested, "where to save it"); name != "AC_DC - Back in Black.mp3" {
-		t.Errorf("suggested %q", name)
-	}
-	until(t, ch, func() bool { return strings.HasPrefix(a.toast, "Downloaded") })
-	if b, _ := os.ReadFile(filepath.Join(dir, "picked.mp3")); string(b) != "the song" {
-		t.Errorf("saved %q", b)
-	}
-}
-
-// A song that plays elsewhere, in its source's own app, offers no download.
-func TestSongMenuDownloadsOnlyWhatStreams(t *testing.T) {
-	a := newTestApp()
-	fake(a).info.Playback = music.PlaybackRemote
-	a.playlists["42"] = &music.Playlist{ID: "42", Name: "飙升榜", Tracks: []music.Track{song("1", "宝船", "DOUDOU")}}
-	a.route = route{page: pagePlaylist, src: "fake", id: "42"}
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-
-	if err := tt.RightClick("宝船"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.ChooseMenuItem("Download…"); err == nil {
-		t.Error("offered to download a song that plays elsewhere")
 	}
 	tt.CloseMenu()
 }

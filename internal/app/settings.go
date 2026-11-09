@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/egoist/mygo"
 
@@ -17,18 +16,6 @@ type settings struct {
 	// Language is what the app speaks: i18n.English or i18n.Chinese, or
 	// i18n.System for the system's.
 	Language string `json:"language"`
-	// Source is the ID of the source last used.
-	Source string `json:"source,omitempty"`
-	// Captions writes down episodes as they play, for their captions, on this
-	// device, once the listener has the model.
-	Captions bool `json:"captions"`
-	// DisabledPlugins are the IDs of the plugins turned off. All are on until
-	// then, the built-in one included.
-	DisabledPlugins []string `json:"disabledPlugins,omitempty"`
-	// PluginsChecked is when plugins were last checked for new versions, once a
-	// day, and PluginUpdates the versions found, by plugin.
-	PluginsChecked time.Time         `json:"pluginsChecked,omitzero"`
-	PluginUpdates  map[string]string `json:"pluginUpdates,omitempty"`
 	// Notch shows the quick player around the notch: the listener turns
 	// it on.
 	Notch bool `json:"notch"`

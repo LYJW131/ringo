@@ -7,21 +7,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/local"
 	"mygo-music/internal/music"
 )
-
-// localApp has only the built-in source, keeping its data in a directory of
-// the test's, with no folders yet.
-func localApp(t *testing.T) *app {
-	t.Helper()
-	a := newTestApp()
-	a.local = local.New(t.TempDir())
-	a.libs = nil
-	a.library = addFake(a, a.local)
-	a.route = route{page: pageHome, src: local.ID}
-	return a
-}
 
 // A source's own Home shows what it makes up, as a card's click shows: its
 // first section of tracks as the feature card, and the rest as shelves.
@@ -316,25 +303,6 @@ func TestHomeEmptyState(t *testing.T) {
 	}
 	if !a.signIn.open || a.signIn.lib != a.library {
 		t.Errorf("the dialog is %+v", a.signIn)
-	}
-}
-
-// The local files' empty Home asks for a music folder, by the dialog that tests
-// replace.
-func TestLocalEmptyHomeAddsFolder(t *testing.T) {
-	asked := 0
-	real := pickFolders
-	pickFolders = func(*app, func([]string)) { asked++ }
-	defer func() { pickFolders = real }()
-
-	a := localApp(t)
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("Add a Music Folder"); err != nil {
-		t.Fatal(err)
-	}
-	if asked != 1 {
-		t.Errorf("asked for folders %d times", asked)
 	}
 }
 

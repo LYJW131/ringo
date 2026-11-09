@@ -220,7 +220,6 @@ func (a *app) sidebar(c *ui.Context) {
 	// Where nothing in it takes the press, the sidebar moves the window, as
 	// the title bar it reaches up into would.
 	ui.Column(c).Fill().Padding(top, 14, 14, 14).Gap(4).DragWindow().Children(func() {
-		a.sourceSwitcher(c)
 		if a.can("search") {
 			a.searchField(c)
 		}
@@ -645,57 +644,4 @@ func (a *app) builtinTitle(name string) string {
 		}
 	}
 	return T(builtinPages[name].label)
-}
-
-// sourceSwitcher chooses the active source, once there is another. It takes no
-// room of its own: beside the window buttons where they sit over the sidebar, in
-// the strip they leave empty, and elsewhere just a line of text atop it. It
-// drops down a list of the sources, in the colors of the account menu, with a
-// check by the active one.
-func (a *app) sourceSwitcher(c *ui.Context) {
-	if len(a.libs) < 2 {
-		return
-	}
-	p := a.pal
-	const height = 24
-	chosen := a.library.id
-	sel := ui.SelectBase(c.Key("source"), &chosen)
-	b := sel.Trigger.Height(height).PaddingX(7).Gap(4).Radius(7).AlignItems(ui.Center).
-		FocusRing(false).Label(T("Plugin"))
-	if left := c.TitleBar().Left; left > 0 {
-		b.Absolute().Top((topBar(c) - height) / 2).Left(left + 12).MaxWidth(sidebarWidth - left - 22)
-	} else {
-		b.AlignSelf(ui.Start).Margin(0, 0, 4, -7).MaxWidth(sidebarWidth - 28)
-	}
-	color := p.muted
-	if b.Hovered() || sel.Open() {
-		b.Background(p.hover)
-		color = p.text
-	}
-	b.Children(func() {
-		ui.Text(c, a.name()).FontSize(12.5).FontWeight(600).TextColor(color).SingleLine().Shrink(1).MinWidth(0)
-		ui.Icon(c, iconUpDown).Size(11, 11).TextColor(p.faint)
-	})
-	pop := popoverColors(p.dark)
-	sel.Popup(func(panel ui.Element) {
-		panel.Margin(6, 0, 0, 0).Padding(5).Gap(1).MinWidth(180).MaxWidth(sidebarWidth+60).
-			Radius(12).Background(pop.fill).Border(0.5, pop.edge).Shadow(0, 8, 24, -4, ui.RGBA(0, 0, 0, 0.2))
-		for _, lib := range a.libs {
-			name := lib.name()
-			item := sel.Item(lib.id).Label(name).Height(30).PaddingX(8).Gap(8).Radius(7).AlignItems(ui.Center)
-			if item.Highlighted() {
-				item.Background(p.press)
-			}
-			item.Children(func() {
-				check := ui.Icon(c, iconCheck).Size(14, 14).TextColor(p.text).Shrink(0)
-				if lib != a.library {
-					check.Opacity(0)
-				}
-				ui.Text(c, name).FontSize(13).TextColor(p.text).SingleLine().Shrink(1).MinWidth(0)
-			})
-		}
-	})
-	if b.Changed() {
-		a.switchSource(chosen)
-	}
 }

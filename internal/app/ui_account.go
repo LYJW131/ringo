@@ -5,23 +5,11 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"mygo-music/internal/music"
 	"rsc.io/qr"
 )
-
-// mygoOpenFolders asks for folders of music with the native dialog.
-func mygoOpenFolders(a *app) ([]string, error) {
-	return mygo.Dialog.Open(mygo.OpenDialogOptions{
-		Title:             T("Add a Music Folder"),
-		ButtonLabel:       T("Add"),
-		Directory:         true,
-		Multiple:          true,
-		CreateDirectories: false,
-	})
-}
 
 // signInDialog is signing in to a source. The source does it its own way, in
 // the listener's browser or wherever, which can take minutes.
@@ -226,7 +214,7 @@ func (a *app) signInDialog(c *ui.Context, p palette, settings bool) {
 			text = d.err
 		case waiting && d.prompt.Text != "":
 			text = d.prompt.Text
-		case waiting && d.lib != nil && a.signInPages[d.lib.id] != nil:
+		case waiting && a.signInWin != nil:
 			text = T("Continue in the window that opened.")
 		case waiting:
 			text = T("Waiting for you to finish signing in…")
@@ -247,7 +235,7 @@ func (a *app) signInDialog(c *ui.Context, p palette, settings bool) {
 				// Its page goes too. Put away otherwise, the dialog leaves it to
 				// finish signing in on.
 				if d.lib != nil {
-					a.closeSignInPage(d.lib.id)
+					a.closeSignInPage()
 				}
 			}
 			if !waiting && pillButton(c.Key("ok"), nil, T("Sign In"), p.accent, p.onAccent).Clicked() {

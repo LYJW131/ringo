@@ -358,7 +358,6 @@ func addFake(a *app, src music.Source) *library {
 	lib := newLibrary(src)
 	lib.started, lib.accountAsked = true, true
 	a.libs = append(a.libs, lib)
-	a.allLibs = append(a.allLibs, lib)
 	return lib
 }
 

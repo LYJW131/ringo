@@ -9,7 +9,6 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/local"
 	"mygo-music/internal/lyrics"
 	"mygo-music/internal/music"
 )
@@ -28,7 +27,7 @@ func framesDir(t *testing.T) string {
 // With MM_FRAMES set, saves Home as it greets a listener with no music yet.
 func TestHomeEmptyFrame(t *testing.T) {
 	dir := framesDir(t)
-	a := localApp(t)
+	a := newTestApp()
 	tt := ui.NewTester(a.view, 1180, 780)
 	settled(tt)
 	saveFrame(t, dir, "home-empty.png", tt.Image())
@@ -173,23 +172,19 @@ func contactSheet(shots []image.Image, cols int) image.Image {
 	return out
 }
 
-// With MM_FRAMES set, saves the settings as they list the sources: the local
-// files and a plugin that asks for a couple of things.
+// With MM_FRAMES set, saves the settings' Apple Music page: the account row and
+// a setting the source asks for.
 func TestSettingsFrame(t *testing.T) {
 	dir := framesDir(t)
 	a := newTestApp()
-	a.libs = nil
-	a.local = local.New(t.TempDir())
-	addFake(a, a.local)
-	plugin := newFakeSource("radio-garden")
-	plugin.info.Name = "Example Source"
-	plugin.info.Version = "1.2.0"
-	plugin.info.Settings = []music.Setting{
+	src := fake(a)
+	src.info.Name = "Apple Music"
+	src.info.Version = "1.2.0"
+	src.info.Settings = []music.Setting{
 		{Key: "apiKey", Label: "API Key", Help: "Keys are free for personal use.", Link: "https://example.com/keys"},
 		{Key: "region", Label: "Region"},
 	}
-	plugin.vals["region"] = "Nordics"
-	a.library = addFake(a, plugin)
+	src.vals["region"] = "Nordics"
 	a.account = &music.Account{ID: "1", Name: "Alex"}
 	a.settingsPage = "plugins"
 	tt := ui.NewTester(a.settingsView, 780, 720)

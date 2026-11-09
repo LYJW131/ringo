@@ -7,28 +7,25 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
-
-	"mygo-music/internal/plugin"
 )
 
-// Plugins of services that have no way in but their website sign in on a page
-// the app shows: see plugin.WebSignIn.
+// Apple has no way in but its website: the listener signs in on a page the
+// app shows, as the source asks (signInPage).
 
 const (
 	// signInPagePoll is how often the page's cookies are looked at for those
 	// that say the listener signed in.
 	signInPagePoll = 400 * time.Millisecond
-	// signInPageFor is how long the page waits for them, as long as the
-	// plugin waits for a sign-in.
+	// signInPageFor is how long the page waits for them.
 	signInPageFor = 5 * time.Minute
 )
 
-// webSignIn shows a plugin's sign-in page in a window of its own, over the
-// one its dialog is in, in a session of its own: it sees none of the
-// listener's other sign-ins, and is forgotten once the window closes. It answers the Cookie
-// header of the address the plugin asked for once the cookies it named are
+// webSignIn shows the sign-in page in a window of its own, over the one its
+// dialog is in, in a session of its own: it sees none of the listener's other
+// sign-ins, and is forgotten once the window closes. It answers the Cookie
+// header of the address the source asked for once the cookies it named are
 // all there, and closes the window. Closing it first is giving up.
-func (a *app) webSignIn(o plugin.WebSignIn) (string, error) {
+func (a *app) webSignIn(o signInPage) (string, error) {
 	// Asked on the main thread: on Linux the first asking loads WebKitGTK and
 	// makes its default web context, and WebKit then takes the thread that did
 	// for its main one. Asked from here, the window made on the real main
@@ -57,15 +54,10 @@ func (a *app) webSignIn(o plugin.WebSignIn) (string, error) {
 	})
 	closed := make(chan struct{})
 	win.OnClosed(func() { close(closed) })
-	a.post(func() {
-		if a.signInPages == nil {
-			a.signInPages = map[string]*mygo.Window{}
-		}
-		a.signInPages[o.Plugin] = win
-	})
+	a.post(func() { a.signInWin = win })
 	defer a.post(func() {
-		if a.signInPages[o.Plugin] == win {
-			delete(a.signInPages, o.Plugin)
+		if a.signInWin == win {
+			a.signInWin = nil
 		}
 	})
 	tick := time.NewTicker(signInPagePoll)
@@ -82,7 +74,7 @@ func (a *app) webSignIn(o plugin.WebSignIn) (string, error) {
 		case <-tick.C:
 			cookies, err := session.Cookies.List(mygo.CookieFilter{URL: o.CookiesOf})
 			if err != nil {
-				log.Printf("sign-in page of %s: %v", o.Plugin, err)
+				log.Printf("sign-in page of %s: %v", o.Name, err)
 				continue
 			}
 			if header, ok := cookieHeader(cookies, o.Until); ok {
@@ -113,9 +105,9 @@ func cookieHeader(cookies []mygo.Cookie, until []string) (string, bool) {
 	return strings.Join(parts, "; "), true
 }
 
-// closeSignInPage gives up on a plugin's sign-in page, if it shows.
-func (a *app) closeSignInPage(id string) {
-	if w := a.signInPages[id]; w != nil {
-		w.Close()
+// closeSignInPage gives up on the sign-in page, if it shows.
+func (a *app) closeSignInPage() {
+	if a.signInWin != nil {
+		a.signInWin.Close()
 	}
 }

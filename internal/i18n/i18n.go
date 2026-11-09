@@ -68,6 +68,10 @@ func T(text string) string {
 		if zh, ok := zhCN[text]; ok {
 			return zh
 		}
+		return text
+	}
+	if en, ok := reworded[text]; ok {
+		return en
 	}
 	return text
 }

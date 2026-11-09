@@ -3,12 +3,6 @@ package app
 import (
 	"errors"
 	"fmt"
-	"mygo-music/internal/plugin"
-	"net/url"
-	"os"
-	"path/filepath"
-	"slices"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -27,72 +21,14 @@ func addOther(a *app) (*fakeSource, *library) {
 	return other, addFake(a, other)
 }
 
-// chooseSource chooses a source with the sidebar's switcher.
-func chooseSource(t *testing.T, tt *ui.Tester, name string) {
-	t.Helper()
-	if err := tt.Click("Plugin"); err != nil {
-		t.Fatal(err)
-	}
+// chooseSource goes to a source by id, as switching does.
+func chooseSource(a *app, tt *ui.Tester, id string) {
+	a.switchSource(id)
 	tt.Frame()
-	if err := tt.Click(name); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-}
-
-// The sidebar's switcher only shows once there's another source to choose.
-func TestSwitcherNeedsAnotherSource(t *testing.T) {
-	a := newTestApp()
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if _, ok := tt.Find("Plugin"); ok {
-		t.Error("a switcher with nothing to switch to")
-	}
-	addOther(a)
-	tt.Frame()
-	if _, ok := tt.Find("Plugin"); !ok {
-		t.Error("no switcher with two sources")
-	}
-}
-
-// The switcher's dropdown is driven by keys too: Escape closes it on the
-// source it was on, and Down then Enter switches to the next one.
-func TestSwitchSourceWithKeys(t *testing.T) {
-	a := newTestApp()
-	_, lib := addOther(a)
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-
-	if err := tt.Click("Plugin"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if _, ok := tt.Find("Other"); !ok {
-		t.Fatal("the dropdown didn't open")
-	}
-	tt.Key(0, ui.KeyDown)
-	tt.Key(0, ui.KeyEscape)
-	tt.Frame()
-	if _, ok := tt.Find("Other"); ok || a.library == lib {
-		t.Fatalf("Escape: open %v, active %q", ok, a.library.id)
-	}
-
-	tt.Key(0, ui.KeyDown)
-	tt.Frame()
-	tt.Key(0, ui.KeyDown)
-	tt.Frame()
-	tt.Key(0, ui.KeyEnter)
-	tt.Frame()
-	if a.library != lib || a.settings.Source != "other" {
-		t.Fatalf("active %q, remembered %q", a.library.id, a.settings.Source)
-	}
-	if _, ok := tt.Find("fake"); ok {
-		t.Error("the dropdown stayed open")
-	}
 }
 
 // Choosing another source makes it active and shows its Home and its playlists,
-// which it's asked for the first time then, and remembers it; back returns to
+// which it's asked for the first time then; back returns to
 // the page of the source before, which is active again.
 func TestSwitchSource(t *testing.T) {
 	a := newTestApp()
@@ -113,9 +49,9 @@ func TestSwitchSource(t *testing.T) {
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 
-	chooseSource(t, tt, "Other")
-	if a.library != lib || a.route != (route{page: pageHome, src: "other"}) || a.settings.Source != "other" {
-		t.Fatalf("active %q on %+v, remembered %q", a.library.id, a.route, a.settings.Source)
+	chooseSource(a, tt, "other")
+	if a.library != lib || a.route != (route{page: pageHome, src: "other"}) {
+		t.Fatalf("active %q on %+v", a.library.id, a.route)
 	}
 	until(t, ch, func() bool { return len(lib.mine) > 0 && lib.home != nil })
 	tt.Frame()
@@ -131,8 +67,8 @@ func TestSwitchSource(t *testing.T) {
 
 	tt.Key(0, ui.KeyBack)
 	tt.Frame()
-	if a.library != a.libs[0] || a.route != list || a.settings.Source != "fake" {
-		t.Fatalf("back: active %q on %+v, remembered %q", a.library.id, a.route, a.settings.Source)
+	if a.library != a.libs[0] || a.route != list {
+		t.Fatalf("back: active %q on %+v", a.library.id, a.route)
 	}
 	if _, ok := tt.Find("My list"); !ok {
 		t.Error("its playlist didn't come back to the sidebar")
@@ -172,7 +108,7 @@ func TestAnswerLandsInItsOwnLibrary(t *testing.T) {
 	tt.Frame()
 	wait(t, asked, "the playlist")
 
-	chooseSource(t, tt, "Other")
+	chooseSource(a, tt, "other")
 	runPost(t, ch)
 	tt.Frame()
 	if first.playlists["7"] == nil || lib.playlists["7"] != nil {
@@ -708,25 +644,6 @@ func TestSignInFromSettingsAsksThere(t *testing.T) {
 	}
 }
 
-// The settings ask a source not yet used who is signed in, and offer to sign
-// out of it. They used to offer Sign In, as it hadn't been asked yet.
-func TestSettingsAskAnUnusedSourceItsAccount(t *testing.T) {
-	a := newTestApp()
-	ch := posts(a)
-	other := newFakeSource("other")
-	other.account = func() (*music.Account, error) { return &music.Account{ID: "1", Name: "小明"}, nil }
-	lib := addFake(a, other)
-	lib.started, lib.accountAsked = false, false
-	a.settingsPage = "plugins"
-	settings := ui.NewTester(a.settingsView, 780, 1000)
-	settings.Frame()
-	until(t, ch, func() bool { return lib.account != nil })
-	settled(settings)
-	if _, ok := settings.Find("Sign Out"); !ok {
-		t.Errorf("doesn't offer to sign out: %q", settings.Texts())
-	}
-}
-
 // A sign-in that fails says why in its dialog, ready to try again.
 func TestSignInFails(t *testing.T) {
 	a := newTestApp()
@@ -845,7 +762,7 @@ func TestSourceShowsAsItselfAtOnce(t *testing.T) {
 		return &music.Account{ID: "1", Name: "小明"}, nil
 	}
 	lib := newLibrary(f)
-	a.libs, a.allLibs, a.library = []*library{lib}, []*library{lib}, lib
+	a.libs, a.library = []*library{lib}, lib
 	a.route = route{page: pageHome, src: lib.id}
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -968,58 +885,6 @@ func TestSetLanguage(t *testing.T) {
 	if _, ok := tt.Find("Liked Songs"); !ok {
 		t.Errorf("English didn't come back: %q", tt.Texts())
 	}
-}
-
-// A plugin asking to start programs may not until the listener allows it in the
-// settings, and the same button takes that back.
-func TestSettingsAllowPrograms(t *testing.T) {
-	a := newTestApp()
-	ch := posts(a)
-	src := &guardedSource{fakeSource: newFakeSource("guarded")}
-	src.perms.Process = plugin.Programs{"*"}
-	src.perms.Network = []string{"api.example.com"}
-	addFake(a, src)
-
-	a.settingsPage = "plugins"
-	settings := ui.NewTester(a.settingsView, 760, 1400)
-	settings.Frame()
-	if err := settings.Click("Allow Programs"); err != nil {
-		t.Fatal(err)
-	}
-	runPost(t, ch)
-	if !src.Granted() {
-		t.Fatal("not allowed after allowing")
-	}
-	settings.Frame()
-	if err := settings.Click("Stop Allowing"); err != nil {
-		t.Fatal(err)
-	}
-	// The source loading again after it was allowed posts too, and can come
-	// before the plugin is told to stop.
-	until(t, ch, func() bool { return !src.Granted() })
-}
-
-// guardedSource is a fake source with permissions, as a plugin has.
-type guardedSource struct {
-	*fakeSource
-	perms   plugin.Permissions
-	mu      sync.Mutex
-	granted bool
-}
-
-func (s *guardedSource) Permissions() plugin.Permissions { return s.perms }
-
-func (s *guardedSource) Granted() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.granted
-}
-
-func (s *guardedSource) Grant(on bool) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.granted = on
-	return nil
 }
 
 // A source's QR code and what it says show while signing in, and go with it.
@@ -1183,7 +1048,7 @@ func TestSettingsFoundControlWorks(t *testing.T) {
 	was := a.settings.Normalize
 	// The row's title is labelled as its switch is: click the switch, at its end.
 	top, ok1 := tt.Find("Even Out Loudness")
-	bottom, ok2 := tt.Find("Adjust each song's volume by what its plugin measured of it, for them to sound as loud as each other")
+	bottom, ok2 := tt.Find("Adjust each song's volume by how loud it was measured to be, for them to sound as loud as each other")
 	if !ok1 || !ok2 {
 		t.Fatalf("not found: %q", tt.Texts())
 	}
@@ -1192,394 +1057,4 @@ func TestSettingsFoundControlWorks(t *testing.T) {
 	if a.settings.Normalize == was {
 		t.Error("the switch did nothing")
 	}
-}
-
-// Turning the plugin that shows off moves to the next one on, and it's gone from
-// what songs can play through; the last one on can't be turned off; and it's kept.
-func TestTurnPluginOff(t *testing.T) {
-	a := newTestApp()
-	_, other := addOther(a)
-	first := a.libs[0]
-	a.switchSource(other.id)
-	settings := func() *ui.Tester {
-		a.settingsPage = "plugins"
-		tt := ui.NewTester(a.settingsView, 780, 1400)
-		tt.Frame()
-		return tt
-	}
-	tt := settings()
-	if err := tt.Click("Enable " + other.name()); err != nil {
-		t.Fatal(err)
-	}
-	if a.library != first {
-		t.Fatalf("still on %s", a.library.id)
-	}
-	if a.sourceByID(other.id) != nil {
-		t.Error("its songs can still play")
-	}
-	if !slices.Contains(a.settings.DisabledPlugins, other.id) {
-		t.Error("not kept")
-	}
-
-	a.setPluginEnabled(first, false)
-	if len(a.libs) != 1 || a.libs[0] != first {
-		t.Fatalf("turned the last one off: %d left", len(a.libs))
-	}
-
-	a.setPluginEnabled(other, true)
-	if a.sourceByID(other.id) == nil || slices.Contains(a.settings.DisabledPlugins, other.id) {
-		t.Error("didn't come back on")
-	}
-}
-
-// From GitHub… in the plugins' + menu asks for a repository: something that's
-// no repository asks again, without going to GitHub; a repository goes, and what
-// comes back that's wrong shows, ready to try again.
-func TestInstallPluginFromSettings(t *testing.T) {
-	asked := make(chan string, 1)
-	was := fetchPlugin
-	defer func() { fetchPlugin = was }()
-	fetchPlugin = func(repo, dir string) (*plugin.Pending, error) {
-		asked <- repo
-		return nil, plugin.ErrNoRepo
-	}
-	a := newTestApp()
-	ch := posts(a)
-	a.settingsPage = "plugins"
-	tt := ui.NewTester(a.settingsView, 780, 1000)
-	tt.Frame()
-	if err := tt.Click("Install a Plugin"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.ChooseMenuItem("From GitHub…"); err != nil {
-		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
-	}
-	tt.Frame()
-
-	a.installer.repo = "not a repo"
-	tt.Frame()
-	if err := tt.Click("Install"); err != nil {
-		t.Fatal(err)
-	}
-	if len(asked) != 0 || a.installer.err == "" {
-		t.Fatalf("asked %d, says %q", len(asked), a.installer.err)
-	}
-
-	a.installer.repo = "https://github.com/owner/repo"
-	tt.Frame()
-	if err := tt.Click("Install"); err != nil {
-		t.Fatal(err)
-	}
-	if got := wait(t, asked, "the download"); got != "owner/repo" {
-		t.Fatalf("asked for %q", got)
-	}
-	runPost(t, ch)
-	if a.installer.busy || a.installer.err != T("There's no such public repository on GitHub") {
-		t.Errorf("busy %v, says %q", a.installer.busy, a.installer.err)
-	}
-}
-
-// A link to install a plugin shows the plugins' settings and downloads it from
-// the repository it names, to ask about there, installing nothing by itself;
-// links to anything else do nothing.
-func TestInstallPluginFromLink(t *testing.T) {
-	asked := make(chan string, 1)
-	was := fetchPlugin
-	defer func() { fetchPlugin = was }()
-	fetchPlugin = func(repo, dir string) (*plugin.Pending, error) {
-		asked <- repo
-		return &plugin.Pending{Release: plugin.Release{Repo: repo}, Manifest: plugin.Manifest{ID: "linked", Name: "Linked"}}, nil
-	}
-	a := newTestApp()
-	ch := posts(a)
-	libs := len(a.allLibs)
-
-	for _, link := range []string{linkScheme + "://settings", linkScheme + "://install-plugin", "https://example.com/install-plugin?repo=owner/repo"} {
-		a.openLink(link)
-	}
-	if len(asked) != 0 || a.settingsPage == "plugins" {
-		t.Fatalf("acted on a link that isn't to install one: asked %d, on %q", len(asked), a.settingsPage)
-	}
-
-	a.openLink(linkScheme + "://install-plugin?repo=" + url.QueryEscape("https://github.com/owner/repo/tree/main"))
-	if got := wait(t, asked, "the download"); got != "owner/repo" {
-		t.Fatalf("asked for %q", got)
-	}
-	if a.settingsPage != "plugins" {
-		t.Errorf("shows the settings' %q", a.settingsPage)
-	}
-	runPost(t, ch)
-	if !a.installer.open || a.installer.pending == nil || a.installer.pending.Manifest.ID != "linked" {
-		t.Fatalf("asks about %v", a.installer.pending)
-	}
-	if len(a.allLibs) != libs {
-		t.Error("installed it without asking")
-	}
-}
-
-// Picking a plugin's folder from the plugins' + menu copies it in and asks about
-// it, as one from GitHub is asked about, until it's turned down; a zip that's no
-// zip says so.
-func TestInstallPluginFromDisk(t *testing.T) {
-	src := t.TempDir()
-	os.WriteFile(filepath.Join(src, "plugin.json"), []byte(`{"id":"disk","name":"Disk"}`), 0o644)
-	os.WriteFile(filepath.Join(src, "index.js"), []byte(""), 0o644)
-	notZip := filepath.Join(src, "index.js")
-	plugins := t.TempDir()
-	wasPick, wasOpen := pickPlugin, openPlugin
-	defer func() { pickPlugin, openPlugin = wasPick, wasOpen }()
-	pickPlugin = func(a *app, folder bool, got func(string)) {
-		if folder {
-			got(src)
-		} else {
-			got(notZip)
-		}
-	}
-	openPlugin = func(path, _ string) (*plugin.Pending, error) { return plugin.Open(path, plugins) }
-	a := newTestApp()
-	ch := posts(a)
-	a.settingsPage = "plugins"
-	tt := ui.NewTester(a.settingsView, 780, 1000)
-	tt.Frame()
-
-	choose := func(item string) {
-		t.Helper()
-		if err := tt.Click("Install a Plugin"); err != nil {
-			t.Fatal(err)
-		}
-		if err := tt.ChooseMenuItem(item); err != nil {
-			t.Fatalf("%v; the menu shows %q", err, tt.Menu())
-		}
-	}
-	choose("From a Folder…")
-	runPost(t, ch)
-	tt.Frame()
-	if a.installer.pending == nil || a.installer.err != "" {
-		t.Fatalf("asks about nothing, and says %q", a.installer.err)
-	}
-	if err := tt.Click(T("Cancel")); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if a.installer.pending != nil {
-		t.Error("still asks about it")
-	}
-
-	settled(tt)
-	choose("From a Zip…")
-	runPost(t, ch)
-	if a.installer.pending != nil || a.installer.err == "" || a.installer.busy {
-		t.Errorf("pending %v, busy %v, says %q", a.installer.pending, a.installer.busy, a.installer.err)
-	}
-}
-
-// Any plugin can be removed from its menu in the plugins' settings, from this
-// computer too, once the listener says so: it's gone from the sources and its
-// folder goes to the Trash. Saying no leaves it.
-func TestRemovePluginFromSettings(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "disk")
-	os.MkdirAll(dir, 0o755)
-	os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(`{"id":"disk","name":"Disk"}`), 0o644)
-	os.WriteFile(filepath.Join(dir, "index.js"), []byte(""), 0o644)
-	p, err := plugin.Load(dir, t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	trashed := make(chan string, 1)
-	answer := false
-	wasConfirm, wasTrash := confirmRemovePlugin, trashItem
-	defer func() { confirmRemovePlugin, trashItem = wasConfirm, wasTrash }()
-	confirmRemovePlugin = func(a *app, name string, yes func()) {
-		if answer {
-			yes()
-		}
-	}
-	trashItem = func(path string) error { trashed <- path; return nil }
-	a := newTestApp()
-	lib := addFake(a, p)
-	a.plugins = append(a.plugins, p)
-	a.settingsPage = "plugins"
-	tt := ui.NewTester(a.settingsView, 780, 1400)
-	tt.Frame()
-
-	remove := func() {
-		t.Helper()
-		if err := tt.Click("More for Disk"); err != nil {
-			t.Fatal(err)
-		}
-		if err := tt.ChooseMenuItem("Remove…"); err != nil {
-			t.Fatalf("%v; the menu shows %q", err, tt.Menu())
-		}
-		tt.Frame()
-	}
-	remove()
-	if !slices.Contains(a.allLibs, lib) {
-		t.Fatal("removed though the listener said no")
-	}
-	answer = true
-	remove()
-	if slices.Contains(a.allLibs, lib) || slices.Contains(a.libs, lib) || slices.Contains(a.plugins, p) {
-		t.Error("still a source")
-	}
-	if got := wait(t, trashed, "the folder going to the Trash"); got != dir {
-		t.Errorf("trashed %q", got)
-	}
-}
-
-// A new version asking for more than the old had has to ask again.
-func TestUpdateAsksForMore(t *testing.T) {
-	had := plugin.Permissions{Network: []string{"a.example.com"}}
-	for _, c := range []struct {
-		wants plugin.Permissions
-		more  bool
-	}{
-		{plugin.Permissions{Network: []string{"a.example.com"}}, false},
-		{plugin.Permissions{}, false},
-		{plugin.Permissions{Network: []string{"b.example.com"}}, true},
-		{plugin.Permissions{Network: []string{"*"}}, true},
-		{plugin.Permissions{Process: plugin.Programs{"ffmpeg"}}, true},
-	} {
-		if got := asksForMore(had, c.wants); got != c.more {
-			t.Errorf("%+v: %v", c.wants, got)
-		}
-	}
-	if asksForMore(plugin.Permissions{Network: []string{"*"}}, had) {
-		t.Error("any website already covers one")
-	}
-	// Another program is more, even with the one it had; any program covers it.
-	ffmpeg := plugin.Permissions{Process: plugin.Programs{"ffmpeg"}}
-	if !asksForMore(ffmpeg, plugin.Permissions{Process: plugin.Programs{"ffmpeg", "bin/helper"}}) {
-		t.Error("another program wasn't asked about")
-	}
-	if asksForMore(plugin.Permissions{Process: plugin.Programs{"*"}}, ffmpeg) {
-		t.Error("any program already covers one")
-	}
-}
-
-// Checking a plugin for updates from its menu asks GitHub even though the
-// daily check just did: with nothing new it's up to date, and a new version
-// shows its Update button.
-func TestCheckPluginUpdateNow(t *testing.T) {
-	latest := "v0.1.0"
-	was := latestPlugin
-	defer func() { latestPlugin = was }()
-	latestPlugin = func(repo string) (*plugin.Release, error) {
-		return &plugin.Release{Repo: repo, Version: latest}, nil
-	}
-	a := newTestApp()
-	ch := posts(a)
-	addFake(a, githubPlugin(t))
-	a.settings.PluginsChecked = time.Now()
-	a.settingsPage = "plugins"
-	tt := ui.NewTester(a.settingsView, 780, 1000)
-	tt.Frame()
-
-	check := func() {
-		t.Helper()
-		if err := tt.Click("More for GH"); err != nil {
-			t.Fatal(err)
-		}
-		if err := tt.ChooseMenuItem("Check for Updates"); err != nil {
-			t.Fatalf("%v; the menu shows %q", err, tt.Menu())
-		}
-		runPost(t, ch)
-		tt.Frame()
-	}
-	check()
-	if a.installer.checked["gh"] != upToDate || len(a.settings.PluginUpdates) != 0 {
-		t.Errorf("checked %v, found %v", a.installer.checked, a.settings.PluginUpdates)
-	}
-	latest = "v0.2.0"
-	check()
-	if _, ok := tt.Find("Update to v0.2.0"); !ok {
-		t.Errorf("no update: %q", tt.Texts())
-	}
-	settled(tt)
-}
-
-// Updating a plugin installs the version its check found without asking GitHub
-// what's there again, as each ask counts against its limit; once the app has
-// opened again and it's forgotten what was found, it asks.
-func TestUpdatePluginReusesCheck(t *testing.T) {
-	asked := 0
-	wasLatest, wasFetch, wasRelease := latestPlugin, fetchPlugin, fetchRelease
-	defer func() { latestPlugin, fetchPlugin, fetchRelease = wasLatest, wasFetch, wasRelease }()
-	latestPlugin = func(repo string) (*plugin.Release, error) {
-		asked++
-		return &plugin.Release{Repo: repo, Version: "v0.2.0"}, nil
-	}
-	fetched := make(chan string, 1)
-	fetchRelease = func(rel *plugin.Release, dir string) (*plugin.Pending, error) {
-		fetched <- "release " + rel.Version
-		return nil, errors.New("offline")
-	}
-	fetchPlugin = func(repo, dir string) (*plugin.Pending, error) {
-		fetched <- "latest of " + repo
-		return nil, errors.New("offline")
-	}
-	a := newTestApp()
-	ch := posts(a)
-	addFake(a, githubPlugin(t))
-	a.settingsPage = "plugins"
-	tt := ui.NewTester(a.settingsView, 780, 1000)
-	tt.Frame()
-	if err := tt.Click("More for GH"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.ChooseMenuItem("Check for Updates"); err != nil {
-		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
-	}
-	runPost(t, ch)
-	tt.Frame()
-
-	update := func() string {
-		t.Helper()
-		if err := tt.Click("Update to v0.2.0"); err != nil {
-			t.Fatalf("%v; shows %q", err, tt.Texts())
-		}
-		got := wait(t, fetched, "the download")
-		runPost(t, ch)
-		tt.Frame()
-		return got
-	}
-	if got := update(); got != "release v0.2.0" || asked != 1 {
-		t.Errorf("updating fetched the %s, asking GitHub %d times", got, asked)
-	}
-	a.installer.found = nil
-	if got := update(); got != "latest of o/gh" {
-		t.Errorf("after opening again, updating fetched the %s", got)
-	}
-	settled(tt)
-}
-
-// githubPlugin is a plugin installed from o/gh at v0.1.0.
-func githubPlugin(t *testing.T) *plugin.Plugin {
-	t.Helper()
-	dir := filepath.Join(t.TempDir(), "gh")
-	os.MkdirAll(dir, 0o755)
-	os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(`{"id":"gh","name":"GH"}`), 0o644)
-	os.WriteFile(filepath.Join(dir, "index.js"), []byte(""), 0o644)
-	os.WriteFile(filepath.Join(dir, ".origin.json"), []byte(`{"repo":"o/gh","version":"v0.1.0"}`), 0o644)
-	p, err := plugin.Load(dir, t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-
-// Clicking where a plugin came from in its settings opens its repository on
-// GitHub.
-func TestPluginRepoOpensGitHub(t *testing.T) {
-	a := newTestApp()
-	addFake(a, githubPlugin(t))
-	a.settingsPage = "plugins"
-	tt := ui.NewTester(a.settingsView, 780, 1000)
-	tt.Frame()
-	if err := tt.Click("o/gh"); err != nil {
-		t.Fatal(err)
-	}
-	if got := tt.OpenedURLs(); len(got) != 1 || got[0] != "https://github.com/o/gh" {
-		t.Errorf("opened %q", got)
-	}
-	settled(tt)
 }

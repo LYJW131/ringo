@@ -414,14 +414,6 @@ func halveTo(img image.Image, px int) image.Image {
 	return img
 }
 
-func fetchImage(url string) (image.Image, error) {
-	b, err := music.Fetch(url)
-	if err != nil {
-		return nil, err
-	}
-	return decodeImage(b)
-}
-
 func decodeImage(b []byte) (image.Image, error) {
 	img, _, err := image.Decode(bytes.NewReader(stillCover(b)))
 	return img, err

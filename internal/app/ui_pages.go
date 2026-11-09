@@ -8,7 +8,6 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mygo-music/internal/i18n"
-	"mygo-music/internal/local"
 	"mygo-music/internal/music"
 	"mygo-music/internal/player"
 )
@@ -96,26 +95,6 @@ func (a *app) homePage(c *ui.Context) {
 	})
 }
 
-// pickFolders asks the listener for folders with a native dialog, on a
-// goroutine, for it blocks; tests replace it.
-var pickFolders = func(a *app, got func([]string)) {
-	go func() {
-		paths, err := mygoOpenFolders(a)
-		if err == nil && len(paths) > 0 {
-			a.post(func() { got(paths) })
-		}
-	}()
-}
-
-// addMusicFolder asks for folders of music and starts looking through them.
-func (a *app) addMusicFolder() {
-	pickFolders(a, func(paths []string) {
-		if a.local != nil {
-			a.local.AddFolders(paths...)
-		}
-	})
-}
-
 // emptyHome invites the listener to do what gets the source going.
 func (a *app) emptyHome(c *ui.Context) {
 	p := a.pal
@@ -123,26 +102,9 @@ func (a *app) emptyHome(c *ui.Context) {
 	top, bottom := a.insets(c)
 	ui.Column(c.Key("empty-home")).Grow(1).Padding(top, 40, bottom, 40).Center().Gap(10).Children(func() {
 		ui.Box(c).Size(72, 72).Radius(20).Center().Background(p.hover).Margin(0, 0, 8, 0).Children(func() {
-			icon := iconNote
-			if lib.id == local.ID {
-				icon = iconFolder
-			}
-			ui.Icon(c, icon).Size(32, 32).TextColor(p.muted)
+			ui.Icon(c, iconNote).Size(32, 32).TextColor(p.muted)
 		})
 		switch {
-		case lib.id == local.ID && a.local != nil && a.local.Scanning():
-			ui.Text(c, T("Looking for music…")).FontSize(22).FontWeight(700).LetterSpacing(-0.3)
-			ui.Text(c, T("Songs will show here as they're found.")).FontSize(13.5).TextColor(p.muted).TextAlign(ui.Center)
-		case lib.id == local.ID:
-			title, sub := T("Add a music folder"), T("Choose where your music lives, and it will all be here: MP3, FLAC, Ogg, WAV and M4A files, with their tags, covers and lyrics.")
-			if a.local != nil && len(a.local.Folders()) > 0 {
-				title, sub = T("No music found"), T("There are no music files in the folders you chose. Try another.")
-			}
-			ui.Text(c, title).FontSize(22).FontWeight(700).LetterSpacing(-0.3)
-			ui.Text(c, sub).FontSize(13.5).TextColor(p.muted).TextAlign(ui.Center).MaxWidth(420).LineHeight(1.45)
-			if pillButton(c.Key("add-folder"), iconPlus, T("Add a Music Folder"), p.accent, p.onAccent).Margin(10, 0, 0, 0).Clicked() {
-				a.addMusicFolder()
-			}
 		case lib.signedOut():
 			ui.Text(c, Tf("Sign in to %s", lib.name())).FontSize(22).FontWeight(700).LetterSpacing(-0.3)
 			if pillButton(c.Key("sign-in"), iconUser, T("Sign In"), p.accent, p.onAccent).Margin(10, 0, 0, 0).Clicked() {

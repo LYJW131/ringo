@@ -1,22 +1,18 @@
 package app
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
-	"slices"
 	"sync/atomic"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"mygo-music/internal/i18n"
-	"mygo-music/internal/local"
 	"mygo-music/internal/music"
 	"mygo-music/internal/player"
-	"mygo-music/internal/plugin"
 )
 
 type pageKind int
@@ -60,23 +56,13 @@ type app struct {
 	pl    *player.Player
 	pal   palette
 
-	// libs are the sources, the built-in one first, and what the app has of
-	// each. The active one's is embedded: a.mine is what the active source
-	// lists, and what comes back from a goroutine goes to the library it asked.
+	// libs are the sources, of which the app has one, Apple Music, and what
+	// it has of each. The active one's is embedded: a.mine is what it lists.
+	// What comes back from a goroutine goes to the library it asked.
 	libs []*library
 	*library
-	local   *local.Source // the built-in source, nil in tests that have none
-	plugins []*plugin.Plugin
-	headers *headerPlugins // the plugins on, for the headers of their pictures
-	allLibs []*library     // every plugin, on or off; libs are those on
 
 	wasBehind bool // the window wasn't at the front as last built
-
-	captions  captionState    // the episode playing's captions, and the model they take
-	installer pluginInstaller // installing and updating plugins
-	// links are the app's links opened before its window was made, macOS
-	// handing over the one it was started with first.
-	links []string
 
 	route   route
 	history []route
@@ -84,12 +70,12 @@ type app struct {
 
 	accountOpen bool         // the dropdown of the account row shows
 	signIn      signInDialog // signing in to a source
-	// signInPages are the windows of plugins' sign-in pages showing, by
-	// plugin. Main thread only.
-	signInPages map[string]*mygo.Window
-	// signInOver is the window the sign-in dialog is in, for a sign-in page
+	// signInWin is the window of Apple's sign-in page, while it shows. Main
+	// thread only.
+	signInWin *mygo.Window
+	// signInOver is the window the sign-in dialog is in, for the sign-in page
 	// to open over: the settings window's, if asked there. Set on the main
-	// thread, read on the plugin's.
+	// thread, read on the source's.
 	signInOver  *atomic.Pointer[mygo.Window]
 	naming      nameDialog         // the name of a playlist asked for
 	deleting    deleteDialog       // whether to delete a playlist, asked
@@ -218,89 +204,17 @@ func (a *app) showMain() {
 func userDataDir(sub string) string {
 	dir, err := mygo.App.Path(mygo.PathUserData)
 	if err != nil {
-		dir = filepath.Join(os.TempDir(), "mygo-music")
+		dir = filepath.Join(os.TempDir(), "ringo")
 	}
 	return filepath.Join(dir, sub)
 }
 
-// makeSources makes the built-in source and those of the plugins dropped in,
-// none of them started yet, and makes active the one last used, if it's there.
+// makeSources makes the app's source, not started yet.
 func (a *app) makeSources() {
-	a.local = local.New(userDataDir("local"))
-	builtIn := newLibrary(a.local)
-	a.allLibs = []*library{builtIn}
-	plugin.SetOpenURL(mygo.Shell.OpenExternal)
-	plugin.SetAppVersion(mygo.App.Version())
-	plugin.SetWebSignIn(a.webSignIn)
-	a.plugins = plugin.Discover(pluginsDir(), userDataDir("plugin-data"))
-	a.headers = &headerPlugins{}
-	music.ImageHeaders = a.headers.image
-	for _, p := range a.plugins {
-		lib := newLibrary(p)
-		if !slices.ContainsFunc(a.allLibs, func(l *library) bool { return l.id == lib.id }) {
-			a.allLibs = append(a.allLibs, lib)
-		}
-	}
-	a.enabledChanged()
-	a.library = a.libs[0]
-	if lib := a.libOf(a.settings.Source); lib != nil {
-		a.library = lib
-	}
+	a.library = newLibrary(a.newSource())
+	a.libs = []*library{a.library}
 	a.route = route{page: pageHome, src: a.library.id}
-	a.local.OnChange(func() {
-		a.post(func() { a.libraryChanged(builtIn) })
-	})
 }
-
-// enabledChanged lists the plugins that are on. There's always one: with all of
-// them off in the settings, as by hand, it's the built-in one.
-func (a *app) enabledChanged() {
-	a.libs = nil
-	for _, lib := range a.allLibs {
-		if !slices.Contains(a.settings.DisabledPlugins, lib.id) {
-			a.libs = append(a.libs, lib)
-		}
-	}
-	if len(a.libs) == 0 && len(a.allLibs) > 0 {
-		a.libs = a.allLibs[:1]
-	}
-	if a.headers != nil {
-		var on []*plugin.Plugin
-		for _, lib := range a.libs {
-			if p := pluginOf(lib); p != nil {
-				on = append(on, p)
-			}
-		}
-		a.headers.set(on)
-	}
-}
-
-// setPluginEnabled turns a plugin on or off. Off, it stops, its pages go, and if
-// it's the one showing, the first one on takes over; its songs still queued say
-// they're gone. The last one on can't go.
-func (a *app) setPluginEnabled(lib *library, on bool) {
-	disabled := slices.DeleteFunc(slices.Clone(a.settings.DisabledPlugins), func(id string) bool { return id == lib.id })
-	if !on {
-		if len(a.libs) == 1 && a.libs[0] == lib {
-			return
-		}
-		disabled = append(disabled, lib.id)
-	}
-	a.settings.DisabledPlugins = disabled
-	a.enabledChanged()
-	if !on {
-		if a.library == lib {
-			a.switchSource(a.libs[0].id)
-		}
-		if closer, ok := lib.src.(interface{ Close() }); ok {
-			go closer.Close()
-		}
-	}
-	a.changed()
-}
-
-// pluginsDir is where plugins are dropped in.
-func pluginsDir() string { return userDataDir("plugins") }
 
 // sourceByID finds the source a track says it's of, for the player.
 func (a *app) sourceByID(id string) music.Source {
@@ -310,10 +224,12 @@ func (a *app) sourceByID(id string) music.Source {
 	return nil
 }
 
-// closeSources stops the plugins, which end with the app.
+// closeSources stops what the source has running, which ends with the app.
 func (a *app) closeSources() {
-	for _, p := range a.plugins {
-		p.Close()
+	for _, lib := range a.libs {
+		if closer, ok := lib.src.(interface{ Close() }); ok {
+			closer.Close()
+		}
 	}
 }
 
@@ -349,10 +265,7 @@ func Run() error {
 		a.pl.Quality = func() string { return a.settings.Quality }
 		a.pl.Normalize = func() bool { return a.settings.Normalize }
 		a.pl.Cache = newSongCache(a.settings.CacheMB)
-		a.pl.Changed = func() {
-			a.keepSession()
-			a.syncCaptions()
-		}
+		a.pl.Changed = a.keepSession
 		a.volume = a.settings.Volume
 		a.pl.SetVolume(a.volume)
 		a.win = mygo.NewWindow(mygo.WindowOptions{
@@ -391,10 +304,6 @@ func Run() error {
 		// Shown or switched to a while after, it shows what's new.
 		a.win.OnFocus(a.freshenHome)
 		a.applyTray()
-		for _, link := range a.links {
-			a.openLink(link)
-		}
-		a.links = nil
 		if shotHook != nil {
 			shotHook(a)
 		}
@@ -430,19 +339,5 @@ func Run() error {
 	mygo.App.OnWindowAllClosed(func() {})
 	mygo.App.OnActivate(func(bool) { a.showMain() })
 	mygo.App.OnSecondInstance(func([]string, string) { a.showMain() })
-	// The installed app's scheme is registered as it's installed; the
-	// development app, which isn't, registers its own every time it starts.
-	if mygo.IsDev() {
-		if err := mygo.App.RegisterURLScheme(linkScheme); err != nil {
-			log.Printf("registering %s links: %v", linkScheme, err)
-		}
-	}
-	mygo.App.OnOpenURL(func(link string) {
-		if a.win == nil {
-			a.links = append(a.links, link)
-			return
-		}
-		a.openLink(link)
-	})
 	return mygo.App.Run()
 }

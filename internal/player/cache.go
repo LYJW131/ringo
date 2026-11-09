@@ -46,6 +46,9 @@ func cacheKey(source, id, quality string) string {
 	return hex.EncodeToString(sum[:16]) + "-" + quality
 }
 
+// songTypes are the types of song the app knows, which name their files.
+var songTypes = []string{"mp3", "flac", "ogg", "wav", "m4a", "aac"}
+
 // keepable reports whether a song of quality and type ext may be kept: they
 // name its file, so only those known, which keep it in the cache's folder.
 func keepable(quality, ext string) bool {

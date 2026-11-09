@@ -1,5 +1,7 @@
 /build/
 /.mygo/
 mygo_windows_*.syso
-/mygo-music
+/ringo
 /node_modules/
+# The Apple Music plugin, fetched by go run ./scripts/plugin
+/resources/*/apple-music.zip
