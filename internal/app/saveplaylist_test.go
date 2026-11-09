@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -14,57 +13,14 @@ type saveCall struct {
 	save bool
 }
 
-// Clicking Save on someone else's playlist saves it with the source, and
-// lists it first among the sidebar's saved playlists at once.
-func TestSavePlaylist(t *testing.T) {
-	calls := make(chan saveCall, 1)
-	a := editTestApp()
-	fake(a).save = func(id string, save bool) error { calls <- saveCall{id, save}; return nil }
-	a.playlists["30"] = &music.Playlist{ID: "30", Name: "华语经典", Tracks: a.playlists["10"].Tracks}
-	a.route = route{page: pagePlaylist, src: "fake", id: "30"}
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("Save"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if got := wait(t, calls, "the saving"); got != (saveCall{"30", true}) {
-		t.Errorf("asked the source for %+v, want playlist 30 saved", got)
-	}
-	if len(a.saved) != 2 || a.saved[0].ID != "30" || a.saved[0].Tracks != nil {
-		t.Errorf("saved playlists are %+v, want playlist 30 first, without its songs", a.saved)
-	}
-}
-
-// A playlist the source refuses to save leaves the sidebar again.
-func TestSavePlaylistGoesBack(t *testing.T) {
-	a := editTestApp()
-	ch := posts(a)
-	without(a, "isLiked")
-	fake(a).save = func(string, bool) error { return errors.New("offline") }
-	a.playlists["30"] = &music.Playlist{ID: "30", Name: "华语经典"}
-	a.route = route{page: pagePlaylist, src: "fake", id: "30"}
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("Save"); err != nil {
-		t.Fatal(err)
-	}
-	if !a.isSaved(a.playlists["30"]) {
-		t.Fatal("not saved at once")
-	}
-	runPost(t, ch)
-	if a.isSaved(a.playlists["30"]) || len(a.saved) != 1 || a.toast == "" {
-		t.Errorf("saved playlists are %+v, toast %q", a.saved, a.toast)
-	}
-}
-
-// The listener's own playlist offers no saving.
+// The listener's own playlist offers no adding to their library, where it
+// is already.
 func TestOwnPlaylistNotSavable(t *testing.T) {
 	a := editTestApp()
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
-	if _, ok := tt.Find("Save"); ok {
-		t.Error("offered to save the listener's own playlist")
+	if _, ok := tt.Find("Add to Library"); ok {
+		t.Error("offered to add the listener's own playlist to their library")
 	}
 }
 

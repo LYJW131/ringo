@@ -9,8 +9,8 @@ import (
 	"mygo-music/internal/music"
 )
 
-// likes are the songs and episodes the listener likes, which hearts show
-// filled. A source can't always list them all: those shown are asked about, a
+// likes are the songs the listener made favorites, which stars show filled,
+// as Apple Music's: what a source calls liking a song. A source can't always list them all: those shown are asked about, a
 // frame's at a time, once each.
 
 // wantLike notes that the heart of tr may show, to ask its source about it.
@@ -90,16 +90,10 @@ func (l *library) listener() string {
 // isLiked reports whether the listener likes tr.
 func (a *app) isLiked(tr *music.Track) bool { return a.trackLib(tr).liked[tr.ID] }
 
-// canLike reports whether tr's source likes it: an episode it may not, though
-// it likes songs.
-func (l *library) canLike(tr *music.Track) bool {
-	if tr.ShowID != "" {
-		return l.can("likeEpisode")
-	}
-	return l.can("like")
-}
+// canLike reports whether tr's source likes songs.
+func (l *library) canLike(tr *music.Track) bool { return l.can("like") }
 
-// toggleLike likes a song or an episode, or unlikes it, at once in the app
+// toggleLike likes a song, or unlikes it, at once in the app
 // and then with its source, which may refuse: the heart goes back then.
 // Signed out, it asks the listener to sign in.
 func (a *app) toggleLike(tr *music.Track) {
@@ -117,12 +111,8 @@ func (a *app) toggleLike(tr *music.Track) {
 	id, like := tr.ID, !lib.liked[tr.ID]
 	lib.liked[id] = like
 	liked := *tr
-	send := lib.src.Like
-	if tr.ShowID != "" {
-		send = lib.src.LikeEpisode
-	}
 	go func() {
-		err := send(id, like)
+		err := lib.src.Like(id, like)
 		a.post(func() {
 			if err != nil {
 				if lib.liked != nil {
@@ -167,15 +157,16 @@ func (a *app) likeCurrent() {
 	case lib.signedOut():
 		return // asked to sign in
 	case !a.isLiked(tr):
-		a.toast = T("Removed from Liked Songs")
+		a.toast = T("Removed from Favorites")
 	default:
-		a.toast = T("Added to Liked Songs")
+		a.toast = T("Added to Favorites")
 	}
 }
 
-// likeButton is a heart that likes tr: filled in red once liked. Liking
-// pops it in on a spring while a ring swells around it and confetti flies
-// out; unliking lets it give a little. A source that has no likes shows none.
+// likeButton is the star that makes tr a favorite: filled in the accent once
+// it is. Starring pops it in on a spring while a ring swells around it and
+// confetti flies out; unstarring lets it give a little. A source that has no
+// likes shows none.
 func (a *app) likeButton(c *ui.Context, tr *music.Track, size float32, color ui.Color) ui.Element {
 	lib := a.trackLib(tr)
 	if !lib.canLike(tr) {
@@ -183,11 +174,11 @@ func (a *app) likeButton(c *ui.Context, tr *music.Track, size float32, color ui.
 	}
 	a.wantLike(tr)
 	liked := a.isLiked(tr)
-	icon, label := iconHeart, T("Like")
+	icon, label := iconStar, T("Favorite")
 	if liked {
-		icon, color, label = iconHeartFill, a.pal.accent, T("Unlike")
+		icon, color, label = iconStarFill, a.pal.accent, T("Undo Favorite")
 	}
-	// The burst goes on a wrapper, which the heart's pop does not scale.
+	// The burst goes on a wrapper, which the star's pop does not scale.
 	wrap := ui.Box(c).Center()
 	var b ui.Element
 	wrap.Children(func() { b = iconButton(c, icon, size, color, label) })

@@ -77,7 +77,6 @@ type fakeSource struct {
 	browse      func(page string) (*music.Browse, error)
 	isLiked     func(ids []string) (map[string]bool, error)
 	like        func(id string, on bool) error
-	likeEpisode func(id string, on bool) error
 	create      func(name string) (*music.Playlist, error)
 	rename      func(id, name string) error
 	remove      func(id string) error
@@ -87,18 +86,16 @@ type fakeSource struct {
 	save        func(id string, on bool) error
 	follow      func(id string, on bool) error
 	saveAlbum   func(id string, on bool) error
-	savedAlbums func(offset int) (*music.AlbumList, error)
-	shows       func() ([]music.Show, error)
-	show        func(id string, offset int) (*music.ShowPage, error)
-	subscribe   func(id string, on bool) error
-	stations    func() ([]music.Station, error)
 	stationNext func(id string) ([]music.Track, error)
-	comments    func(track string, offset int) (*music.CommentPage, error)
-	likeComment func(track, comment string, on bool) error
-	postComment func(track, text string) (*music.Comment, error)
 	lyrics      func(id string) (*music.Lyrics, error)
 	stream      func(id, quality string) (*music.Stream, error)
 	setSetting  func(key, value string) error
+
+	// What a source of Apple Music does besides (music.Favorer, Keeper and
+	// Autoplayer).
+	favorite     func(kind, id string, on bool) error
+	addToLibrary func(kind, id string, on bool) error
+	autoplay     func(ids []string) ([]music.Track, error)
 }
 
 func newFakeSource(id string) *fakeSource {
@@ -106,6 +103,9 @@ func newFakeSource(id string) *fakeSource {
 	for _, name := range capabilities {
 		s.caps[name] = true
 	}
+	// Autoplay asks the source as soon as a queue nears its end, which a
+	// test of something else doesn't expect: one of it turns it on.
+	delete(s.caps, "autoplay")
 	return s
 }
 
@@ -212,12 +212,7 @@ func (s *fakeSource) Like(id string, on bool) error {
 	}
 	return s.like(id, on)
 }
-func (s *fakeSource) LikeEpisode(id string, on bool) error {
-	if s.likeEpisode == nil {
-		return nil
-	}
-	return s.likeEpisode(id, on)
-}
+func (s *fakeSource) LikeEpisode(id string, on bool) error { return music.ErrUnsupported }
 func (s *fakeSource) CreatePlaylist(name string) (*music.Playlist, error) {
 	if s.create == nil {
 		return nil, music.ErrUnsupported
@@ -273,35 +268,14 @@ func (s *fakeSource) SaveAlbum(id string, on bool) error {
 	return s.saveAlbum(id, on)
 }
 func (s *fakeSource) SavedAlbums(offset int) (*music.AlbumList, error) {
-	if s.savedAlbums == nil {
-		return &music.AlbumList{}, nil
-	}
-	return s.savedAlbums(offset)
+	return nil, music.ErrUnsupported
 }
-func (s *fakeSource) Shows() ([]music.Show, error) {
-	if s.shows == nil {
-		return nil, nil
-	}
-	return s.shows()
-}
+func (s *fakeSource) Shows() ([]music.Show, error) { return nil, music.ErrUnsupported }
 func (s *fakeSource) Show(id string, offset int) (*music.ShowPage, error) {
-	if s.show == nil {
-		return nil, music.ErrUnsupported
-	}
-	return s.show(id, offset)
+	return nil, music.ErrUnsupported
 }
-func (s *fakeSource) SubscribeShow(id string, on bool) error {
-	if s.subscribe == nil {
-		return nil
-	}
-	return s.subscribe(id, on)
-}
-func (s *fakeSource) Stations() ([]music.Station, error) {
-	if s.stations == nil {
-		return nil, nil
-	}
-	return s.stations()
-}
+func (s *fakeSource) SubscribeShow(id string, on bool) error { return music.ErrUnsupported }
+func (s *fakeSource) Stations() ([]music.Station, error)     { return nil, music.ErrUnsupported }
 func (s *fakeSource) StationNext(id string) ([]music.Track, error) {
 	if s.stationNext == nil {
 		return nil, music.ErrUnsupported
@@ -309,22 +283,13 @@ func (s *fakeSource) StationNext(id string) ([]music.Track, error) {
 	return s.stationNext(id)
 }
 func (s *fakeSource) Comments(track string, offset int) (*music.CommentPage, error) {
-	if s.comments == nil {
-		return &music.CommentPage{}, nil
-	}
-	return s.comments(track, offset)
+	return nil, music.ErrUnsupported
 }
 func (s *fakeSource) LikeComment(track, comment string, on bool) error {
-	if s.likeComment == nil {
-		return nil
-	}
-	return s.likeComment(track, comment, on)
+	return music.ErrUnsupported
 }
 func (s *fakeSource) PostComment(track, text string) (*music.Comment, error) {
-	if s.postComment == nil {
-		return nil, music.ErrUnsupported
-	}
-	return s.postComment(track, text)
+	return nil, music.ErrUnsupported
 }
 func (s *fakeSource) Lyrics(id string) (*music.Lyrics, error) {
 	if s.lyrics == nil {
@@ -351,7 +316,31 @@ func (s *fakeSource) RemoteState() (*music.RemoteState, error) {
 func (s *fakeSource) RemoteDevices() ([]music.Device, error) { return nil, music.ErrUnsupported }
 func (s *fakeSource) RemoteUse(deviceID string) error        { return music.ErrUnsupported }
 
-var _ music.Source = (*fakeSource)(nil)
+func (s *fakeSource) Favorite(kind, id string, on bool) error {
+	if s.favorite == nil {
+		return nil
+	}
+	return s.favorite(kind, id, on)
+}
+func (s *fakeSource) AddToLibrary(kind, id string, on bool) error {
+	if s.addToLibrary == nil {
+		return nil
+	}
+	return s.addToLibrary(kind, id, on)
+}
+func (s *fakeSource) Autoplay(ids []string) ([]music.Track, error) {
+	if s.autoplay == nil {
+		return nil, nil
+	}
+	return s.autoplay(ids)
+}
+
+var (
+	_ music.Source     = (*fakeSource)(nil)
+	_ music.Favorer    = (*fakeSource)(nil)
+	_ music.Keeper     = (*fakeSource)(nil)
+	_ music.Autoplayer = (*fakeSource)(nil)
+)
 
 // addFake adds a library of src to the app, started as if it had answered.
 func addFake(a *app, src music.Source) *library {

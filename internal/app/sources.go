@@ -29,13 +29,13 @@ var capabilities = []string{
 	"search", "suggest",
 	"playlists", "playlist", "album", "artist", "liked", "recent",
 	"home", "browse",
-	"isLiked", "like", "likeEpisode",
+	"isLiked", "like",
 	"createPlaylist", "renamePlaylist", "deletePlaylist", "addToPlaylist", "removeFromPlaylist", "movePlaylistTrack", "savePlaylist",
-	"followArtist", "saveAlbum", "savedAlbums",
-	"shows", "show", "subscribeShow",
-	"stations", "stationNext",
-	"comments", "likeComment", "postComment",
+	"stationNext",
 	"lyrics", "stream",
+	// music.Favorer, music.Keeper and music.Autoplayer, which a source
+	// may be or not.
+	"favorite", "addToLibrary", "autoplay",
 }
 
 func probeCaps(src music.Source) map[string]bool {
@@ -91,22 +91,14 @@ type library struct {
 	plErr     map[string]string
 	artists   map[string]*artistData
 	albums    map[string]*albumData
-	shows     map[string]*showData
 	browses   map[string]*browseData
 	searched  route // the search last shown, which the sidebar goes back to
 
-	subscribed     []music.Show
-	subscribedOnce bool // what the listener subscribes to was asked
-	subscribedBusy bool
-	subscribedErr  string
-
-	stations     []music.Station
-	stationsBusy bool
-	stationsOnce bool
-	stationsErr  string
-
-	savedAlbums      []music.Album
-	savedAlbumsPaged paged
+	// favorites and kept are what the listener made a favorite, or added to
+	// their library, or undid, in the app, by itemKey: over what the
+	// source's answers said, which it may say again only as they load
+	// anew. busy are those on their way to the source.
+	favorites, kept, busy map[string]bool
 }
 
 func newLibrary(src music.Source) *library {
@@ -124,13 +116,10 @@ func (l *library) forget() {
 	l.plErr = map[string]string{}
 	l.artists = map[string]*artistData{}
 	l.albums = map[string]*albumData{}
-	l.shows = map[string]*showData{}
 	l.browses = map[string]*browseData{}
 	l.liked = nil
+	l.favorites, l.kept, l.busy = map[string]bool{}, map[string]bool{}, map[string]bool{}
 	l.likedList, l.likedPaged, l.likedAt = nil, paged{}, time.Time{}
-	l.savedAlbums, l.savedAlbumsPaged = nil, paged{}
-	l.subscribed, l.subscribedOnce = nil, false
-	l.stations, l.stationsOnce = nil, false
 }
 
 // can reports whether the source does what's named.

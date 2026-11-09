@@ -145,7 +145,7 @@ func TestHeartOfASongOfAnotherSource(t *testing.T) {
 	a.pl.SetLyrics(nil)
 	tt := ui.NewTester(a.view, 1200, 800)
 	settled(tt)
-	if err := tt.Click("Like"); err != nil {
+	if err := tt.Click("Favorite"); err != nil {
 		t.Fatal(err)
 	}
 	if id := wait(t, liked, "the like"); id != "7" || !lib.liked["7"] || a.libs[0].liked["7"] {
@@ -167,7 +167,6 @@ func TestHiddenWithoutCapability(t *testing.T) {
 		a.artists["12"] = &artistData{page: &music.ArtistPage{Artist: music.Artist{ID: "12", Name: "乙"}, Tracks: []music.Track{song("1", "一")}}}
 		a.albums["8"] = &albumData{album: &music.AlbumPage{Album: music.Album{ID: "8", Name: "迷跡波"}}}
 		a.playlists["30"] = &music.Playlist{ID: "30", Name: "华语经典"}
-		a.shows["5"] = &showData{show: &music.Show{ID: "5", Name: "夜航"}, page: paged{loaded: true}}
 	}
 	for _, c := range []struct {
 		name, capability, label string
@@ -177,11 +176,10 @@ func TestHiddenWithoutCapability(t *testing.T) {
 		{"apple music's pages", "browse", "New", nil},
 		{"search", "search", "Search", nil},
 		{"new playlist", "createPlaylist", "New Playlist", nil},
-		{"heart", "like", "Like", playing},
-		{"follow", "followArtist", "Follow", page(route{page: pageArtist, src: "fake", id: "12"})},
-		{"save playlist", "savePlaylist", "Save", page(route{page: pagePlaylist, src: "fake", id: "30"})},
-		{"save album", "saveAlbum", "Save", page(route{page: pageAlbum, src: "fake", id: "8"})},
-		{"subscribe", "subscribeShow", "Subscribe", page(route{page: pageShow, src: "fake", id: "5"})},
+		{"heart", "like", "Favorite", playing},
+		{"favorite artist", "favorite", "Favorite", page(route{page: pageArtist, src: "fake", id: "12"})},
+		{"playlist in library", "addToLibrary", "Add to Library", page(route{page: pagePlaylist, src: "fake", id: "30"})},
+		{"album in library", "addToLibrary", "Add to Library", page(route{page: pageAlbum, src: "fake", id: "8"})},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			a := newTestApp()
@@ -200,32 +198,6 @@ func TestHiddenWithoutCapability(t *testing.T) {
 				t.Errorf("%q shows without %s", c.label, c.capability)
 			}
 		})
-	}
-}
-
-// Now Playing has no Comments tab for a source without comments, and leaves the
-// comments for the queue if they were showing.
-func TestCommentsGoWithoutCapability(t *testing.T) {
-	asked := make(chan string, 1)
-	a := newTestApp()
-	fake(a).comments = func(track string, _ int) (*music.CommentPage, error) {
-		asked <- track
-		return &music.CommentPage{}, nil
-	}
-	without(a, "comments")
-	a.pl.Cue([]music.Track{song("7", "宝船")})
-	a.pl.SetLyrics(nil)
-	a.nowPlaying, a.npPane = true, paneComments
-	tt := ui.NewTester(a.view, 1200, 800)
-	settled(tt)
-	if _, ok := tt.Find("Comments"); ok {
-		t.Error("a Comments tab without comments")
-	}
-	if a.npPane != paneQueue {
-		t.Errorf("on pane %d", a.npPane)
-	}
-	if len(asked) > 0 {
-		t.Error("asked a source without comments for them")
 	}
 }
 
@@ -264,11 +236,19 @@ func TestPlaylistMenuGoesWithoutCapability(t *testing.T) {
 		t.Errorf("a menu of %q with nothing to do", items)
 	}
 
+	// The page's menu still plays it next or last, but neither renames nor
+	// deletes it.
 	a.route = route{page: pagePlaylist, src: "fake", id: "10"}
 	tt.Frame()
-	if _, ok := tt.Find("More"); ok {
-		t.Error("the playlist's page has a menu with nothing in it")
+	if err := tt.Click("More"); err != nil {
+		t.Fatal(err)
 	}
+	for _, item := range tt.Menu() {
+		if item == "Rename…" || item == "Delete Playlist…" {
+			t.Errorf("the playlist's page offers %q", item)
+		}
+	}
+	tt.CloseMenu()
 }
 
 // A song's menu doesn't offer what its source can't do with playlists.
@@ -324,14 +304,6 @@ func TestPageErrorRetries(t *testing.T) {
 				return &music.AlbumPage{Album: music.Album{ID: id, Name: "Answered"}}, nil
 			}
 		}},
-		{"show", route{page: pageShow, id: "7"}, func(f *fakeSource, fails func() error) {
-			f.show = func(id string, _ int) (*music.ShowPage, error) {
-				if err := fails(); err != nil {
-					return nil, err
-				}
-				return &music.ShowPage{Show: music.Show{ID: id, Name: "Answered"}}, nil
-			}
-		}},
 		{"browse", route{page: pageBrowse, id: "7"}, func(f *fakeSource, fails func() error) {
 			f.browse = func(string) (*music.Browse, error) {
 				if err := fails(); err != nil {
@@ -346,30 +318,6 @@ func TestPageErrorRetries(t *testing.T) {
 					return nil, err
 				}
 				return &music.Page{Tracks: []music.Track{song("1", "Answered")}}, nil
-			}
-		}},
-		{"stations", route{page: pageStations}, func(f *fakeSource, fails func() error) {
-			f.stations = func() ([]music.Station, error) {
-				if err := fails(); err != nil {
-					return nil, err
-				}
-				return []music.Station{{ID: "1", Name: "Answered"}}, nil
-			}
-		}},
-		{"podcasts", route{page: pageShows}, func(f *fakeSource, fails func() error) {
-			f.shows = func() ([]music.Show, error) {
-				if err := fails(); err != nil {
-					return nil, err
-				}
-				return []music.Show{{ID: "1", Name: "Answered"}}, nil
-			}
-		}},
-		{"saved albums", route{page: pageSavedAlbums}, func(f *fakeSource, fails func() error) {
-			f.savedAlbums = func(int) (*music.AlbumList, error) {
-				if err := fails(); err != nil {
-					return nil, err
-				}
-				return &music.AlbumList{Albums: []music.Album{{ID: "1", Name: "Answered"}}}, nil
 			}
 		}},
 		{"search", route{page: pageSearch, query: "q"}, func(f *fakeSource, fails func() error) {

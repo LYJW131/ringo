@@ -1,34 +1,28 @@
 package app
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/i18n"
 	"mygo-music/internal/music"
 )
 
 // artistLinks shows a track's artists as its credits read, each a link to
 // their page in color, brightening to hover under the pointer, and then,
 // with album, a link to its album, as far as the source has these pages. An
-// artist credited by name alone is plain text. An episode's host and show, in
-// its artists' and album's place, link to the show's page.
+// artist credited by name alone is plain text.
 func (a *app) artistLinks(c *ui.Context, tr *music.Track, color, hover ui.Color, album ...bool) ui.Element {
 	lib := a.trackLib(tr)
-	show := route{page: pageShow, src: lib.id, id: tr.ShowID}
-	links := tr.ShowID != "" && lib.can("show")
 	return ui.RichText(c).TextColor(color).Children(func() {
 		for i, ar := range tr.Artists {
 			if i > 0 {
 				ui.Text(c, ", ")
 			}
-			switch {
-			case links:
-				a.link(c.Key(i), ar.Name, color, hover, show)
-			case ar.ID != "" && lib.can("artist"):
+			if ar.ID != "" && lib.can("artist") {
 				a.link(c.Key(i), ar.Name, color, hover, route{page: pageArtist, src: lib.id, id: ar.ID})
-			default:
+			} else {
 				ui.Text(c, ar.Name)
 			}
 		}
@@ -36,12 +30,9 @@ func (a *app) artistLinks(c *ui.Context, tr *music.Track, color, hover ui.Color,
 			if len(tr.Artists) > 0 {
 				ui.Text(c, " — ")
 			}
-			switch {
-			case links:
-				a.link(c.Key("album"), tr.Album.Name, color, hover, show)
-			case tr.Album.ID != "" && lib.can("album"):
+			if tr.Album.ID != "" && lib.can("album") {
 				a.link(c.Key("album"), tr.Album.Name, color, hover, route{page: pageAlbum, src: lib.id, id: tr.Album.ID})
-			default:
+			} else {
 				ui.Text(c, tr.Album.Name)
 			}
 		}
@@ -70,16 +61,18 @@ func (a *app) openPage(r route) {
 func (a *app) openArtist(src, id string) { a.openPage(route{page: pageArtist, src: src, id: id}) }
 
 // artistData is what the app has of an artist: who they are, with their songs
-// and albums.
+// and albums, and their page's sections.
 type artistData struct {
-	page      *music.ArtistPage
-	loading   bool
-	err       string
-	following bool // a follow or unfollow is on its way
-	tab       int  // what their page lists: artistSongs or artistAlbums
+	page    *music.ArtistPage
+	loading bool
+	err     string
+	tab     int // what a page without sections lists: artistSongs or artistAlbums
+	// secs are the page's sections, with their biography as one where the
+	// source gave it apart (Artist.Bio).
+	secs []music.Section
 }
 
-// What an artist's page lists.
+// What an artist's page without sections lists.
 const (
 	artistSongs = iota
 	artistAlbums
@@ -103,43 +96,25 @@ func (a *app) loadArtist(lib *library, id string) {
 				d.err = a.problem(lib, err, T("Couldn't load this artist"))
 				return
 			}
-			d.page = ar
+			d.page, d.secs = ar, artistSections(ar)
 		})
 	}()
 }
 
-// toggleFollow follows an artist, or unfollows them, at once, going back if
-// the source refuses. Signed out, it asks the listener to sign in.
-func (a *app) toggleFollow(lib *library, d *artistData) {
-	if d.page == nil || d.following {
-		return
+// artistSections are the sections of an artist's page: as the source gave
+// them, and their biography after them if none of them is it.
+func artistSections(page *music.ArtistPage) []music.Section {
+	secs := page.Sections
+	if len(secs) == 0 || strings.TrimSpace(page.Artist.Bio) == "" ||
+		slices.ContainsFunc(secs, func(s music.Section) bool { return s.Style == music.ShelfText }) {
+		return secs
 	}
-	if lib.signedOut() {
-		a.promptSignIn(lib)
-		return
-	}
-	ar := &d.page.Artist
-	follow := !ar.Following
-	ar.Following, d.following = follow, true
-	id := ar.ID
-	go func() {
-		err := lib.src.FollowArtist(id, follow)
-		a.post(func() {
-			d.following = false
-			switch {
-			case err != nil:
-				ar.Following = !follow
-				a.actionFailed(lib, err, T("That didn't work. Try again later."))
-			case follow:
-				a.toast = T("Following")
-			default:
-				a.toast = T("Unfollowed")
-			}
-		})
-	}()
+	return append(slices.Clip(secs), music.Section{Title: T("About"), Style: music.ShelfText, Subtitle: page.Artist.Bio})
 }
 
-// artistPage shows who an artist is over their songs or their albums.
+// artistPage shows an artist as Apple Music does: their picture and name
+// over the sections of their page. A page without sections, as of an
+// artist of the library, lists their songs or their albums.
 func (a *app) artistPage(c *ui.Context) {
 	id := a.route.id
 	lib := a.library
@@ -157,7 +132,238 @@ func (a *app) artistPage(c *ui.Context) {
 		a.trackSkeleton(c, s, true, func(c *ui.Context) { a.artistHeaderSkeleton(c, s) })
 		return
 	}
-	header := func(c *ui.Context) { a.artistHeader(c, d) }
+	if len(d.secs) == 0 {
+		a.artistLists(c, d)
+		return
+	}
+	secs := d.secs
+	rows := a.artistRows(c, secs)
+	a.detailList(c, len(rows)+1, d.page.Artist.Colors, func(i int) {
+		if i == 0 {
+			a.artistHeader(c, lib, d)
+			return
+		}
+		r := rows[i-1]
+		switch {
+		case r.pair:
+			a.latestAndTop(c, secs)
+		case r.kind == rowText:
+			a.artistBio(c, &d.page.Artist, &secs[r.section])
+		default:
+			a.shelfRow(c, secs, r.browseRow)
+		}
+	})
+}
+
+// artistRow is a row of an artist's page: one of its sections', or the
+// latest release beside the top songs.
+type artistRow struct {
+	browseRow
+	pair bool
+}
+
+// pairWidth is the least width of a page that has the latest release
+// beside the top songs, as Apple Music does; narrower, they go one over
+// the other.
+const pairWidth = 780
+
+// artistRows lays the sections of an artist's page out in rows.
+func (a *app) artistRows(c *ui.Context, secs []music.Section) []artistRow {
+	pair := len(secs) >= 2 && secs[0].Style == music.ShelfFeatured && len(secs[0].Items) > 0 &&
+		secs[1].Style == music.ShelfTracks && a.shelfMetrics(c).inner >= pairWidth
+	var rows []artistRow
+	if pair {
+		rows = append(rows, artistRow{pair: true})
+	}
+	for _, r := range a.shelfLayout(c, secs, false) {
+		if !pair || r.section >= 2 {
+			rows = append(rows, artistRow{browseRow: r})
+		}
+	}
+	return rows
+}
+
+// latestAndTop is an artist's latest release beside their top songs, the
+// release as small as leaves the songs two columns, as Apple Music has them.
+func (a *app) latestAndTop(c *ui.Context, secs []music.Section) {
+	m := a.shelfMetrics(c)
+	left := max(270, m.inner*0.3)
+	const gap = 40
+	ui.Row(c).AlignItems(ui.Start).Gap(gap).Children(func() {
+		ui.Column(c).Width(left).Shrink(0).Children(func() {
+			a.shelfTitle(c, &secs[0], true)
+			a.latestCard(c, secs)
+		})
+		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+			a.shelfTitle(c, &secs[1], true)
+			a.shelf(c, secs, 1, shelfMetrics{inner: m.inner - left - gap}, 0)
+		})
+	})
+}
+
+// latestCard is an artist's latest release: its cover, and beside it when
+// it came out, its title and what it holds.
+func (a *app) latestCard(c *ui.Context, secs []music.Section) {
+	p := a.pal
+	it := &secs[0].Items[0]
+	const size = 118
+	b := a.itemButton(c, secs, 0, 0).Row().Gap(14).AlignItems(ui.Center).Margin(0, 12)
+	hovered := b.Hovered()
+	b.Children(func() {
+		ui.Box(c).Size(size, size).Radius(artRadius).Shrink(0).Border(0.5, p.hairline).Children(func() {
+			a.itemPicture(c, it, false, 400, artRadius)
+			a.hoverShade(c, hovered, artRadius)
+		})
+		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
+			if it.Badge != "" {
+				ui.Text(c, it.Badge).FontSize(10.5).FontWeight(600).TextColor(p.muted).SingleLine()
+			}
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, it.Title).FontSize(13.5).FontWeight(500).MaxLines(2).LineHeight(1.3).Shrink(1).MinWidth(0)
+				if it.Explicit {
+					a.explicitMark(c)
+				}
+			})
+			if it.Subtitle != "" {
+				ui.Text(c, it.Subtitle).FontSize(12.5).TextColor(p.muted).SingleLine()
+			}
+		})
+	})
+}
+
+// wideHeaderHeight is the height of the picture heading an artist's page,
+// at most.
+const wideHeaderHeight = 400
+
+// artistHeader heads an artist's page: their wide picture across it, their
+// name over it, or their round photo over their name; and the buttons that
+// play their top songs and make them a favorite.
+func (a *app) artistHeader(c *ui.Context, lib *library, d *artistData) {
+	p := a.pal
+	ar := &d.page.Artist
+	if ar.WideURL == "" {
+		ui.Column(c).AlignItems(ui.Center).Gap(14).Margin(8, 12, 30, 12).Children(func() {
+			ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).
+				ContextMenu(a.artistItems(lib, *ar)).Children(func() {
+				a.coverFill(c, ar.ImageURL, 600, artistPhotoSize/2)
+			})
+			ui.Text(c, ar.Name).FontSize(34).FontWeight(800).LetterSpacing(-0.8).MaxLines(2).TextAlign(ui.Center)
+			ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() { a.artistButtons(c, lib, d, p.muted) })
+		})
+		return
+	}
+	// Across the page from edge to edge, from under the bar at its top.
+	top, _ := a.insets(c)
+	w, _ := c.Size()
+	w -= sidebarWidth
+	h := min(w*0.42, wideHeaderHeight)
+	ink := hexColor(ar.Colors.Text1, white)
+	ui.Box(c).Height(h).Margin(-(top + pageGap), 12-pagePad, 30, 12-pagePad).Background(hexColor(ar.Colors.BG, p.hover)).
+		ContextMenu(a.artistItems(lib, *ar)).Children(func() {
+		bmp := bitmap(a.art.get(sized(music.Wide(ar.WideURL, wideArt, wideArt*9/16), wideArt), false))
+		box := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0)
+		in := artIn(box, bmp)
+		box.Children(func() { artImage(c, bmp, 0, in) })
+		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(h * 0.5).
+			LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
+				{Color: ui.RGBA(0, 0, 0, 0), At: 0},
+				{Color: ui.RGBA(0, 0, 0, 0.45), At: 1},
+			}})
+		ui.Row(c).Absolute().Left(pagePad).Right(pagePad).Bottom(26).Gap(16).AlignItems(ui.Center).Children(func() {
+			a.artistButtons(c, lib, d, ink.Alpha(0.85))
+			ui.Text(c, ar.Name).FontSize(40).FontWeight(800).LetterSpacing(-1).TextColor(ink).SingleLine().Shrink(1).MinWidth(0)
+		})
+	})
+}
+
+// artistButtons play an artist's top songs and make them a favorite.
+func (a *app) artistButtons(c *ui.Context, lib *library, d *artistData, color ui.Color) {
+	p := a.pal
+	ar := &d.page.Artist
+	if songs := d.page.Tracks; len(songs) > 0 {
+		b := ui.ButtonBase(c.Key("play")).Size(44, 44).Radius(999).Center().Background(p.accent).TextColor(p.onAccent).
+			Label(T("Play")).FocusRing(false).Shadow(0, 4, 14, -2, ui.RGBA(0, 0, 0, 0.3))
+		b.Children(func() { ui.Icon(c, iconPlay).Size(18, 18).Margin(0, 0, 0, 2) })
+		if b.Clicked() {
+			if a.pl.Shuffle() {
+				a.pl.ToggleShuffle()
+			}
+			a.pl.PlayQueue(songs, firstPlayable(songs))
+		}
+	}
+	a.favoriteButton(c.Key("favorite"), lib, music.ItemArtist, ar.ID, ar.Favorite, 20, color)
+}
+
+// bioLines is how many lines of an artist's biography show, until More
+// shows it all.
+const bioLines = 4
+
+// artistBio is an artist's biography, its first lines until More shows it
+// all, over when they were born or formed, where they're from and their
+// genre.
+func (a *app) artistBio(c *ui.Context, ar *music.Artist, sec *music.Section) {
+	p := a.pal
+	open := a.notesOpen == a.route
+	text := strings.TrimSpace(sec.Subtitle)
+	width := min(760, a.shelfMetrics(c).inner)
+	const size = 13.5
+	_, h := c.MeasureText(width, ui.Span{Text: text, Size: size})
+	_, line := c.MeasureText(0, ui.Span{Text: "M", Size: size})
+	more := line > 0 && h/line > bioLines+0.5
+	ui.Column(c.Key("bio")).Margin(0, 12, 0, 12).Gap(10).MaxWidth(760).Children(func() {
+		if open || !more {
+			i := 0
+			for para := range strings.SplitSeq(text, "\n") {
+				if para = strings.TrimSpace(para); para != "" {
+					ui.Text(c.Key(i), para).FontSize(size).LineHeight(1.5).TextColor(p.muted)
+					i++
+				}
+			}
+		} else {
+			ui.Text(c, strings.Join(strings.Fields(text), " ")).FontSize(size).LineHeight(1.5).TextColor(p.muted).MaxLines(bioLines)
+		}
+		if more {
+			label := T("More")
+			if open {
+				label = T("Less")
+			}
+			b := ui.ButtonBase(c.Key("more")).AlignSelf(ui.Start).FocusRing(false).Label(label)
+			color := p.text
+			if b.Hovered() {
+				color = p.accent
+			}
+			b.Children(func() { ui.Text(c, label).FontSize(12).FontWeight(700).TextColor(color) })
+			if b.Clicked() {
+				if open {
+					a.notesOpen = route{}
+				} else {
+					a.notesOpen = a.route
+				}
+			}
+		}
+		facts := []struct{ label, value string }{
+			{T("Born"), ar.Born},
+			{T("From"), ar.Origin},
+			{T("Genre"), ar.Genre},
+		}
+		ui.Row(c).Gap(40).Margin(6, 0, 0, 0).Children(func() {
+			for i, f := range facts {
+				if f.value == "" {
+					continue
+				}
+				ui.Column(c.Key(i)).Gap(2).Children(func() {
+					ui.Text(c, f.label).FontSize(11).FontWeight(600).TextColor(p.faint)
+					ui.Text(c, f.value).FontSize(13).TextColor(p.text)
+				})
+			}
+		})
+	})
+}
+
+// artistLists is the page of an artist without sections: who they are over
+// their songs or their albums.
+func (a *app) artistLists(c *ui.Context, d *artistData) {
+	header := func(c *ui.Context) { a.artistListsHeader(c, d) }
 	tab := d.tab
 	switch {
 	case len(d.page.Tracks) == 0:
@@ -195,23 +401,25 @@ func (a *app) empty(c *ui.Context, msg string) {
 }
 
 // artistPhotoSize is the width of an artist's round photo on their page.
-const artistPhotoSize = 212
+const artistPhotoSize = 180
 
-func (a *app) artistHeader(c *ui.Context, d *artistData) {
+// artistListsHeader heads the page of an artist without sections: their
+// round photo and name over the buttons, and the switch between their songs
+// and albums.
+func (a *app) artistListsHeader(c *ui.Context, d *artistData) {
 	p := a.pal
-	ar := &d.page.Artist
 	songs := d.page.Tracks
 	lib := a.library
+	ar := &d.page.Artist
 	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 8, 0).Children(func() {
 		ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
 			a.coverFill(c, ar.ImageURL, 600, artistPhotoSize/2)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
-			ui.Text(c, T("Artist")).FontSize(12).FontWeight(600).TextColor(p.accent)
 			ui.Text(c, ar.Name).FontSize(30).FontWeight(800).LetterSpacing(-0.6).MaxLines(2).LineHeight(1.2)
 			var meta []string
 			if len(songs) > 0 {
-				meta = append(meta, i18n.Songs(len(songs)))
+				meta = append(meta, songCount(len(songs)))
 			}
 			if n := len(d.page.Albums); n == 1 {
 				meta = append(meta, T("1 album"))
@@ -219,19 +427,11 @@ func (a *app) artistHeader(c *ui.Context, d *artistData) {
 				meta = append(meta, Tf("%d albums", n))
 			}
 			ui.Text(c, strings.Join(meta, " · ")).FontSize(13).TextColor(p.muted)
-			ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Margin(10, 0, 0, 0).Children(func() {
 				if len(songs) > 0 {
 					a.playButtons(c, songs)
 				}
-				if a.can("followArtist") {
-					icon, label := iconPlus, T("Follow")
-					if ar.Following {
-						icon, label = iconCheck, T("Following")
-					}
-					if pillButton(c.Key("follow"), icon, label, p.hover.Over(p.bg), p.text).Clicked() {
-						a.toggleFollow(lib, d)
-					}
-				}
+				a.favoriteButton(c.Key("favorite"), lib, music.ItemArtist, ar.ID, ar.Favorite, 18, p.muted)
 			})
 		})
 	})
@@ -249,21 +449,9 @@ func (a *app) artistHeader(c *ui.Context, d *artistData) {
 }
 
 func (a *app) artistHeaderSkeleton(c *ui.Context, s shimmer) {
-	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 8, 0).Children(func() {
+	ui.Column(c).AlignItems(ui.Center).Gap(14).Margin(8, 12, 12, 12).Children(func() {
 		s.bone(c, artistPhotoSize/2).Size(artistPhotoSize, artistPhotoSize)
-		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
-			s.text(c, 12, 1.3).Width(24)
-			s.text(c, 30, 1.2).WidthPercent(32)
-			s.text(c, 13, 1.3).Width(160)
-			ui.Column(c).Margin(2, 0, 0, 0).Children(func() {
-				s.text(c, 12.5, 1.45).WidthPercent(78)
-				s.text(c, 12.5, 1.45).WidthPercent(52)
-			})
-			ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
-				s.bone(c, 18).Size(92, 36)
-				s.bone(c, 18).Size(120, 36)
-			})
-		})
+		s.text(c, 34, 1.2).Width(220)
+		s.bone(c, 22).Size(44, 44)
 	})
-	a.section(c, T("Songs"))
 }

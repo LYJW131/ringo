@@ -209,6 +209,9 @@ func (a *app) coverPlayButton(c *ui.Context, shown bool, play func()) {
 	}
 }
 
+// playlistPage shows a playlist as Apple Music does: its header, its songs
+// in a table of their titles, artists, albums and lengths, and its sections
+// after them.
 func (a *app) playlistPage(c *ui.Context) {
 	id := a.route.id
 	pl := a.playlists[id]
@@ -221,45 +224,157 @@ func (a *app) playlistPage(c *ui.Context) {
 		a.trackSkeleton(c, s, true, func(c *ui.Context) { a.playlistHeaderSkeleton(c, s) })
 		return
 	}
-	a.trackRows(c, pl.Tracks, true, func(c *ui.Context) { a.playlistHeader(c, pl) })
+	shelves := a.shelfRows(c, pl.Sections)
+	// The header, the table's head, the songs or what says there are none,
+	// and the sections.
+	songs := max(len(pl.Tracks), 1)
+	a.detailList(c, 2+songs+len(shelves), pl.Colors, func(i int) {
+		switch {
+		case i == 0:
+			a.playlistHeader(c, pl)
+		case i == 1:
+			a.playlistColumns(c)
+		case i < 2+songs:
+			if len(pl.Tracks) == 0 {
+				a.empty(c, T("Empty Playlist"))
+				return
+			}
+			a.playlistRow(c, pl.Tracks, i-2, pl.ID)
+		default:
+			a.sectionsRow(c, pl.Sections, shelves, i-2-songs)
+		}
+	})
 }
 
 func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 	p := a.pal
-	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
-		ui.Box(c).Size(212, 212).Radius(14).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
-			a.coverFill(c, pl.ImageURL, 600, 14)
-		})
-		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
-			ui.Text(c, T("Playlist")).FontSize(12).FontWeight(600).TextColor(p.accent)
-			ui.Text(c, pl.Name).FontSize(30).FontWeight(800).LetterSpacing(-0.6).MaxLines(2).LineHeight(1.2)
-			var meta []string
-			if pl.Owner != "" {
-				meta = append(meta, pl.Owner)
-			}
-			meta = append(meta, i18n.Songs(len(pl.Tracks)))
-			ui.Text(c, strings.Join(meta, " · ")).FontSize(13).TextColor(p.muted)
-			if d := strings.TrimSpace(pl.Description); d != "" {
-				ui.Text(c, strings.ReplaceAll(d, "\n", " ")).FontSize(12.5).TextColor(p.muted).MaxLines(2).LineHeight(1.45).Margin(2, 0, 0, 0)
-			}
-			ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
-				a.playButtons(c, pl.Tracks)
-				if a.savable(pl) {
-					icon, label := iconPlus, TC("Save", "library")
-					if a.isSaved(pl) {
-						icon, label = iconCheck, T("Saved")
-					}
-					if pillButton(c.Key("save"), icon, label, p.hover.Over(p.bg), p.text).Clicked() {
-						a.toggleSaved(*pl)
-					}
+	lib := a.library
+	lines := func() {
+		a.detailTitle(c, pl.Name, false)
+		if pl.Owner != "" {
+			ui.RichText(c).FontSize(22).TextColor(p.accent).MaxLines(1).Children(func() {
+				if pl.OwnerPage != "" {
+					a.link(c.Key("owner"), pl.Owner, p.accent, p.accent.Mix(p.text, 0.3), route{page: pageBrowse, id: pl.OwnerPage})
+				} else {
+					ui.Text(c, pl.Owner)
 				}
-				if mine := a.editable(pl.ID); mine != nil && (a.can("renamePlaylist") || a.can("deletePlaylist")) {
-					more := iconButton(c.Key("more"), iconMore, 18, p.muted, T("More"))
-					more.Menu(func(m *ui.Menu) { a.playlistMenu(m, mine) })
+			})
+		}
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Margin(4, 0, 0, 0).Children(func() {
+			if u := updated(pl.Modified, time.Now()); u != "" {
+				ui.Text(c, u).FontSize(11.5).FontWeight(600).TextColor(p.muted).SingleLine()
+			}
+			a.traitBadges(c, pl.Traits, p.muted)
+		})
+	}
+	a.detailHeader(c, pl.ImageURL, lines, pl.Description, pl.Tracks, func() {
+		if !pl.Mine && !pl.Fixed && !a.ownList(pl.ID) {
+			a.libraryButton(c, lib, music.ItemPlaylist, pl.ID, pl.Saved || a.isSaved(pl))
+		}
+		a.moreButton(c, a.playlistItemsOf(lib, *pl))
+	})
+}
+
+// playlistWide reports whether a playlist's table has room for its albums
+// and artists in columns of their own.
+func (a *app) playlistWide(c *ui.Context) bool {
+	return a.shelfMetrics(c).inner > 760
+}
+
+// playlistColumns heads a playlist's table: Song, Artist, Album and Time.
+func (a *app) playlistColumns(c *ui.Context) {
+	p := a.pal
+	wide := a.playlistWide(c)
+	ui.Row(c).Height(30).Margin(0, 12).PaddingX(8).Gap(12).AlignItems(ui.Center).
+		BorderWidth(0, 0, 0.5, 0).BorderColor(p.hairline).Children(func() {
+		head := func(label string) ui.Element {
+			return ui.Text(c, label).FontSize(11.5).FontWeight(600).TextColor(p.muted).SingleLine()
+		}
+		head(T("Song")).Grow(3).Basis(0).MinWidth(0)
+		if wide {
+			head(T("Artist")).Grow(2).Basis(0).MinWidth(0)
+			head(T("Album")).Grow(2).Basis(0).MinWidth(0)
+		}
+		ui.Box(c).Width(30)
+		head(T("Time")).Width(44).TextAlign(ui.End)
+		ui.Box(c).Width(30)
+	})
+}
+
+// playlistRow is song i of a playlist's table, pid: its cover, title,
+// artists, album, length and menu. A click plays the playlist from it.
+func (a *app) playlistRow(c *ui.Context, tracks []music.Track, i int, pid string) {
+	p := a.pal
+	tr := &tracks[i]
+	wide := a.playlistWide(c)
+	playing := sameTrack(a.pl.Current(), tr)
+	row := ui.ButtonBase(c.Key(tr.ID)).Height(52).Margin(0, 12).PaddingX(8).Gap(12).Radius(6).AlignItems(ui.Center).
+		FocusRing(false).Label(tr.Name).ContextMenu(a.songItems(tr, pid))
+	hovered := row.Hovered()
+	bg := ui.Transparent
+	if hovered {
+		bg = p.hover
+	}
+	row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 100 * time.Millisecond}))
+	if tr.Unavailable {
+		row.Opacity(0.42)
+	}
+	a.wantLike(tr)
+	row.Children(func() {
+		if i > 0 {
+			ui.Box(c).Absolute().Top(0).Left(8).Right(8).Height(0.5).Background(p.hairline)
+		}
+		ui.Row(c).Grow(3).Basis(0).MinWidth(0).Gap(12).AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Size(40, 40).Shrink(0).Children(func() {
+				a.cover(c, tr.Album.ImageURL, 96, 40, 4)
+				if playing || hovered && !tr.Unavailable {
+					ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(4).Center().Background(ui.RGBA(0, 0, 0, 0.4)).Children(func() {
+						if playing {
+							a.nowPlayingBarsIn(c, white)
+						} else {
+							ui.Icon(c, iconPlay).Size(13, 13).TextColor(white)
+						}
+					})
+				}
+			})
+			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					name := p.text
+					if playing {
+						name = p.accent
+					}
+					ui.Text(c, tr.Name).FontSize(13.5).TextColor(name).SingleLine().Shrink(1).MinWidth(0)
+					if tr.Explicit {
+						a.explicitMark(c)
+					}
+				})
+				if !wide {
+					a.artistLinks(c, tr, p.muted, p.text).FontSize(12.5).SingleLine()
 				}
 			})
 		})
+		if wide {
+			a.artistLinks(c, tr, p.muted, p.text).Grow(2).Basis(0).MinWidth(0).FontSize(13).SingleLine()
+			album := ui.RichText(c).Grow(2).Basis(0).MinWidth(0).FontSize(13).TextColor(p.muted).SingleLine()
+			album.Children(func() {
+				if tr.Album.ID == "" || !a.trackLib(tr).can("album") {
+					ui.Text(c, tr.Album.Name)
+				} else {
+					a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, src: tr.Source, id: tr.Album.ID})
+				}
+			})
+		}
+		ui.Box(c).Size(30, 30).Center().Children(func() {
+			if a.isLiked(tr) || hovered {
+				a.likeButton(c.Key("like"), tr, 14, p.muted)
+			}
+		})
+		ui.Text(c, clock(tr.Length())).FontSize(13).FontFeatures("tnum").TextColor(p.muted).Width(44).TextAlign(ui.End)
+		a.songMenu(c.Key("menu"), tr, 15, p.muted).Margin(0, -6, 0, 0)
 	})
+	if row.Clicked() && !tr.Unavailable {
+		a.pl.PlayTrack(tracks, i)
+	}
 }
 
 // playButtons are the buttons of a page that play what it lists, in order or
@@ -285,7 +400,7 @@ func (a *app) likedPage(c *ui.Context) {
 		ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
 			ui.Box(c).Size(212, 212).Radius(14).Center().Shadow(0, 18, 40, -10, p.cardShade).TextColor(white).
 				LinearGradient(ui.LinearGradient{Angle: 135, Oklab: true, From: ui.Oklch(0.72, 0.17, 10), To: ui.Oklch(0.58, 0.22, 350)}).
-				Children(func() { ui.Icon(c, iconHeartFill).Size(84, 84) })
+				Children(func() { ui.Icon(c, iconStarFill).Size(84, 84) })
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 				ui.Text(c, T("Playlist")).FontSize(12).FontWeight(600).TextColor(p.accent)
 				ui.Text(c, T("Favorite Songs")).FontSize(30).FontWeight(800).LetterSpacing(-0.6)
@@ -489,8 +604,10 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 }
 
 // nowPlayingBars dance in the row of the track playing.
-func (a *app) nowPlayingBars(c *ui.Context) {
-	color := a.pal.accent
+func (a *app) nowPlayingBars(c *ui.Context) { a.nowPlayingBarsIn(c, a.pal.accent) }
+
+// nowPlayingBarsIn are nowPlayingBars in color.
+func (a *app) nowPlayingBarsIn(c *ui.Context, color ui.Color) {
 	ui.Box(c).Size(16, 14).Draw(func(p *ui.Painter, r ui.Rect) {
 		lv, live := a.pl.Levels()
 		a.rowBars.step(p.Now(), lv, live)

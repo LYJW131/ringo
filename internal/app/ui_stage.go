@@ -98,27 +98,21 @@ func (a *app) stage(c *ui.Context, tr *music.Track, accent ui.Color) {
 	f := min(64, max(36, w*0.045))
 	box := ui.Box(c.Key("stage")).Grow(1)
 	a.npRise(box, 1)
-	// In a quiet part a hot comment takes the middle, the lyrics nearly
-	// gone under it (ui_quiet.go).
-	dim, quiet := a.quietShown(c, box, tr, lines, loaded)
 	if len(lines) == 0 {
 		box.Children(func() {
-			quietUnder(ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Center(), dim).Children(func() {
+			ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Center().Children(func() {
 				if !loaded {
 					stageSkeleton(c, npShimmer(c), f, w)
 					return
 				}
 				ui.Text(c, T("No lyrics. Enjoy the music.")).FontSize(28).FontWeight(800).TextColor(white.Alpha(0.4))
 			})
-			a.stageQuiet(c, dim, f, w)
 		})
 		return
 	}
 	pos := pl.Position()
 	cur := lyrics.Index(lines, pos)
-	// Under a hot comment there is nothing to move: the quiet asks for
-	// the frame where it ends.
-	if pl.Playing() && !(quiet && dim > 0.98) {
+	if pl.Playing() {
 		// Tilt shows a part of a line a little before it is sung.
 		lead := 80 * time.Millisecond
 		if a.settings.StageStyle == "tilt" {
@@ -131,8 +125,7 @@ func (a *app) stage(c *ui.Context, tr *music.Track, accent ui.Color) {
 	// their translations in the app's language.
 	lang := lyrics.Lang(lines)
 	box.Children(func() {
-		defer a.stageQuiet(c, dim, f, w)
-		quietUnder(ui.Box(c.Key("sung")).Lang(lang).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough(), dim).Children(func() {
+		ui.Box(c.Key("sung")).Lang(lang).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Children(func() {
 			// The line before goes as the new one comes.
 			if cur > 0 {
 				gone := float32((pos - lines[cur].At).Seconds()) / 0.4

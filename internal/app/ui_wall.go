@@ -156,7 +156,7 @@ func (a *app) wallSong(c *ui.Context, tr *music.Track, art *artwork, top, h floa
 			cov.Children(func() { artImage(c, bitmap(art), radius, in) })
 		})
 		a.npRise(ui.Column(c).Width(440).Shrink(1).MinWidth(0).Gap(4), 1).Children(func() {
-			if r := pl.Radio(); r != "" {
+			if r := a.station(); r != "" {
 				a.radioChip(c, r)
 			}
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {

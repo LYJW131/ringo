@@ -1,8 +1,8 @@
-//go:build !nosource
-
 package app
 
 import (
+	"strings"
+
 	"mygo-music/internal/applemusic"
 	"mygo-music/internal/music"
 )
@@ -17,5 +17,20 @@ type signInPage = applemusic.WebSignIn
 // newSource makes the source, which starts nothing until it's first asked.
 func (a *app) newSource() music.Source {
 	music.ImageHeaders = applemusic.ImageHeaders
-	return applemusic.New(applemusic.Options{DataDir: userDataDir("apple-music"), WebSignIn: a.webSignIn})
+	return applemusic.New(applemusic.Options{DataDir: userDataDir("apple-music"), WebSignIn: a.webSignIn, Region: systemRegion()})
+}
+
+// systemRegion is the country or region of the first of the system's
+// languages that names one, in small letters, as cn of zh-Hans-CN: where the
+// source browses Apple Music until the listener signs in. "" if none does.
+func systemRegion() string {
+	for _, tag := range systemLanguages() {
+		parts := strings.Split(strings.ReplaceAll(tag, "_", "-"), "-")
+		for _, p := range parts[1:] {
+			if len(p) == 2 {
+				return strings.ToLower(p)
+			}
+		}
+	}
+	return ""
 }

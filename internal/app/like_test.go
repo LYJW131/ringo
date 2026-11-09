@@ -7,7 +7,6 @@ import (
 	"image/draw"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 	"time"
 
@@ -30,7 +29,7 @@ func TestLikeFromPlayerBar(t *testing.T) {
 	tt.Advance(time.Second)
 	tt.Frame()
 
-	if err := tt.Click("Like"); err != nil {
+	if err := tt.Click("Favorite"); err != nil {
 		t.Fatal(err)
 	}
 	if !a.liked["7"] {
@@ -40,7 +39,7 @@ func TestLikeFromPlayerBar(t *testing.T) {
 		t.Error("asked the source to unlike")
 	}
 	tt.Frame()
-	if err := tt.Click("Unlike"); err != nil {
+	if err := tt.Click("Undo Favorite"); err != nil {
 		t.Fatal(err)
 	}
 	if a.liked["7"] {
@@ -48,68 +47,6 @@ func TestLikeFromPlayerBar(t *testing.T) {
 	}
 	if like := wait(t, calls, "the unlike"); like {
 		t.Error("asked the source to like again")
-	}
-}
-
-// The heart of an episode playing likes the episode, once the source was
-// asked, once, whether the listener likes it already.
-func TestLikeEpisode(t *testing.T) {
-	asked := make(chan []string, 4)
-	type call struct {
-		id   string
-		like bool
-	}
-	calls := make(chan call, 4)
-	a := newTestApp()
-	fake(a).isLiked = func(ids []string) (map[string]bool, error) { asked <- ids; return nil, nil }
-	fake(a).like = func(string, bool) error { t.Error("liked the episode as a song"); return nil }
-	fake(a).likeEpisode = func(id string, like bool) error { calls <- call{id, like}; return nil }
-	a.account = &music.Account{ID: "1"}
-	a.pl.Cue([]music.Track{{ID: "13", Name: "第一期", ShowID: "5", Duration: 600000}})
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Advance(time.Second)
-	tt.Frame()
-	if ids := wait(t, asked, "whether the episode is liked"); !slices.Equal(ids, []string{"13"}) {
-		t.Fatalf("asked of %v", ids)
-	}
-	if err := tt.Click("Like"); err != nil {
-		t.Fatal(err)
-	}
-	if !a.liked["13"] {
-		t.Fatal("the heart did not fill at once")
-	}
-	if c := wait(t, calls, "the like"); c != (call{"13", true}) {
-		t.Errorf("asked the source for %+v", c)
-	}
-	tt.Frame()
-	if err := tt.Click("Unlike"); err != nil {
-		t.Fatal(err)
-	}
-	if c := wait(t, calls, "the unlike"); c != (call{"13", false}) || a.liked["13"] {
-		t.Errorf("asked the source for %+v, liked %v", c, a.liked["13"])
-	}
-	if len(asked) > 0 {
-		t.Error("asked again whether the episode is liked")
-	}
-}
-
-// An episode of a source that likes songs but not episodes has no heart, and
-// ⌘D leaves it be: a service's liked songs may refuse episodes, so every like failed.
-func TestNoLikeForEpisodeSourceCantLike(t *testing.T) {
-	a := newTestApp()
-	without(a, "likeEpisode")
-	fake(a).like = func(string, bool) error { t.Error("liked the episode as a song"); return nil }
-	a.account = &music.Account{ID: "1"}
-	a.pl.Cue([]music.Track{{ID: "13", Name: "第一期", ShowID: "5", Duration: 600000}})
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Advance(time.Second)
-	tt.Frame()
-	if err := tt.Click("Like"); err == nil {
-		t.Error("the episode has a heart")
-	}
-	a.likeCurrent()
-	if a.liked["13"] || a.toast != "" {
-		t.Errorf("liked %v, toast %q", a.liked["13"], a.toast)
 	}
 }
 
@@ -195,7 +132,7 @@ func TestLikeGoesBack(t *testing.T) {
 	a.pl.SetLyrics(nil)
 	tt := ui.NewTester(a.view, 1200, 800)
 	settled(tt)
-	if err := tt.Click("Like"); err != nil {
+	if err := tt.Click("Favorite"); err != nil {
 		t.Fatal(err)
 	}
 	if !a.liked["7"] {
@@ -204,37 +141,6 @@ func TestLikeGoesBack(t *testing.T) {
 	runPost(t, ch)
 	if a.liked["7"] || a.toast == "" {
 		t.Errorf("liked %v, toast %q", a.liked["7"], a.toast)
-	}
-}
-
-// On a show's page, a liked episode's heart shows, and another's as the
-// pointer is on it, which likes that one.
-func TestLikeEpisodeRow(t *testing.T) {
-	liked := make(chan string, 4)
-	a := catalogApp()
-	fake(a).likeEpisode = func(id string, like bool) error { liked <- id; return nil }
-	a.account = &music.Account{ID: "1"}
-	a.liked = map[string]bool{"40": true}
-	a.open(route{page: pageShow, id: "5"})
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if _, ok := tt.Find("Unlike"); !ok {
-		t.Fatal("the liked episode shows no heart")
-	}
-	if _, ok := tt.Find("Like"); ok {
-		t.Fatal("a heart shows with the pointer on no episode")
-	}
-	r, _ := tt.Find(a.shows["5"].episodes[2].Name)
-	tt.Move(r.X+r.W/2, r.Y+r.H/2)
-	tt.Frame()
-	if err := tt.Click("Like"); err != nil {
-		t.Fatal(err)
-	}
-	if id := wait(t, liked, "the like"); id != "42" || !a.liked["42"] {
-		t.Errorf("liked %s", id)
-	}
-	if a.pl.Current() != nil {
-		t.Error("the heart played the episode")
 	}
 }
 
@@ -316,11 +222,11 @@ func TestLikeBurstFrames(t *testing.T) {
 	tt.SetDark(true)
 	tt.Advance(time.Second)
 	tt.Frame()
-	r, ok := tt.Find("Like")
+	r, ok := tt.Find("Favorite")
 	if !ok {
 		t.Fatal("no heart")
 	}
-	tt.Click("Like")
+	tt.Click("Favorite")
 	moments := []time.Duration{0, 60, 120, 200, 300, 420, 600}
 	img := tt.Image()
 	scale := float32(img.Bounds().Dx()) / 1200

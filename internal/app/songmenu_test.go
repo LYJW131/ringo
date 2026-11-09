@@ -35,7 +35,7 @@ func TestSongMenuCopies(t *testing.T) {
 		if err := tt.Click("More"); err != nil {
 			t.Fatal(err)
 		}
-		if err := tt.ChooseMenuItem(c.item); err != nil {
+		if err := tt.ChooseMenuItem("Share", c.item); err != nil {
 			t.Fatalf("%v; the menu shows %q", err, tt.Menu())
 		}
 		tt.Frame()
@@ -64,7 +64,7 @@ func TestSongMenuOnRightClick(t *testing.T) {
 	if err := tt.RightClick("一张相片"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Copy Link"); err == nil {
+	if err := tt.ChooseMenuItem("Share", "Copy Link"); err == nil {
 		t.Error("offered the link of a song with none")
 	}
 	tt.CloseMenu()
@@ -72,7 +72,7 @@ func TestSongMenuOnRightClick(t *testing.T) {
 	if err := tt.RightClick("宝船"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Copy Link"); err != nil {
+	if err := tt.ChooseMenuItem("Share", "Copy Link"); err != nil {
 		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
 	}
 	tt.Frame()
@@ -111,7 +111,7 @@ func TestSongMenuGoesToPages(t *testing.T) {
 	if err := tt.RightClick("宝船"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Go to Album: 迷跡波"); err == nil {
+	if err := tt.ChooseMenuItem("Show Album"); err == nil {
 		t.Error("offered the page of an album its source has no pages of")
 	}
 	tt.CloseMenu()

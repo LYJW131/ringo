@@ -130,8 +130,7 @@ func TestNowPlayingHoldsStillWithoutBadge(t *testing.T) {
 	}
 }
 
-// ⌘ and a number choose Now Playing's tab in that place, for a song and
-// for an episode, whose tabs are others: its last is the comments.
+// ⌘ and a number choose Now Playing's tab in that place.
 func TestCmdNumberChoosesTab(t *testing.T) {
 	for _, c := range []struct {
 		track music.Track
@@ -139,7 +138,6 @@ func TestCmdNumberChoosesTab(t *testing.T) {
 		panes []int
 	}{
 		{song("1", "宝船"), []int{4, 2, 1}, []int{paneWall, paneStage, paneLyrics}},
-		{music.Track{ID: "2", Name: "节目", ShowID: "9", Duration: 200000}, []int{0, 1}, []int{paneComments, paneShow}},
 	} {
 		a := newTestApp()
 		a.pl.Cue([]music.Track{c.track})
@@ -160,10 +158,9 @@ func TestCmdNumberChoosesTab(t *testing.T) {
 	}
 }
 
-// Now Playing's tabs stay where they are going from one pane to another,
-// and as the comments' count changes: the lyrics, the queue and the
-// comments had them over the pane, and the stage and the wall at the top
-// on the right, where a longer count pushed the others along.
+// Now Playing's tabs stay where they are going from one pane to another:
+// the lyrics and the queue had them over the pane, and the stage and the
+// wall at the top on the right.
 func TestNowPlayingTabsStayPut(t *testing.T) {
 	a := newTestApp()
 	a.pl.Cue([]music.Track{song("1", "一")})
@@ -188,16 +185,6 @@ func TestNowPlayingTabsStayPut(t *testing.T) {
 		}
 		if r, _ := tt.Find("Lyrics"); r.X != first.X || r.Y != first.Y {
 			t.Errorf("on %s the Lyrics tab is at %v,%v, was at %v,%v", tab, r.X, r.Y, first.X, first.Y)
-		}
-	}
-	for _, pane := range []int{paneStage, paneLyrics} {
-		a.npPane = pane
-		a.comments.loaded, a.comments.total = true, 0
-		settle()
-		a.comments.total = 12345678
-		settle()
-		if r, _ := tt.Find("Lyrics"); r.X != first.X || r.Y != first.Y {
-			t.Errorf("in pane %d, with the count, the Lyrics tab is at %v,%v, was at %v,%v", pane, r.X, r.Y, first.X, first.Y)
 		}
 	}
 }

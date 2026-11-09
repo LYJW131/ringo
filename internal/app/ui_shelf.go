@@ -91,10 +91,9 @@ func (a *app) shelfLayout(c *ui.Context, secs []music.Section, wrap bool) []brow
 			cards(rowAlbums, len(sec.Albums), legacy)
 			cards(rowArtists, len(sec.Artists), legacy)
 			cards(rowPlaylists, len(sec.Playlists), legacy)
-			cards(rowShows, len(sec.Shows), legacy)
 			cards(rowStations, len(sec.Stations), legacy)
 			cards(rowLinks, len(sec.Links), legacy)
-			if sec.Empty != "" && len(sec.Tracks)+len(sec.Albums)+len(sec.Artists)+len(sec.Playlists)+len(sec.Shows)+len(sec.Stations)+len(sec.Links) == 0 {
+			if sec.Empty != "" && len(sec.Tracks)+len(sec.Albums)+len(sec.Artists)+len(sec.Playlists)+len(sec.Stations)+len(sec.Links) == 0 {
 				rows = append(rows, browseRow{kind: rowEmpty, section: s})
 			}
 		case music.ShelfText:
@@ -453,16 +452,51 @@ func (a *app) playAlbum(lib *library, id string) {
 	}()
 }
 
-// itemMenu is the menu of an item, as far as it has one: a song's, or one
-// of the listener's playlists'.
+// itemMenu is the menu of an item, as far as it has one: a song's, an
+// album's, a playlist's or an artist's.
 func (a *app) itemMenu(it *music.Item) func(m *ui.Menu) {
-	switch {
-	case it.Track != nil && (it.Kind == music.ItemSong || it.Kind == music.ItemVideo):
-		return a.songItems(it.Track, "")
-	case it.Kind == music.ItemPlaylist:
-		if mine := a.editable(itemID(it, it.Playlist != nil, func() string { return it.Playlist.ID })); mine != nil && (a.can("renamePlaylist") || a.can("deletePlaylist")) {
-			return func(m *ui.Menu) { a.playlistMenu(m, mine) }
+	lib := a.library
+	switch it.Kind {
+	case music.ItemSong, music.ItemVideo:
+		if it.Track != nil {
+			return a.songItems(it.Track, "")
 		}
+	case music.ItemAlbum:
+		al := music.Album{ID: it.ID, Name: it.Title, URL: it.URL}
+		if it.Album != nil {
+			al = *it.Album
+			al.ID = itemID(it, true, func() string { return it.Album.ID })
+		}
+		if al.Name == "" {
+			al.Name = it.Title
+		}
+		if al.URL == "" {
+			al.URL = it.URL
+		}
+		return a.albumItems(lib, al)
+	case music.ItemPlaylist:
+		pl := music.Playlist{ID: it.ID, Name: it.Title, URL: it.URL}
+		if it.Playlist != nil {
+			pl = *it.Playlist
+			pl.ID = itemID(it, true, func() string { return it.Playlist.ID })
+		}
+		if pl.Name == "" {
+			pl.Name = it.Title
+		}
+		if pl.URL == "" {
+			pl.URL = it.URL
+		}
+		return a.playlistItemsOf(lib, pl)
+	case music.ItemArtist:
+		ar := music.Artist{ID: it.ID, Name: it.Title, URL: it.URL}
+		if it.Artist != nil {
+			ar = *it.Artist
+			ar.ID = itemID(it, true, func() string { return it.Artist.ID })
+		}
+		if ar.URL == "" {
+			ar.URL = it.URL
+		}
+		return a.artistItems(lib, ar)
 	}
 	return nil
 }

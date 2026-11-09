@@ -18,45 +18,79 @@ func (a *app) songMenu(c *ui.Context, tr *music.Track, size float32, color ui.Co
 	return b
 }
 
-// songItems builds the menu of what can be done with tr, behind its dots
-// or a right click on its row: copying its title, its title with its
-// artists, or the link to its page, downloading it, opening its artists',
-// album's or show's, and adding it to a playlist or taking it out of pid, the
-// playlist it is listed in, if set; as far as its source can.
+// songItems builds the menu of what can be done with tr, behind its dots or
+// a right click on its row, in the order of Apple Music's: adding it to the
+// library or a playlist, or taking it out of pid, the playlist it is listed
+// in, if set; playing it next or last; sharing it; making it a favorite; and
+// going to its album's or artists' pages. What its source can't do isn't
+// offered.
 func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		lib := a.trackLib(tr)
-		if m.Item(T("Copy Title")).Chosen() {
-			copyText(tr.Name)
+		kind := trackKind(tr)
+		group := false
+		if lib.can("addToLibrary") && !lib.signedOut() {
+			if lib.inLibrary(kind, tr.ID, tr.Saved) {
+				if m.Item(T("Delete From Library")).Chosen() {
+					a.setInLibrary(lib, kind, tr.ID, false)
+				}
+			} else if m.Item(T("Add to Library")).Chosen() {
+				a.setInLibrary(lib, kind, tr.ID, true)
+			}
+			group = true
 		}
-		if names := tr.ArtistNames(); names != "" && m.Item(T("Copy Title and Artists")).Chosen() {
-			copyText(tr.Name + " - " + names)
+		if a.playlistItems(m, tr, pid) {
+			group = true
 		}
-		if tr.URL != "" {
+		if group {
 			m.Separator()
-			if m.Item(T("Copy Link")).Chosen() {
-				copyText(tr.URL)
+		}
+		if !tr.Unavailable {
+			if m.Item(T("Play Next")).Chosen() {
+				a.enqueue([]music.Track{*tr}, true, tr.Name)
+			}
+			if m.Item(T("Play Last")).Chosen() {
+				a.enqueue([]music.Track{*tr}, false, tr.Name)
+			}
+			m.Separator()
+		}
+		m.Submenu(T("Share"), func(m *ui.Menu) {
+			if tr.URL != "" && m.Item(T("Copy Link")).Chosen() {
+				a.share(tr.URL)
+			}
+			if m.Item(T("Copy Title")).Chosen() {
+				copyText(tr.Name)
+			}
+			if names := tr.ArtistNames(); names != "" && m.Item(T("Copy Title and Artists")).Chosen() {
+				copyText(tr.Name + " - " + names)
+			}
+		})
+		if lib.canLike(tr) {
+			m.Separator()
+			if a.isLiked(tr) {
+				if m.Item(T("Undo Favorite")).Chosen() {
+					a.toggleLike(tr)
+				}
+			} else if m.Item(T("Favorite")).Chosen() {
+				a.toggleLike(tr)
 			}
 		}
-		// Its artists', album's and show's pages, those the source has.
-		linked := tr.Album.ID != "" && lib.can("album") || tr.ShowID != "" && lib.can("show")
+		// Its album's and artists' pages, those the source has.
+		linked := tr.Album.ID != "" && lib.can("album")
 		for _, ar := range tr.Artists {
 			linked = linked || ar.ID != "" && lib.can("artist")
 		}
-		if linked {
-			m.Separator()
+		if !linked {
+			return
 		}
-		if tr.ShowID != "" && lib.can("show") && m.Item(T("Go to Podcast")).Chosen() {
-			a.openPage(route{page: pageShow, src: lib.id, id: tr.ShowID})
+		m.Separator()
+		if tr.Album.ID != "" && lib.can("album") && m.Item(T("Show Album")).Chosen() {
+			a.openPage(route{page: pageAlbum, src: lib.id, id: tr.Album.ID})
 		}
 		for _, ar := range tr.Artists {
 			if ar.ID != "" && lib.can("artist") && m.Item(Tf("Go to Artist: %s", ar.Name)).Chosen() {
 				a.openArtist(lib.id, ar.ID)
 			}
 		}
-		if tr.Album.ID != "" && lib.can("album") && m.Item(Tf("Go to Album: %s", tr.Album.Name)).Chosen() {
-			a.openPage(route{page: pageAlbum, src: lib.id, id: tr.Album.ID})
-		}
-		a.playlistItems(m, tr, pid)
 	}
 }

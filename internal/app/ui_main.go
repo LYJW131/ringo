@@ -80,6 +80,7 @@ func (a *app) view(c *ui.Context) {
 		a.toast = ""
 	}
 	a.askLikes()
+	a.keepAutoplay()
 	a.syncWindows()
 }
 
@@ -118,6 +119,12 @@ func (a *app) open(r route) {
 	}
 	a.history, a.forward = append(a.history, a.route), nil
 	a.show(r)
+	// Opened anew, not gone back to, a page paged through starts over.
+	if id := browseID(r); id != "" {
+		if lib := a.libOf(r.src); lib != nil && lib.browses[id] != nil && lib.browses[id].paged {
+			a.loadBrowse(lib, id, true)
+		}
+	}
 }
 
 // show shows the page of r.
@@ -156,21 +163,11 @@ func (a *app) load(r route) {
 		a.loadArtist(lib, r.id)
 	case pageAlbum:
 		a.loadAlbum(lib, r.id)
-	case pageShow:
-		a.loadShow(lib, r.id)
-	case pageShows:
-		a.loadSubscribed(lib)
-	case pageStations:
-		a.loadStations(lib)
 	case pageLiked:
 		if !lib.likedPaged.loaded {
 			a.loadLikedPage(lib)
 		} else {
 			a.freshenLiked(lib)
-		}
-	case pageSavedAlbums:
-		if !lib.savedAlbumsPaged.loaded {
-			a.loadSavedAlbums(lib)
 		}
 	}
 }
@@ -328,20 +325,12 @@ func (a *app) content(c *ui.Context) {
 		a.playlistPage(c)
 	case pageSearch:
 		a.searchPage(c)
-	case pageStations:
-		a.stationsPage(c)
 	case pageArtist:
 		a.artistPage(c)
 	case pageAlbum:
 		a.albumPage(c)
-	case pageShow:
-		a.showPage(c)
-	case pageShows:
-		a.showsPage(c)
 	case pageLiked:
 		a.likedPage(c)
-	case pageSavedAlbums:
-		a.savedAlbumsPage(c)
 	case pageBrowse:
 		a.browsePage(c)
 	}
@@ -516,15 +505,4 @@ func firstPlayable(tracks []music.Track) int {
 		}
 	}
 	return 0
-}
-
-// builtinTitle is what the app calls one of its pages.
-func (a *app) builtinTitle(name string) string {
-	switch name {
-	case "stations":
-		return T("Radio")
-	case "shows":
-		return T("Podcasts")
-	}
-	return ""
 }

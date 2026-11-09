@@ -285,20 +285,6 @@ func (a *app) nowPlayingView(c *ui.Context) {
 
 func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accent ui.Color, w, h float32, pointerIn bool) {
 	pl := a.pl
-	a.commentsFor(tr)
-	// An episode has what it is about in place of lyrics; a song, lyrics in
-	// place of that. Comments are for a source that has them.
-	switch episode := tr.ShowID != ""; {
-	case episode && a.npPane == paneWall:
-		a.npPane = paneQueue
-	case episode && (a.npPane == paneLyrics || a.npPane == paneStage):
-		a.npPane = paneShow
-	case !episode && a.npPane == paneShow:
-		a.npPane = a.lyricsPaneChosen()
-	}
-	if a.npPane == paneComments && !a.trackLib(tr).can("comments") {
-		a.npPane = paneQueue
-	}
 	if a.npPane != paneQueue {
 		a.queueAt = -1
 	}
@@ -358,7 +344,7 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 
 				a.npRise(ui.Row(c).Gap(8).AlignItems(ui.Center).Margin(36, 0, 18, 0), 1).Children(func() {
 					ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(4).Children(func() {
-						if r := pl.Radio(); r != "" {
+						if r := a.station(); r != "" {
 							a.radioChip(c, r)
 						}
 						ui.Text(c, tr.Name).FontSize(22).FontWeight(700).LetterSpacing(-0.3).SingleLine()
@@ -412,10 +398,6 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 				switch a.npPane {
 				case paneLyrics:
 					a.lyricsPane(c, tr, h)
-				case paneComments:
-					a.commentsPane(c, tr)
-				case paneShow:
-					a.showPane(c, tr)
 				default:
 					a.queuePane(c)
 				}
@@ -457,8 +439,7 @@ func reveal(e ui.Element, shown bool) ui.Element {
 }
 
 // lyricsPaneChosen is the pane of lyrics the listener chose last: what
-// the app starts on, before the player is made. Now Playing shows what an
-// episode is about in place of either.
+// the app starts on, before the player is made.
 func (a *app) lyricsPaneChosen() int {
 	if a.settings.LyricsStage {
 		return paneStage
@@ -471,8 +452,6 @@ const (
 	paneLyrics = iota
 	paneQueue
 	paneStage
-	paneComments
-	paneShow
 	paneWall
 )
 
@@ -485,17 +464,7 @@ type npTab struct {
 // npTabs returns the tabs of Now Playing, in order, for what plays: ⌘1
 // chooses the first, ⌘2 the second, and on.
 func (a *app) npTabs() []npTab {
-	tr := a.pl.Current()
-	var tabs []npTab
-	if tr != nil && tr.ShowID != "" {
-		tabs = []npTab{{paneShow, T("About")}, {paneQueue, T("Up Next")}}
-	} else {
-		tabs = []npTab{{paneLyrics, T("Lyrics")}, {paneStage, T("Stage")}, {paneQueue, T("Up Next")}, {paneWall, T("Wall")}}
-	}
-	if tr != nil && a.trackLib(tr).can("comments") {
-		tabs = append(tabs, npTab{paneComments, T("Comments")})
-	}
-	return tabs
+	return []npTab{{paneLyrics, T("Lyrics")}, {paneStage, T("Stage")}, {paneQueue, T("Up Next")}, {paneWall, T("Wall")}}
 }
 
 func (a *app) paneTabs(c *ui.Context) {
@@ -535,13 +504,14 @@ func (a *app) radioChip(c *ui.Context, name string) {
 	}
 }
 
-// qualityBadge marks a lossless stream, as it plays.
+// qualityBadge marks a lossless stream, as it plays, with the badge of an
+// album's page (traitBadge). A stream says no more of itself than that it is
+// lossless: not whether it's of high resolution, or Dolby Atmos.
 func qualityBadge(c *ui.Context, st *music.Stream) {
 	if st == nil || st.Quality != "lossless" && st.Type != "flac" && st.Type != "wav" {
 		return
 	}
-	ui.Text(c, T("Lossless")).FontSize(9.5).FontWeight(800).LetterSpacing(0.6).TextColor(ui.Hex("#f5d58a")).
-		Padding(1, 6).Radius(4).Border(1, ui.Hex("#f5d58a").Alpha(0.55))
+	traitBadge(c, traitLosless, ui.Hex("#f5d58a"))
 }
 
 // stageBar is the slim bar along the foot of the stage: what plays, where
@@ -585,19 +555,7 @@ func (a *app) paneTab(c *ui.Context, i int, label string) {
 		bg = white.Alpha(0.06)
 	}
 	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
-	b.Children(func() {
-		if i != paneComments {
-			ui.Text(c, label).FontSize(13).FontWeight(600).TextColor(fg)
-			return
-		}
-		// The count rolls as it changes, from one song's to the next.
-		n, text := a.commentCount(), ""
-		if n > 0 {
-			text = " " + count(n)
-		}
-		ui.Text(c, label).FontSize(13).FontWeight(600).TextColor(fg)
-		rollCount(c, &a.tabCount, n, text, fg)
-	})
+	b.Children(func() { ui.Text(c, label).FontSize(13).FontWeight(600).TextColor(fg) })
 	if b.Clicked() {
 		a.choosePane(i)
 	}
@@ -611,8 +569,6 @@ func (a *app) lyricsPane(c *ui.Context, tr *music.Track, h float32) {
 		if loaded {
 			col.Center()
 		}
-		dim, _ := a.quietShown(c, col, tr, lines, loaded)
-		quietUnder(col, dim)
 		col.Children(func() {
 			if !loaded {
 				lyricsSkeleton(c, npShimmer(c))
@@ -620,7 +576,6 @@ func (a *app) lyricsPane(c *ui.Context, tr *music.Track, h float32) {
 			}
 			ui.Text(c, T("No lyrics. Enjoy the music.")).FontSize(24).FontWeight(700).TextColor(white.Alpha(0.4))
 		})
-		a.quietCard(c, dim, h*0.18)
 		return
 	}
 	pos := pl.Position()
@@ -636,22 +591,15 @@ func (a *app) lyricsPane(c *ui.Context, tr *music.Track, h float32) {
 	lag := a.lyricGlide.step(c, &a.lyricScroll)
 
 	scroll := ui.Scroll(c.Key("lyrics")).Grow(1).TrackScroll(&a.lyricScroll).Padding(0, 8, h*0.5, 0)
-	dim, quiet := a.quietShown(c, scroll, tr, lines, loaded)
-	if dim > 0.98 {
-		// Under the hot comment, gone, not drawn faint.
-		scroll.Invisible()
-	}
-	defer a.quietCard(c, dim, h*0.18)
-	a.timedLines(c, scroll, lines, pos, cur, lag, linesStyle{size: 30, weight: 800, lineHeight: 1.25, quiet: quiet}, nil)
+	a.timedLines(c, scroll, lines, pos, cur, lag, linesStyle{size: 30, weight: 800, lineHeight: 1.25}, nil)
 }
 
 // linesStyle is how timedLines sets its lines: the size, weight and
-// leading of their type; quiet nearly hides them, under a hot comment.
+// leading of their type.
 type linesStyle struct {
 	size       float32
 	weight     int
 	lineHeight float32
-	quiet      bool
 }
 
 // timedLines fills scroll with lines that follow the track playing at
@@ -675,10 +623,6 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 					alpha = 1
 				} else if line.Hovered() {
 					alpha = 0.55
-				}
-				if st.quiet {
-					// Nearly gone under a hot comment.
-					alpha *= quietFaded
 				}
 				if line.Hovered() {
 					line.Background(white.Alpha(0.06))
@@ -817,6 +761,7 @@ func (g *lyricGlide) step(c *ui.Context, s *ui.ScrollState) float32 {
 
 // queuePane lists the whole queue in play order, the track playing marked
 // among the others: a click plays one there, and the list stays as it is.
+// AutoPlay's switch ends it.
 func (a *app) queuePane(c *ui.Context) {
 	pl := a.pl
 	order, at := pl.PlayOrder()
@@ -830,8 +775,17 @@ func (a *app) queuePane(c *ui.Context) {
 		}
 		a.queueAt = at
 	}
-	a.queueList.Key = func(row int) any { return order[row] }
-	ui.List(c.Key("queue"), &a.queueList, len(order), func(r int) {
+	a.queueList.Key = func(row int) any {
+		if row >= len(order) {
+			return "autoplay"
+		}
+		return order[row]
+	}
+	ui.List(c.Key("queue"), &a.queueList, len(order)+1, func(r int) {
+		if r == len(order) {
+			a.autoplaySwitch(c)
+			return
+		}
 		i := order[r]
 		tr := &pl.Queue()[i]
 		playing := r == at

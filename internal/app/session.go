@@ -89,7 +89,8 @@ func (a *app) restoreSession() {
 	}
 	a.savedSession = string(b)
 	a.pl.Restore(s)
-	if s.Radio != "" && a.pl.Current() != nil {
+	// Autoplay attaches itself again as the view sees the queue (keepAutoplay).
+	if s.Radio != "" && s.Radio != autoplayRadio && a.pl.Current() != nil {
 		a.pl.AttachRadio(s.Radio, a.radioFeed(s.Radio))
 	}
 }

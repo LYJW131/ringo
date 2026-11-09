@@ -21,13 +21,9 @@ const (
 	pageHome pageKind = iota
 	pagePlaylist
 	pageSearch
-	pageStations
 	pageArtist
 	pageAlbum
-	pageShow
-	pageShows
 	pageLiked
-	pageSavedAlbums
 	pageBrowse
 )
 
@@ -36,7 +32,7 @@ type route struct {
 	// src is the ID of the source the page is of. Opened without one, a page
 	// is of the active source's.
 	src string
-	// id is the playlist, artist, album, show or browse page shown.
+	// id is the playlist, artist, album or browse page shown.
 	id string
 	// query is what a search page searched for: none for what Search shows
 	// before a word is typed.
@@ -85,6 +81,9 @@ type app struct {
 	pageScroll ui.ScrollState
 	navScroll  ui.ScrollState
 	scrolled   route // the page trackList and pageScroll are of
+	// notesOpen is the page whose editors' notes or biography show whole,
+	// past their first lines.
+	notesOpen route
 	// shelves are where the shelves of the page that scroll sideways are
 	// scrolled, by their section: kept here, as a shelf scrolled out of the
 	// list is not built.
@@ -115,7 +114,7 @@ type app struct {
 	npHeld      bool    // whether the pointer presses on it, to pull it
 	npStill     bool    // whether it comes and goes in place, sliding or fading, rather than out of the bar's cover
 	npFrom      ui.Rect // the player bar's cover, which it grows out of
-	npPane      int     // paneLyrics, paneQueue, paneStage, paneComments or paneShow
+	npPane      int     // paneLyrics, paneQueue, paneStage or paneWall
 	npPaneTop   float32 // how far the cover beside the pane starts below its top
 	lyricScroll ui.ScrollState
 	lyricGlide  lyricGlide
@@ -123,11 +122,8 @@ type app struct {
 	lyricTrack  string
 	queueList   ui.ListState
 	queueAt     int // the row of the queue pane last scrolled to, -1 while it is hidden
-	comments    commentState
-	tabCount    rollState // the count on the comments' tab, as it rolls
 
 	radioStarting string // the radio asked for its first songs, or ""
-	stationAt     int    // which of a few stations their switch has chosen
 
 	volume     float64
 	volumeOpen bool // the volume popover of the player bar shows
@@ -143,7 +139,6 @@ type app struct {
 	npArt                 *artwork      // the cover whose colors Now Playing shows
 	npCoverState          coverState    // the cover of Now Playing, as it is tilted and flicked
 	wallState             wallState     // the wall of the queue's covers, as it is dragged
-	quiet                 quietState    // the quiet parts of the song playing, for its top comments
 	sig                   playerSig
 	quitting              bool
 
@@ -224,6 +219,11 @@ func (a *app) makeSources() {
 func (a *app) sourceByID(id string) music.Source {
 	if lib := a.libOf(id); lib != nil {
 		return lib.src
+	}
+	// A track that names no source is of the app's one source, which
+	// doesn't sign what it answers.
+	if id == "" && a.library != nil {
+		return a.library.src
 	}
 	return nil
 }

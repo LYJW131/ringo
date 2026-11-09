@@ -220,174 +220,6 @@ func TestSuggestionSearches(t *testing.T) {
 	}
 }
 
-// A click on an episode plays the show's episodes from it, and Now Playing
-// shows what it is about in place of lyrics.
-func TestPlayEpisode(t *testing.T) {
-	a := newTestApp()
-	ep := func(id, name string) music.Track {
-		return music.Track{ID: id, Name: name, Duration: 600000, ShowID: "5", Description: name + "的简介"}
-	}
-	a.shows["5"] = &showData{
-		show:     &music.Show{ID: "5", Name: "夜航", Publisher: "主播"},
-		episodes: []music.Track{ep("1", "第三期"), ep("2", "第二期"), ep("3", "第一期")},
-		page:     paged{loaded: true},
-	}
-	a.open(route{page: pageShow, id: "5"})
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("第一期"); err != nil {
-		t.Fatal(err)
-	}
-	cur := a.pl.Current()
-	if cur == nil || cur.ID != "3" || cur.ShowID != "5" || len(a.pl.Queue()) != 3 {
-		t.Fatalf("playing %+v of %d", cur, len(a.pl.Queue()))
-	}
-	a.pl.SetLyrics(nil)
-	tt.Advance(time.Second)
-	tt.Frame()
-	if err := tt.Click("About This Episode"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Advance(time.Second)
-	tt.Frame()
-	if !a.nowPlaying || a.npPane != paneShow || !tt.HasText("第一期的简介") {
-		t.Fatalf("Now Playing open %v on pane %d", a.nowPlaying, a.npPane)
-	}
-}
-
-// An episode's host in Now Playing opens its show's page, closing Now
-// Playing, though that is the page it covers: it did nothing, as the page
-// was open.
-func TestEpisodeOpensShow(t *testing.T) {
-	a := catalogApp()
-	a.open(route{page: pageShow, id: "5"})
-	d := a.shows["5"]
-	a.playEpisodes(d)
-	a.pl.SetLyrics(nil)
-	a.nowPlaying, a.npPane = true, paneShow
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Advance(time.Second)
-	tt.Frame()
-	r, ok := tt.Find(d.show.Publisher)
-	if !ok {
-		t.Fatal("no host")
-	}
-	tt.ClickAt(r.X+4, r.Y+r.H/2)
-	tt.Frame()
-	if a.nowPlaying || a.route != (route{page: pageShow, src: "fake", id: "5"}) {
-		t.Fatalf("Now Playing open %v over %+v", a.nowPlaying, a.route)
-	}
-}
-
-// Who publishes a show, on its page, opens the page the source has of them.
-func TestShowOpensPublisher(t *testing.T) {
-	a := newTestApp()
-	a.shows["5"] = &showData{
-		show: &music.Show{ID: "5", Name: "夜航", Publisher: "主播", PublisherPage: "user:7", EpisodeCount: 3},
-		page: paged{loaded: true},
-	}
-	a.open(route{page: pageShow, id: "5"})
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	r, ok := tt.Find("主播")
-	if !ok {
-		t.Fatal("no publisher")
-	}
-	tt.ClickAt(r.X+4, r.Y+r.H/2)
-	tt.Frame()
-	if want := (route{page: pageBrowse, src: "fake", id: "user:7"}); a.route != want {
-		t.Fatalf("route %+v", a.route)
-	}
-}
-
-// A show's card opens its page; the button on its cover plays its first
-// episode instead, and leaves the page open.
-func TestShowCard(t *testing.T) {
-	a := catalogApp()
-	a.open(route{page: pageShows})
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	r, ok := tt.Find("夜航电台")
-	if !ok {
-		t.Fatal("no card")
-	}
-	// The button shows under the pointer, in the corner of the square
-	// cover.
-	x, y := r.X+r.W-29, r.Y+r.W-29
-	tt.Move(x, y)
-	tt.Advance(time.Second)
-	tt.Frame()
-	tt.ClickAt(x, y)
-	tt.Frame()
-	if cur := a.pl.Current(); cur == nil || cur.ID != "40" || a.route.page != pageShows {
-		t.Fatalf("playing %+v on %+v", cur, a.route)
-	}
-	tt.ClickAt(r.X+r.W/2, r.Y+r.W/2)
-	tt.Frame()
-	if a.route != (route{page: pageShow, src: "fake", id: "5"}) {
-		t.Fatalf("opened %+v", a.route)
-	}
-}
-
-// Subscribe subscribes to a show at once and asks the source to, listing it
-// with those subscribed once it took it; a change it refuses goes back.
-func TestSubscribeShow(t *testing.T) {
-	type call struct {
-		id string
-		on bool
-	}
-	calls := make(chan call, 4)
-	var answer error
-	a := catalogApp()
-	ch := posts(a)
-	fake(a).subscribe = func(id string, on bool) error { calls <- call{id, on}; return answer }
-	without(a, "isLiked")
-	a.account = &music.Account{ID: "1"}
-	a.subscribed = nil
-	a.open(route{page: pageShow, id: "5"})
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("Subscribe"); err != nil {
-		t.Fatal(err)
-	}
-	show := a.shows["5"].show
-	if c := wait(t, calls, "the subscription"); c != (call{"5", true}) || !show.Subscribed {
-		t.Fatalf("asked for %+v, subscribed %v", c, show.Subscribed)
-	}
-	runPost(t, ch)
-	if len(a.subscribed) != 1 || a.subscribed[0].ID != "5" {
-		t.Errorf("subscribed to %+v", a.subscribed)
-	}
-	tt.Frame()
-
-	answer = errors.New("offline")
-	if err := tt.Click("Subscribed"); err != nil {
-		t.Fatal(err)
-	}
-	if c := wait(t, calls, "the end of it"); c != (call{"5", false}) || show.Subscribed {
-		t.Fatalf("asked for %+v, subscribed %v", c, show.Subscribed)
-	}
-	runPost(t, ch)
-	if !show.Subscribed || len(a.subscribed) != 1 {
-		t.Errorf("a change the source refused stayed: subscribed %v, listed %+v", show.Subscribed, a.subscribed)
-	}
-}
-
-// Subscribing signed out asks the listener to sign in, not the source.
-func TestSubscribeSignedOut(t *testing.T) {
-	a := catalogApp()
-	fake(a).subscribe = func(string, bool) error { t.Error("asked the source"); return nil }
-	a.open(route{page: pageShow, id: "5"})
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("Subscribe"); err != nil {
-		t.Fatal(err)
-	}
-	if !a.signIn.open || a.shows["5"].show.Subscribed {
-		t.Errorf("dialog open %v, subscribed %v", a.signIn.open, a.shows["5"].show.Subscribed)
-	}
-}
-
 // A song row's album opens its page, not playing the song as the row's
 // click would.
 func TestAlbumLinkInRow(t *testing.T) {
@@ -409,32 +241,7 @@ func TestAlbumLinkInRow(t *testing.T) {
 	}
 }
 
-// Save on an album saves it at once and asks the source to, and the list of
-// those saved loads anew once it took it.
-func TestSaveAlbum(t *testing.T) {
-	asked := make(chan bool, 4)
-	a := catalogApp()
-	ch := posts(a)
-	fake(a).saveAlbum = func(id string, on bool) error { asked <- on; return nil }
-	without(a, "isLiked")
-	a.account = &music.Account{ID: "1"}
-	a.savedAlbums, a.savedAlbumsPaged = []music.Album{{ID: "20"}}, paged{loaded: true}
-	a.open(route{page: pageAlbum, id: "8"})
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("Save"); err != nil {
-		t.Fatal(err)
-	}
-	if !wait(t, asked, "the saving") || !a.albums["8"].album.Album.Saved {
-		t.Fatal("not saved")
-	}
-	runPost(t, ch)
-	if a.savedAlbums != nil || a.savedAlbumsPaged.loaded {
-		t.Errorf("the albums saved stayed as they were: %+v", a.savedAlbums)
-	}
-}
-
-// catalogApp is an app with an artist, album and show loaded, and searches
+// catalogApp is an app with an artist and an album loaded, and searches
 // for each kind, to look at.
 func catalogApp() *app {
 	a := newTestApp()
@@ -450,16 +257,6 @@ func catalogApp() *app {
 	}
 	a.artists["7"] = &artistData{page: &music.ArtistPage{Artist: band, Tracks: songs, Albums: albums}}
 	a.albums["8"] = &albumData{album: &music.AlbumPage{Album: music.Album{ID: "8", Name: "迷跡波", Artists: []music.Artist{band}, Released: "2026-10-01"}, Tracks: songs}}
-	show := &music.Show{ID: "5", Name: "夜航电台", Publisher: "主播", EpisodeCount: 120, Description: "每晚陪你说说话。"}
-	var episodes []music.Track
-	for i := range 4 {
-		episodes = append(episodes, music.Track{
-			ID: fmt.Sprint(40 + i), Name: fmt.Sprintf("第 %d 期：晚安", 120-i), Duration: 1800000, ShowID: "5",
-			Artists: []music.Artist{{Name: show.Publisher}}, Album: music.Album{Name: show.Name}, Published: "2026-10-01",
-		})
-	}
-	a.shows["5"] = &showData{show: show, episodes: episodes, page: paged{loaded: true}}
-	a.subscribed, a.subscribedOnce = []music.Show{*show}, true
 	return a
 }
 
@@ -472,8 +269,6 @@ var catalogScenes = []struct {
 	{"artist", route{page: pageArtist, id: "7"}, artistSongs},
 	{"artist-albums", route{page: pageArtist, id: "7"}, artistAlbums},
 	{"album", route{page: pageAlbum, id: "8"}, 0},
-	{"show", route{page: pageShow, id: "5"}, 0},
-	{"shows", route{page: pageShows}, 0},
 }
 
 // With MM_FRAMES set, saves the pages of artists, albums and shows

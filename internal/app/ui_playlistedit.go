@@ -41,16 +41,16 @@ func (a *app) editable(id string) *music.Playlist {
 	return nil
 }
 
+// ownList reports whether playlist id is one of the listener's, as the
+// sidebar lists them: one the source keeps for them too.
+func (a *app) ownList(id string) bool {
+	return slices.ContainsFunc(a.mine, func(m music.Playlist) bool { return m.ID == id })
+}
+
 // isSaved reports whether the listener saved playlist pl, as its page or
 // the sidebar says.
 func (a *app) isSaved(pl *music.Playlist) bool {
 	return pl.Saved || slices.ContainsFunc(a.saved, func(s music.Playlist) bool { return s.ID == pl.ID })
-}
-
-// savable reports whether the listener may save playlist pl: anyone's but
-// their own, with a source that keeps saved playlists.
-func (a *app) savable(pl *music.Playlist) bool {
-	return a.can("savePlaylist") && !pl.Mine && !slices.ContainsFunc(a.mine, func(m music.Playlist) bool { return m.ID == pl.ID })
 }
 
 // toggleSaved saves playlist pl for the listener, or unsaves it, at once
@@ -345,16 +345,15 @@ func (a *app) moveTrack(lib *library, pid string, tr *music.Track, by int) {
 
 // playlistItems are the items of a song's menu that put it in the
 // listener's playlists, or take it out of pid or move it there, the one it is
-// listed in, if set.
-func (a *app) playlistItems(m *ui.Menu, tr *music.Track, pid string) {
+// listed in, if set. It reports whether it added any.
+func (a *app) playlistItems(m *ui.Menu, tr *music.Track, pid string) bool {
 	lib := a.trackLib(tr)
 	if lib.signedOut() || !lib.can("addToPlaylist") && pid == "" {
-		return
+		return false
 	}
 	mine := lib.playlists[pid]
 	editing := pid != "" && lib == a.library && a.editable(pid) != nil
 	if lib.can("addToPlaylist") {
-		m.Separator()
 		m.Submenu(T("Add to Playlist"), func(m *ui.Menu) {
 			if lib.can("createPlaylist") && lib == a.library && m.Item(T("New Playlist…")).Chosen() {
 				a.newPlaylist(tr)
@@ -376,7 +375,7 @@ func (a *app) playlistItems(m *ui.Menu, tr *music.Track, pid string) {
 		})
 	}
 	if !editing {
-		return
+		return lib.can("addToPlaylist")
 	}
 	if lib.can("removeFromPlaylist") && m.Item(T("Remove from Playlist")).Chosen() {
 		a.removeFrom(lib, pid, tr)
@@ -390,6 +389,7 @@ func (a *app) playlistItems(m *ui.Menu, tr *music.Track, pid string) {
 			a.moveTrack(lib, pid, tr, 1)
 		}
 	}
+	return true
 }
 
 // playlistNameDialog asks for the name of a playlist to make, or a new

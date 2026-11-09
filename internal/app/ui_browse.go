@@ -23,6 +23,9 @@ type browseData struct {
 	err     string
 	// next is how the page's next part, its Next, is coming along.
 	next paged
+	// paged says the page has its next parts joined to it, which loading
+	// it anew would drop: it is, only as asked again (loadBrowse).
+	paged bool
 }
 
 // browseID is the page of the source's that r shows, if it shows one.
@@ -41,7 +44,9 @@ func browseID(r route) string {
 
 // loadBrowse loads a page, unless it has, or again. One loaded longer than
 // listsFresh ago is asked for anew, as it may change as the app plays, such
-// as songs played lately, and shows as it was while it is.
+// as songs played lately, and shows as it was while it is: but not one the
+// listener paged through, which would go back to its first part as they
+// come back to it.
 func (a *app) loadBrowse(lib *library, page string, again bool) {
 	if lib == nil || page == "" {
 		return
@@ -51,7 +56,7 @@ func (a *app) loadBrowse(lib *library, page string, again bool) {
 		d = &browseData{}
 		lib.browses[page] = d
 	}
-	if d.loading || d.page != nil && !again && time.Since(d.at) <= listsFresh {
+	if d.loading || d.page != nil && !again && (d.paged || time.Since(d.at) <= listsFresh) {
 		return
 	}
 	d.loading, d.err = true, ""
@@ -63,7 +68,7 @@ func (a *app) loadBrowse(lib *library, page string, again bool) {
 				d.err = a.problem(lib, err, T("Couldn't load this page"))
 				return
 			}
-			d.page, d.at, d.next = b, time.Now(), paged{loaded: true, more: b.Next != ""}
+			d.page, d.at, d.next, d.paged = b, time.Now(), paged{loaded: true, more: b.Next != ""}, false
 		})
 	}()
 }
@@ -88,7 +93,7 @@ func (a *app) loadNext(lib *library, d *browseData) {
 				d.next.err = a.problem(lib, err, T("Couldn't load this page"))
 				return
 			}
-			d.page = joinPages(was, b)
+			d.page, d.paged = joinPages(was, b), true
 			d.next.more = d.page.Next != ""
 		})
 	}()
@@ -258,7 +263,6 @@ const (
 	rowAlbums
 	rowArtists
 	rowPlaylists
-	rowShows
 	rowStations
 	rowLinks
 	rowEmpty
@@ -321,8 +325,6 @@ func (a *app) cardRow(c *ui.Context, sec *music.Section, r browseRow, cols int) 
 				a.artistCard(c.Key(sec.Artists[i].ID), &sec.Artists[i])
 			case rowPlaylists:
 				a.playlistCard(c.Key(sec.Playlists[i].ID), &sec.Playlists[i])
-			case rowShows:
-				a.showCard(c.Key(sec.Shows[i].ID), &sec.Shows[i])
 			case rowStations:
 				a.stationCard(c.Key(sec.Stations[i].ID), &sec.Stations[i])
 			case rowLinks:

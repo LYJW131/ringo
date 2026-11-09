@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"testing"
 	"time"
 
@@ -89,48 +88,5 @@ func TestArtistAlbums(t *testing.T) {
 	tt.Frame()
 	if _, ok := tt.Find("迷跡波"); !ok {
 		t.Error("the tab went back to the songs")
-	}
-}
-
-// Follow follows an artist at once, and asks the source to; a second click
-// waits for the first, and a follow the source refuses goes back.
-func TestFollowArtist(t *testing.T) {
-	asked := make(chan bool, 4)
-	var answer error
-	a := newTestApp()
-	ch := posts(a)
-	fake(a).follow = func(id string, on bool) error { asked <- on; return answer }
-	a.account = &music.Account{ID: "1"}
-	a.artists["12"] = &artistData{page: &music.ArtistPage{Artist: music.Artist{ID: "12", Name: "乙"}}}
-	a.open(route{page: pageArtist, id: "12"})
-	tt := ui.NewTester(a.view, 1200, 800)
-	tt.Frame()
-	if err := tt.Click("Follow"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	artist := &a.artists["12"].page.Artist
-	if !artist.Following || !wait(t, asked, "the follow") {
-		t.Fatal("not followed")
-	}
-	if err := tt.Click("Following"); err != nil {
-		t.Fatal(err)
-	}
-	if len(asked) > 0 || !artist.Following {
-		t.Error("unfollowed before the follow landed")
-	}
-	runPost(t, ch)
-	tt.Frame()
-
-	answer = errors.New("offline")
-	if err := tt.Click("Following"); err != nil {
-		t.Fatal(err)
-	}
-	if artist.Following || wait(t, asked, "the unfollow") {
-		t.Fatal("not unfollowed at once")
-	}
-	runPost(t, ch)
-	if !artist.Following {
-		t.Error("an unfollow the source refused stayed")
 	}
 }

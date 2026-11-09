@@ -12,16 +12,16 @@ import (
 func TestBackAndForward(t *testing.T) {
 	a := newTestApp()
 	a.playlists["42"] = &music.Playlist{ID: "42", Name: "飙升榜", Tracks: []music.Track{{ID: "1", Name: "一张相片"}}}
-	a.stationsOnce = true
+	a.playlists["43"] = &music.Playlist{ID: "43", Name: "睡前", Tracks: []music.Track{{ID: "2", Name: "宝船"}}}
 	tt := ui.NewTester(a.view, 1200, 800)
-	stations, list := route{page: pageStations, src: "fake"}, route{page: pagePlaylist, src: "fake", id: "42"}
-	a.open(stations)
+	other, list := route{page: pagePlaylist, src: "fake", id: "43"}, route{page: pagePlaylist, src: "fake", id: "42"}
+	a.open(other)
 	a.open(list)
 	tt.Frame()
 
 	tt.Key(0, ui.KeyBack)
 	tt.Frame()
-	if a.route != stations {
+	if a.route != other {
 		t.Fatalf("back went to %+v", a.route)
 	}
 	tt.Key(0, ui.KeyForward)

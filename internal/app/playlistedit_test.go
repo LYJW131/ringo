@@ -415,9 +415,6 @@ func TestFixedPlaylist(t *testing.T) {
 	if a.editable("5") != nil {
 		t.Error("the fixed playlist is editable")
 	}
-	if a.savable(a.playlists["5"]) {
-		t.Error("offered to save the listener's own playlist")
-	}
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if err := tt.RightClick("宝船"); err != nil {
@@ -436,6 +433,9 @@ func TestFixedPlaylist(t *testing.T) {
 	tt.Frame()
 	a.route = route{page: pagePlaylist, src: "fake", id: "5"}
 	tt.Frame()
+	if _, ok := tt.Find("Add to Library"); ok {
+		t.Error("offered to add the listener's own playlist to their library")
+	}
 	if err := tt.RightClick("晴天"); err != nil {
 		t.Fatal(err)
 	}

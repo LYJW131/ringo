@@ -54,10 +54,9 @@ type settings struct {
 	// Normalize evens out the loudness of tracks, by what their source
 	// measured of each.
 	Normalize bool `json:"normalize"`
-	// HotComments shows a song's top comments in its quiet parts, in place of
-	// the lyrics (quietComment), for a source with comments: the listener
-	// turns it on.
-	HotComments bool `json:"hotComments"`
+	// Autoplay goes on with music like what played once the queue ends, for
+	// a source that has some (music.Autoplayer), as Apple Music's AutoPlay.
+	Autoplay bool `json:"autoplay"`
 	// Fog fills Now Playing's backdrop with fog of the cover's color,
 	// rising and swelling with the bass: an experiment the listener turns
 	// on.
@@ -75,7 +74,7 @@ type settings struct {
 }
 
 func defaultSettings() settings {
-	return settings{Language: i18n.System, NotchActivity: true, Quality: "high", Appearance: "system", Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048}
+	return settings{Language: i18n.System, NotchActivity: true, Quality: "high", Appearance: "system", Volume: 0.8, Normalize: true, Autoplay: true, AppIcon: "dock-and-menubar", CacheMB: 2048}
 }
 
 func settingsPath() (string, error) {
