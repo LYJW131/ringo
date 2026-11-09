@@ -1,0 +1,449 @@
+// Package applemusic is Apple Music, the app's source: the catalog, the
+// listener's library and playlists, charts, recommendations, stations and
+// word-timed lyrics, from the same API the web player at music.apple.com
+// uses.
+//
+// Songs play whole, as the 256 kbps AAC the web player plays. Apple encrypts
+// it with Widevine: the source asks Apple's license server for the key as the
+// web player would (package widevine), and amhelper takes the encryption
+// off, copying the audio as it is into an .m4a the app plays itself. Nothing
+// is re-encoded. With the listener's wrapper, songs play lossless as ALAC
+// instead (lossless.go).
+//
+// It began as the MyGo Music plugin of the same name, written in TypeScript;
+// each file here is the module of that name there, and what it keeps on disk
+// is under the keys the plugin kept it under.
+package applemusic
+
+import (
+	"context"
+	"net/http"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"mygo-music/internal/applemusic/amhelper"
+	"mygo-music/internal/i18n"
+	"mygo-music/internal/music"
+)
+
+// ID is the source's.
+const ID = "apple-music"
+
+// Options are what the app gives the source.
+type Options struct {
+	// DataDir is the source's own folder: storage.json, settings.json, the
+	// lossless/ cache and playlist covers.
+	DataDir string
+	// WebSignIn shows Apple's sign-in page and answers the Cookie header of
+	// CookiesOf's address once it's done.
+	WebSignIn func(WebSignIn) (cookie string, err error)
+}
+
+// WebSignIn is a sign-in page to show: URL, until a cookie of each name in
+// Until is set for CookiesOf's address, as UserAgent.
+type WebSignIn struct {
+	Name      string
+	URL       string
+	CookiesOf string
+	Until     []string
+	UserAgent string
+}
+
+// Source is Apple Music. Its methods may be called from several goroutines
+// at once.
+type Source struct {
+	dataDir   string
+	webSignIn func(WebSignIn) (string, error)
+
+	// Where Apple is, and how it's reached; tests put stand-ins here.
+	client                                     *http.Client
+	web, amp, playURL, licenseURL, activityURL string
+	clk                                        clock
+	startHelper                                func(amhelper.Config) (helperServer, error)
+	newCDM                                     func(kid []byte) (cdm, error)
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	bg     sync.WaitGroup
+	bgMu   sync.Mutex
+	closed bool
+
+	storage  *jsonFile
+	settings *jsonFile
+
+	devMu    sync.Mutex
+	devToken string
+
+	acctMu        sync.Mutex
+	wrapperFailed *wrapperFailure
+
+	renewMu  sync.Mutex
+	renewing *renewCall
+
+	askMu     sync.Mutex
+	asking    int
+	lastAsked time.Time
+
+	keptMu  sync.Mutex
+	entries *omap[*keptEntry]
+
+	libMu sync.Mutex
+	lib   libraryState
+
+	warmMu      sync.Mutex
+	warmTimer   *warmTimer
+	warmRunning bool
+	lastWarm    time.Time
+	warmGen     int
+
+	helperMu  sync.Mutex
+	helper    helperServer
+	helperCfg amhelper.Config
+
+	coverMu       sync.Mutex
+	coverQueue    []coverJob
+	coverFetching int
+	coverKeptMu   sync.Mutex
+
+	songsMu   sync.Mutex
+	songs     *omap[keptSong]
+	resolving map[string]*resolveCall
+
+	qualityMu sync.Mutex
+	quality   *string
+
+	llMu      sync.Mutex
+	audio     *omap[audioInfo]
+	known     *omap[*knownQ]
+	keptLL    *omap[keptLossless]
+	saving    func() bool
+	preparing map[string]*prepareCall
+	found     map[string]bool
+	wokeAt    time.Time
+
+	pfMu      sync.Mutex
+	playedAt  time.Time
+	warmed    time.Time
+	lists     *omap[*songList]
+	runs      *omap[[]string]
+	stationAt *omap[time.Time]
+	queue     []string
+	pumping   bool
+	startedAt []time.Time
+
+	actMu      sync.Mutex
+	durations  *omap[int64]
+	nowPlaying *nowPlaying
+	// guid is who plays, the same while the source runs, as a MusicKit instance's is.
+	guid string
+}
+
+var (
+	_ music.Source   = (*Source)(nil)
+	_ music.Recorder = (*Source)(nil)
+)
+
+// New makes the source. It asks nothing and starts nothing until it's first called.
+func New(o Options) *Source {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Source{
+		dataDir:     o.DataDir,
+		webSignIn:   o.WebSignIn,
+		client:      &http.Client{},
+		web:         webBase,
+		amp:         ampBase,
+		playURL:     playbackURL,
+		licenseURL:  licenseURL,
+		activityURL: activityURL,
+		clk:         realClock{},
+		startHelper: startHelper,
+		newCDM:      newWidevine,
+		ctx:         ctx,
+		cancel:      cancel,
+		storage:     &jsonFile{path: filepath.Join(o.DataDir, "storage.json")},
+		settings:    &jsonFile{path: filepath.Join(o.DataDir, "settings.json")},
+		entries:     newOmap[*keptEntry](),
+		lib:         libraryState{changed: map[string]string{}},
+		resolving:   map[string]*resolveCall{},
+		audio:       newOmap[audioInfo](),
+		known:       newOmap[*knownQ](),
+		preparing:   map[string]*prepareCall{},
+		found:       map[string]bool{},
+		lists:       newOmap[*songList](),
+		runs:        newOmap[[]string](),
+		stationAt:   newOmap[time.Time](),
+		durations:   newOmap[int64](),
+		guid:        uuid(),
+	}
+}
+
+// Close stops what runs in the background, amhelper among it, and waits a
+// little for it to end.
+func (s *Source) Close() {
+	s.stopWarming()
+	s.bgMu.Lock()
+	s.closed = true
+	s.bgMu.Unlock()
+	s.cancel()
+	s.llMu.Lock()
+	pending := s.saving != nil && s.saving()
+	s.saving = nil
+	s.llMu.Unlock()
+	if pending {
+		s.flushKnown()
+	}
+	done := make(chan struct{})
+	go func() {
+		s.bg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+	}
+	s.stopHelper()
+}
+
+func (s *Source) Info() music.Info {
+	return music.Info{
+		ID:       ID,
+		Name:     "Apple Music",
+		Playback: music.PlaybackStream,
+		Settings: []music.Setting{
+			{
+				Key:   "mediaUserToken",
+				Label: i18n.T("Media User Token"),
+				Help:  i18n.T("For an Apple Account that signs in with a passkey or security key, which the sign-in window can't use: sign in at music.apple.com in your browser, and paste the value of its media-user-token cookie here. Empty it to sign out, or to sign in with the window again."),
+				Link:  "https://github.com/LYJW131/mygo-music-apple-music#media-user-token",
+			},
+			{
+				Key:   "wrapper",
+				Label: i18n.T("Wrapper Address"),
+				Help:  i18n.T("For lossless: the wrapper-manager that holds your Apple Music account, such as http://127.0.0.1:8080. Songs play lossless when the quality is Lossless, and as AAC without a wrapper."),
+				Link:  "https://github.com/LYJW131/mygo-music-apple-music#lossless",
+			},
+			{
+				Key:   "wrapperKey",
+				Label: i18n.T("Wrapper Key"),
+				Help:  i18n.T("The wrapper's key (API_KEY), the same one amdl uses: for a wrapper-manager on Cloudflare, or one that faces the internet. Empty for one on this computer or your network without a key."),
+			},
+			{
+				Key:   "wrapperAccount",
+				Label: i18n.T("Wrapper Account"),
+				Help:  i18n.T("To sign in as an Apple Account the wrapper holds, without the sign-in window: its Apple ID as logged in to the wrapper, or a country or region code such as jp for the wrapper's account there. When the wrapper holds several accounts, each listener names their own. Empty to sign in here."),
+				Link:  "https://github.com/LYJW131/mygo-music-apple-music#wrapper-account",
+			},
+			{
+				Key:   "listeningHistory",
+				Label: i18n.T("Use Listening History"),
+				Help:  i18n.T("Songs you play here show in Recently Played and count toward Replay and recommendations, as in Apple's own apps. Empty means on; type off to turn it off."),
+			},
+		},
+		Navigation: []music.NavItem{
+			{Builtin: "home", Title: i18n.T("Home")},
+			{Title: i18n.T("Charts"), Page: "charts", Icon: "chart"},
+			{Title: i18n.T("Favorite Songs"), Builtin: "liked"},
+			{Builtin: "savedAlbums", Title: i18n.T("Library Albums")},
+			{Title: i18n.T("Recently Added"), Page: "recentlyAdded", Icon: "album"},
+			{Builtin: "stations"},
+		},
+	}
+}
+
+// can is what the plugin exported: what the app may call.
+var can = map[string]bool{
+	"account": true, "addToPlaylist": true, "album": true, "artist": true, "browse": true,
+	"createPlaylist": true, "home": true, "isLiked": true, "like": true, "liked": true,
+	"lyrics": true, "played": true, "playlist": true, "playlists": true, "recent": true,
+	"saveAlbum": true, "savePlaylist": true, "savedAlbums": true, "search": true,
+	"setSetting": true, "signIn": true, "signOut": true, "stationNext": true,
+	"stations": true, "stream": true, "suggest": true,
+}
+
+func (s *Source) Can(what string) bool { return can[what] }
+
+func (s *Source) Setting(key string) string { return s.settings.getString(key) }
+
+// SetSetting keeps the setting. The app asks who's signed in after. Only
+// the token and the wrapper's account sign anyone in or out; the rest is
+// read as it's used. Naming an account the wrapper doesn't hold is said at
+// once; a wrapper not set yet, or not answering, as the listener signs in.
+func (s *Source) SetSetting(key, value string) error {
+	s.settings.set(key, value)
+	defer s.asked(true)()
+	if key == "wrapper" || key == "wrapperKey" {
+		s.retryWrapper()
+	}
+	if key != "mediaUserToken" && key != "wrapperAccount" {
+		return nil
+	}
+	s.stopWarming()
+	if key == "mediaUserToken" {
+		if err := s.useGivenToken(); err != nil {
+			return err
+		}
+	}
+	s.retryWrapper()
+	if err := s.useWrapperAccount(false); err != nil && key == "wrapperAccount" && notHeld(err) {
+		return err
+	}
+	return nil
+}
+
+func (s *Source) SignIn() (*music.Account, error) {
+	defer s.asked(true)()
+	s.stopWarming()
+	return s.signIn()
+}
+
+func (s *Source) SignOut() error {
+	defer s.asked(true)()
+	s.stopWarming()
+	s.signOut()
+	return nil
+}
+
+func (s *Source) Account() (*music.Account, error) {
+	defer s.asked(true)()
+	return s.account()
+}
+
+func (s *Source) Search(q string, kind music.SearchKind, offset int) (*music.SearchResult, error) {
+	defer s.asked(true)()
+	return s.search(q, kind, offset)
+}
+
+func (s *Source) Suggest(q string) ([]string, error) {
+	defer s.asked(true)()
+	return s.suggest(q)
+}
+
+func (s *Source) Playlists() ([]music.Playlist, error) {
+	defer s.asked(true)()
+	lists, err := s.playlists()
+	// The app lists them as it comes to the front: what changed is fetched again.
+	s.warmLibrary(time.Second)
+	return lists, err
+}
+
+func (s *Source) Playlist(id string) (*music.Playlist, error) {
+	defer s.asked(true)()
+	return s.playlist(id)
+}
+
+func (s *Source) Album(id string) (*music.AlbumPage, error) {
+	defer s.asked(true)()
+	return s.album(id)
+}
+
+func (s *Source) Artist(id string) (*music.ArtistPage, error) {
+	defer s.asked(true)()
+	return s.artist(id)
+}
+
+func (s *Source) Liked(offset int) (*music.Page, error) {
+	defer s.asked(true)()
+	return s.liked(offset, false)
+}
+
+func (s *Source) Recent() ([]music.Track, error) {
+	defer s.asked(true)()
+	return s.recent()
+}
+
+func (s *Source) Home() (*music.Browse, error) {
+	defer s.asked(true)()
+	return s.home()
+}
+
+func (s *Source) Browse(page string) (*music.Browse, error) {
+	defer s.asked(true)()
+	return s.browse(page)
+}
+
+func (s *Source) IsLiked(ids []string) (map[string]bool, error) {
+	defer s.asked(true)()
+	return s.isLiked(ids)
+}
+
+func (s *Source) Like(id string, on bool) error {
+	defer s.asked(true)()
+	return s.like(id, on)
+}
+
+func (s *Source) CreatePlaylist(name string) (*music.Playlist, error) {
+	defer s.asked(true)()
+	return s.createPlaylist(name)
+}
+
+func (s *Source) AddToPlaylist(id string, trackIDs []string) error {
+	defer s.asked(true)()
+	return s.addToPlaylist(id, trackIDs)
+}
+
+func (s *Source) SavePlaylist(id string, on bool) error {
+	defer s.asked(true)()
+	return s.savePlaylist(id, on)
+}
+
+func (s *Source) SaveAlbum(id string, on bool) error {
+	defer s.asked(true)()
+	return s.saveAlbum(id, on)
+}
+
+func (s *Source) SavedAlbums(offset int) (*music.AlbumList, error) {
+	defer s.asked(true)()
+	return s.savedAlbums(offset, false)
+}
+
+func (s *Source) Stations() ([]music.Station, error) {
+	defer s.asked(true)()
+	return s.stations(false)
+}
+
+func (s *Source) StationNext(id string) ([]music.Track, error) {
+	defer s.asked(true)()
+	return s.stationNext(id)
+}
+
+// Lyrics is asked for as a song starts, even one the app plays from its
+// cache, without asking for its audio: a song plays, and the wrapper is left
+// to sleep.
+func (s *Source) Lyrics(id string) (*music.Lyrics, error) {
+	defer s.asked(false)()
+	s.heard()
+	return s.lyrics(id)
+}
+
+func (s *Source) Stream(id, quality string) (*music.Stream, error) {
+	defer s.asked(false)()
+	// After the quality asked for is noted, which says how the songs coming up play.
+	defer s.playing(id)
+	return s.stream(id, quality)
+}
+
+// What Apple Music doesn't do, or the web player's API doesn't let it.
+
+func (s *Source) LikeEpisode(string, bool) error                   { return music.ErrUnsupported }
+func (s *Source) RenamePlaylist(string, string) error              { return music.ErrUnsupported }
+func (s *Source) DeletePlaylist(string) error                      { return music.ErrUnsupported }
+func (s *Source) RemoveFromPlaylist(string, []string) error        { return music.ErrUnsupported }
+func (s *Source) MovePlaylistTrack(string, int, int) error         { return music.ErrUnsupported }
+func (s *Source) FollowArtist(string, bool) error                  { return music.ErrUnsupported }
+func (s *Source) Shows() ([]music.Show, error)                     { return nil, music.ErrUnsupported }
+func (s *Source) Show(string, int) (*music.ShowPage, error)        { return nil, music.ErrUnsupported }
+func (s *Source) SubscribeShow(string, bool) error                 { return music.ErrUnsupported }
+func (s *Source) Comments(string, int) (*music.CommentPage, error) { return nil, music.ErrUnsupported }
+func (s *Source) LikeComment(string, string, bool) error           { return music.ErrUnsupported }
+func (s *Source) PostComment(string, string) (*music.Comment, error) {
+	return nil, music.ErrUnsupported
+}
+func (s *Source) RemotePlay([]string, int, int64) error    { return music.ErrUnsupported }
+func (s *Source) RemotePause() error                       { return music.ErrUnsupported }
+func (s *Source) RemoteResume() error                      { return music.ErrUnsupported }
+func (s *Source) RemoteSeek(int64) error                   { return music.ErrUnsupported }
+func (s *Source) RemoteVolume(int) error                   { return music.ErrUnsupported }
+func (s *Source) RemoteState() (*music.RemoteState, error) { return nil, music.ErrUnsupported }
+func (s *Source) RemoteDevices() ([]music.Device, error)   { return nil, music.ErrUnsupported }
+func (s *Source) RemoteUse(string) error                   { return music.ErrUnsupported }

@@ -1,0 +1,143 @@
+package applemusic
+
+import (
+	"encoding/json"
+	"net/url"
+	"reflect"
+	"slices"
+	"testing"
+
+	"mygo-music/internal/i18n"
+)
+
+// What the source reads without asking Apple: TTML lyrics, pasted links,
+// cover templates and Apple's resources.
+
+func TestTTML(t *testing.T) {
+	ttml := `<tt xmlns="http://www.w3.org/ns/ttml" itunes:timing="Word"><head><metadata><iTunesMetadata><translations><translation type="subtitle" xml:lang="zh-Hans"><text for="L1">你好 世界</text></translation></translations></iTunesMetadata></metadata></head><body><div><p begin="1.5" end="3.000" itunes:key="L1"><span begin="1.5" end="2.0">Hello</span> <span begin="2.0" end="3.0">world</span><span ttm:role="x-bg"><span begin="2.5" end="2.9">(yeah)</span></span></p><p begin="1:02.25" end="1:04">Line &amp; two</p></div></body></tt>`
+	parsed := parseTTML(ttml, "zh")
+	if parsed == nil || len(parsed.Lines) != 2 {
+		t.Fatalf("lines: %+v", parsed)
+	}
+	l := parsed.Lines[0]
+	if l.Start != 1500 || l.End != 3000 || l.Translation != "你好 世界" {
+		t.Errorf("first line: %+v", l)
+	}
+	var words []string
+	for _, w := range l.Words {
+		words = append(words, w.Text)
+	}
+	if !slices.Equal(words, []string{"Hello ", "world"}) {
+		t.Errorf("words: %q", words)
+	}
+	if parsed.Lines[1].Start != 62250 || parsed.Lines[1].Text != "Line & two" {
+		t.Errorf("second line: %+v", parsed.Lines[1])
+	}
+	if en := parseTTML(ttml, "en"); en.Lines[0].Translation != "" {
+		t.Errorf("a translation into English: %q", en.Lines[0].Translation)
+	}
+	if parseTTML("<tt><body></body></tt>", "en") != nil {
+		t.Error("lyrics from nothing")
+	}
+}
+
+func TestAppleLinks(t *testing.T) {
+	if got := parseAppleURL("https://music.apple.com/jp/album/x/1783644603?i=1783644604"); !reflect.DeepEqual(got, &appleLink{"album", "1783644603", "1783644604"}) {
+		t.Errorf("album link: %+v", got)
+	}
+	if got := parseAppleURL(" https://music.apple.com/us/playlist/pl.u-abc "); !reflect.DeepEqual(got, &appleLink{"playlist", "pl.u-abc", ""}) {
+		t.Errorf("playlist link: %+v", got)
+	}
+	if parseAppleURL("MyGO!!!!!") != nil {
+		t.Error("a link from a name")
+	}
+}
+
+func TestCovers(t *testing.T) {
+	if got := art(&artwork{URL: "https://is1-ssl.mzstatic.com/a/{w}x{h}bb.{f}"}); got != "https://is1-ssl.mzstatic.com/a/{size}x{size}bb.jpg" {
+		t.Errorf("art: %s", got)
+	}
+	if art(nil) != "" {
+		t.Error("art of nothing")
+	}
+	if got := coverName("https://store-030.blobstore.apple.com/sq/51/94/cc/5194CCF7-8d6a-655b-b9e2-00ef5180ed89/image?X-Amz=1"); got != "5194ccf7-8d6a-655b-b9e2-00ef5180ed89" {
+		t.Errorf("coverName: %s", got)
+	}
+	if got := fileURL("/home/a b/cover.jpg"); got != "file:///home/a%20b/cover.jpg" {
+		t.Errorf("fileURL: %s", got)
+	}
+	if got := fileURL(`C:\Users\a\cover.jpg`); got != "file:///C:/Users/a/cover.jpg" {
+		t.Errorf("fileURL on Windows: %s", got)
+	}
+	u, _ := url.Parse("https://is1-ssl.mzstatic.com/image/thumb/a.jpg")
+	if h := ImageHeaders(u); h["referer"] != "https://music.apple.com/" || h["user-agent"] != userAgent {
+		t.Errorf("mzstatic headers: %v", h)
+	}
+	u, _ = url.Parse("https://example.com/a.jpg")
+	if ImageHeaders(u) != nil {
+		t.Error("headers for another host")
+	}
+}
+
+func resourceOf(t *testing.T, s string) *resource {
+	t.Helper()
+	var r resource
+	if err := json.Unmarshal([]byte(s), &r); err != nil {
+		t.Fatal(err)
+	}
+	return &r
+}
+
+func TestSongs(t *testing.T) {
+	s := New(Options{DataDir: t.TempDir()})
+	library := s.toTrack(resourceOf(t, `{"id":"i.abc","type":"library-songs","attributes":{"name":"迷星叫","artistName":"MyGO!!!!!","albumName":"迷跡波","durationInMillis":1000,"playParams":{"catalogId":"1783644604"},"url":"https://music.apple.com/jp/album/x/1783644603?i=1783644604"}}`))
+	if library.ID != "1783644604" || library.Album.ID != "1783644603" || library.Artists[0].ID != "name:MyGO!!!!!" || library.Unavailable {
+		t.Errorf("library song: %+v", library)
+	}
+	upload := s.toTrack(resourceOf(t, `{"id":"i.xyz","type":"library-songs","attributes":{"name":"mine"}}`))
+	if !upload.Unavailable {
+		t.Error("an upload plays")
+	}
+	if n := len(s.songsOf([]*resource{{ID: "1", Type: "music-videos"}})); n != 0 {
+		t.Errorf("music videos among songs: %d", n)
+	}
+	if id := toAlbum(resourceOf(t, `{"id":"l.abc","type":"library-albums","attributes":{"playParams":{"catalogId":42}}}`)).ID; id != "42" {
+		t.Errorf("album by its catalog ID: %s", id)
+	}
+}
+
+// Can names what the plugin exported, and nothing else.
+func TestCan(t *testing.T) {
+	want := []string{
+		"account", "addToPlaylist", "album", "artist", "browse", "createPlaylist", "home", "isLiked", "like",
+		"liked", "lyrics", "played", "playlist", "playlists", "recent", "saveAlbum", "savePlaylist",
+		"savedAlbums", "search", "setSetting", "signIn", "signOut", "stationNext", "stations", "stream", "suggest",
+	}
+	var got []string
+	for name := range can {
+		got = append(got, name)
+	}
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Errorf("Can: %q", got)
+	}
+	s := New(Options{DataDir: t.TempDir()})
+	for _, name := range append(want, "shows", "comments", "followArtist", "renamePlaylist") {
+		if s.Can(name) != slices.Contains(want, name) {
+			t.Errorf("Can(%q) = %v", name, s.Can(name))
+		}
+	}
+}
+
+func TestInfo(t *testing.T) {
+	s := New(Options{DataDir: t.TempDir()})
+	i18n.SetLanguage(i18n.Chinese)
+	defer i18n.SetLanguage(i18n.English)
+	info := s.Info()
+	if info.ID != ID || info.Name != "Apple Music" || info.Playback != "stream" || len(info.Settings) != 5 || len(info.Navigation) != 6 {
+		t.Fatalf("info: %+v", info)
+	}
+	if info.Navigation[1].Title != "排行榜" || info.Settings[1].Label != "Wrapper 地址" {
+		t.Errorf("not in Chinese: %+v %+v", info.Navigation[1], info.Settings[1])
+	}
+}
