@@ -80,6 +80,8 @@ type Source struct {
 	devMu    sync.Mutex
 	devToken string
 
+	// settle signs in as the settings say, once, before the first answer.
+	settle        sync.Once
 	acctMu        sync.Mutex
 	wrapperFailed *wrapperFailure
 
