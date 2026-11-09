@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs>
+<linearGradient id="ss" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#FF6A5C"/><stop offset="1" stop-color="#E3213F"/></linearGradient>
+<radialGradient id="sf" cx="256" cy="256" r="233" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#FFFDF2"/><stop offset="0.6" stop-color="#FFF4D6"/><stop offset="1" stop-color="#F9E0A8"/></radialGradient>
+<radialGradient id="sh" cx="256" cy="256" r="185" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#FFC247" stop-opacity="0.5"/><stop offset="0.7" stop-color="#FFC247" stop-opacity="0.2"/><stop offset="1" stop-color="#FFC247" stop-opacity="0"/></radialGradient>
+</defs>
+<circle cx="256" cy="256" r="250" fill="url(#ss)"/>
+<circle cx="256" cy="256" r="233" fill="url(#sf)"/>
+<circle cx="256" cy="256" r="185" fill="url(#sh)"/>
+<circle cx="256" cy="76" r="3.25" fill="#C98F2E" fill-opacity="0.5"/>
+<circle cx="361.8" cy="110.38" r="3.25" fill="#C98F2E" fill-opacity="0.5"/>
+<circle cx="427.19" cy="200.38" r="3.25" fill="#C98F2E" fill-opacity="0.5"/>
+<circle cx="427.19" cy="311.62" r="3.25" fill="#C98F2E" fill-opacity="0.5"/>
+<circle cx="361.8" cy="401.62" r="3.25" fill="#C98F2E" fill-opacity="0.5"/>
+<circle cx="256" cy="436" r="3.25" fill="#C98F2E" fill-opacity="0.5"/>
+<circle cx="150.2" cy="401.62" r="3.25" fill="#C98F2E" fill-opacity="0.5"/>
+<circle cx="84.81" cy="311.62" r="3.25" fill="#C98F2E" fill-opacity="0.5"/>
+<circle cx="84.81" cy="200.38" r="3.25" fill="#C98F2E" fill-opacity="0.5"/>
+<circle cx="150.2" cy="110.38" r="3.25" fill="#C98F2E" fill-opacity="0.5"/>
+<circle cx="256" cy="256" r="202.71" fill="none" stroke="#C98F2E" stroke-opacity="0.2" stroke-width="2"/>
+<circle cx="256" cy="256" r="219.02" fill="none" stroke="#C98F2E" stroke-opacity="0.2" stroke-width="2"/>
+<defs>
+<radialGradient id="cc" cx="256" cy="256" r="150" gradientUnits="userSpaceOnUse">
+<stop offset="0.1" stop-color="#FFD76A"/><stop offset="0.65" stop-color="#F7A823"/><stop offset="1" stop-color="#EA8A0E"/></radialGradient>
+</defs>
+<path d="M256 231A77.04 77.04 0 0 1 256 106A77.04 77.04 0 0 1 256 231Z" fill="url(#cc)"/>
+<path d="M279.78 248.27A77.04 77.04 0 0 1 398.66 209.65A77.04 77.04 0 0 1 279.78 248.27Z" fill="url(#cc)"/>
+<path d="M270.69 276.23A77.04 77.04 0 0 1 344.17 377.35A77.04 77.04 0 0 1 270.69 276.23Z" fill="url(#cc)"/>
+<path d="M241.31 276.23A77.04 77.04 0 0 1 167.83 377.35A77.04 77.04 0 0 1 241.31 276.23Z" fill="url(#cc)"/>
+<path d="M232.22 248.27A77.04 77.04 0 0 1 113.34 209.65A77.04 77.04 0 0 1 232.22 248.27Z" fill="url(#cc)"/>
+<path d="M256 198.5A38.28 38.28 0 0 1 256 138.5A38.28 38.28 0 0 1 256 198.5Z" fill="#5A2A11"/>
+<path d="M310.69 238.23A38.28 38.28 0 0 1 367.75 219.69A38.28 38.28 0 0 1 310.69 238.23Z" fill="#5A2A11"/>
+<path d="M289.8 302.52A38.28 38.28 0 0 1 325.06 351.06A38.28 38.28 0 0 1 289.8 302.52Z" fill="#5A2A11"/>
+<path d="M222.2 302.52A38.28 38.28 0 0 1 186.94 351.06A38.28 38.28 0 0 1 222.2 302.52Z" fill="#5A2A11"/>
+<path d="M201.31 238.23A38.28 38.28 0 0 1 144.25 219.69A38.28 38.28 0 0 1 201.31 238.23Z" fill="#5A2A11"/>
+<circle cx="256" cy="256" r="10.5" fill="#8C4A14"/>
+</svg>

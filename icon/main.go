@@ -1,9 +1,14 @@
-// Command icon draws the app icons: the layers of AppIcon.icon, the Icon
-// Composer document that macOS 26 and later render in Liquid Glass, and
-// resources/icon.png, the same icon as macOS draws it, on the grid of older
-// macOS icons, for older macOS and Windows; and from AppIcon-dev.icon, cream
-// where the app's is red, resources/icon-dev.png, the icon of mygo dev
-// builds.
+// Command icon draws the app's icons and the files of its brand from one
+// geometry: the layers of AppIcon.icon, the Icon Composer document that macOS
+// 26 and later render in Liquid Glass, and resources/icon.png, the same icon
+// as macOS draws it, on the grid of older macOS icons, for older macOS,
+// Windows and Linux; from AppIcon-dev.icon, a green apple where the app's is
+// red, resources/icon-dev.png, the icon of mygo dev builds; and brand/*.svg,
+// the mark and the wordmark on their own.
+//
+// The mark is an apple cut across: round, as a record is, with the core
+// showing as a star of five chambers, a seed in each, in flesh that has gone
+// to honey around it, as a ripe Fuji's does.
 //
 // Run it from the repository root on a Mac with Xcode 26 or later:
 //
@@ -29,33 +34,41 @@ import (
 
 const ictool = "/Applications/Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool"
 
-// icons are the documents drawn, with the PNG rendered from each and the
-// colors of its tonearm: the gradient and the cap on its pivot.
+// skin is the apple's, a gradient down its edge.
+type skin struct{ top, bottom string }
+
+var (
+	red   = skin{"#FF6A5C", "#E3213F"}
+	green = skin{"#D2E86A", "#8DBF2E"}
+)
+
+// icons are the documents drawn, with the PNG rendered from each.
 var icons = []struct {
-	document, output   string
-	top, bottom, pivot string
+	document, output string
+	skin             skin
 }{
-	// Red, with a white tonearm.
-	{"icon/AppIcon.icon", "resources/icon.png", "#FFFFFF", "#E6E3E5", "#D9D5D8"},
-	// Cream, with a red one to match the label.
-	{"icon/AppIcon-dev.icon", "resources/icon-dev.png", "#FF5B5B", "#E3122C", "#FFE1DE"},
+	{"icon/AppIcon.icon", "resources/icon.png", red},
+	{"icon/AppIcon-dev.icon", "resources/icon-dev.png", green},
 }
 
-// A record on Icon Composer's 1024-point full-bleed canvas, seen close up:
-// larger than the canvas, it runs off the left and bottom edges. And the
-// tonearm over it, from its pivot to the headshell resting on the grooves.
-var (
-	rec   = struct{ cx, cy, r float64 }{330, 712, 560}
-	pivot = image.Pt(820, 214)
-	head  = image.Pt(585, 520)
+// The slice on Icon Composer's 1024-point canvas, and what's in it, as
+// parts of its radius.
+const (
+	cx, cy = 512.0, 512.0
+	radius = 344.0
+	rim    = 0.068 // the skin's width
+
+	chamberIn, chamberOut, chamberHalf = 0.10, 0.60, 0.128
+	seedIn, seedOut, seedHalf          = 0.23, 0.47, 0.058
+	honey                              = 0.74 // how far out the flesh has gone to honey
+	veins                              = 0.72 // where the ten dots around the core are
 )
 
 func main() {
 	for _, ic := range icons {
 		layers := map[string]string{
-			"arm.svg":    armSVG(ic.top, ic.bottom, ic.pivot),
-			"record.svg": recordSVG(),
-			"label.svg":  labelSVG(),
+			"slice.svg": svg(1024, sliceSVG("", cx, cy, radius, ic.skin)),
+			"core.svg":  svg(1024, coreSVG("", cx, cy, radius)),
 		}
 		for name, s := range layers {
 			if err := os.WriteFile(filepath.Join(ic.document, "Assets", name), []byte(s), 0o644); err != nil {
@@ -66,83 +79,161 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+	for name, s := range brand() {
+		if err := os.WriteFile(filepath.Join("brand", name), []byte(s), 0o644); err != nil {
+			log.Fatal(err)
+		}
+	}
 }
 
-func svg(body string) string {
-	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">` + "\n" + body + "\n</svg>\n"
+func svg(size float64, body string) string {
+	return fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %[1]s %[1]s">`, n(size)) + "\n" + body + "\n</svg>\n"
 }
 
 func n(v float64) string {
 	return strings.TrimSuffix(strings.TrimRight(fmt.Sprintf("%.2f", v), "0"), ".")
 }
 
-func armSVG(top, bottom, cap string) string {
-	p := pivot
-	length := math.Hypot(float64(head.X-p.X), float64(head.Y-p.Y))
-	angle := math.Atan2(float64(head.Y-p.Y), float64(head.X-p.X)) * 180 / math.Pi
-	end := float64(p.X) + length - 30
-	return svg(fmt.Sprintf(`<defs>
-<linearGradient id="m" x1="0" y1="0" x2="1" y2="1">
-<stop offset="0" stop-color="%[11]s"/><stop offset="1" stop-color="%[12]s"/></linearGradient>
-</defs>
-<g transform="rotate(%[3]s %[1]d %[2]d)">
-<rect x="%[4]d" y="%[5]d" width="64" height="52" rx="15" fill="url(#m)"/>
-<rect x="%[1]d" y="%[6]d" width="%[7]s" height="34" rx="17" fill="url(#m)"/>
-<rect x="%[8]s" y="%[9]d" width="92" height="56" rx="14" fill="url(#m)" transform="rotate(28 %[10]s %[2]d)"/>
-</g>
-<circle cx="%[1]d" cy="%[2]d" r="72" fill="url(#m)"/>
-<circle cx="%[1]d" cy="%[2]d" r="27" fill="%[13]s"/>`,
-		p.X, p.Y, n(angle), p.X-104, p.Y-26, p.Y-17, n(length-30), n(end-22), p.Y-28, n(end), top, bottom, cap))
+// leaf is the shape of a chamber and of a seed: two arcs between a point at
+// in and one at out along the spoke at angle deg, half wide at the middle.
+func leaf(x, y, deg, in, out, half float64) string {
+	t := deg * math.Pi / 180
+	ux, uy := math.Cos(t), math.Sin(t)
+	chord := out - in
+	r := (chord*chord/4 + half*half) / (2 * half)
+	return fmt.Sprintf("M%s %sA%s %s 0 0 1 %s %sA%s %s 0 0 1 %s %sZ",
+		n(x+ux*in), n(y+uy*in), n(r), n(r), n(x+ux*out), n(y+uy*out), n(r), n(r), n(x+ux*in), n(y+uy*in))
 }
 
-func recordSVG() string {
+// spokes are the angles of the five chambers, the first pointing up.
+func spokes() []float64 {
+	out := make([]float64, 5)
+	for k := range out {
+		out[k] = -90 + 72*float64(k)
+	}
+	return out
+}
+
+// sliceSVG is the apple cut across, around (x, y): its skin as a rim, its
+// flesh, gone to honey around the core, and toward the skin the rings of a
+// record, faintly. id tells its
+// gradients from those of another drawing in the same file.
+func sliceSVG(id string, x, y, r float64, sk skin) string {
+	flesh := r * (1 - rim)
 	var b strings.Builder
 	fmt.Fprintf(&b, `<defs>
-<radialGradient id="d" cx="%[1]s" cy="%[2]s" r="%[3]s" gradientUnits="userSpaceOnUse">
-<stop offset="0.35" stop-color="#2A2A30"/><stop offset="0.95" stop-color="#17171B"/><stop offset="1" stop-color="#0E0E11"/></radialGradient>
+<linearGradient id="%[1]ss" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="%[6]s"/><stop offset="1" stop-color="%[7]s"/></linearGradient>
+<radialGradient id="%[1]sf" cx="%[2]s" cy="%[3]s" r="%[5]s" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#FFFDF2"/><stop offset="0.6" stop-color="#FFF4D6"/><stop offset="1" stop-color="#F9E0A8"/></radialGradient>
+<radialGradient id="%[1]sh" cx="%[2]s" cy="%[3]s" r="%[8]s" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#FFC247" stop-opacity="0.5"/><stop offset="0.7" stop-color="#FFC247" stop-opacity="0.2"/><stop offset="1" stop-color="#FFC247" stop-opacity="0"/></radialGradient>
 </defs>
-<circle cx="%[1]s" cy="%[2]s" r="%[3]s" fill="url(#d)"/>
-<circle cx="%[1]s" cy="%[2]s" r="%[4]s" fill="none" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="3"/>
-`, n(rec.cx), n(rec.cy), n(rec.r), n(rec.r-8))
-	// Grooves, unevenly bright like the bands of tracks.
-	for i, r := 0, rec.r*0.42; r < rec.r-12; i, r = i+1, r+7 {
-		fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s" fill="none" stroke="#FFFFFF" stroke-opacity="%s" stroke-width="1.4"/>`+"\n",
-			n(rec.cx), n(rec.cy), n(r), n([]float64{0.05, 0.08, 0.04, 0.07}[i%4]))
+<circle cx="%[2]s" cy="%[3]s" r="%[4]s" fill="url(#%[1]ss)"/>
+<circle cx="%[2]s" cy="%[3]s" r="%[5]s" fill="url(#%[1]sf)"/>
+<circle cx="%[2]s" cy="%[3]s" r="%[8]s" fill="url(#%[1]sh)"/>
+`, id, n(x), n(y), n(r), n(flesh), sk.top, sk.bottom, n(r*honey))
+	// The ten dots a cut apple shows around its core, one off each
+	// chamber's point and one between each two.
+	for k := range 10 {
+		t := (-90 + 36*float64(k)) * math.Pi / 180
+		fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s" fill="#C98F2E" fill-opacity="0.5"/>`+"\n",
+			n(x+math.Cos(t)*r*veins), n(y+math.Sin(t)*r*veins), n(r*0.013))
 	}
-	b.WriteString(sheen(-62, 54, 0.2, rec.r*0.39, rec.r-10))
-	b.WriteString(sheen(118, 54, 0.14, rec.r*0.39, rec.r-10))
-	return svg(strings.TrimSuffix(b.String(), "\n"))
+	for _, at := range []float64{0.87, 0.94} {
+		fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s" fill="none" stroke="#C98F2E" stroke-opacity="0.2" stroke-width="%s"/>`+"\n",
+			n(x), n(y), n(flesh*at), n(r*0.008))
+	}
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
-// sheen is a soft band of reflected light across the grooves, centered on
-// the angle mid, in degrees: slices whose opacity falls off smoothly from
-// the band's middle, as SVG has no conic gradient.
-func sheen(mid, width, peak, r0, r1 float64) string {
-	const slices = 48
-	pt := func(a, r float64) string {
-		a *= math.Pi / 180
-		return n(rec.cx+math.Cos(a)*r) + " " + n(rec.cy+math.Sin(a)*r)
-	}
+// coreSVG is the core, around (x, y) in a slice of radius r: its five
+// chambers, and a seed in each.
+func coreSVG(id string, x, y, r float64) string {
 	var b strings.Builder
-	for i := range slices {
-		a0 := mid - width/2 + width*float64(i)/slices
-		a1 := a0 + width/slices + 0.15 // overlap, so no seams show
-		t := (float64(i)+0.5)/slices*2 - 1
-		o := math.Round(peak*math.Exp(-t*t*3.2)*1000) / 1000
-		fmt.Fprintf(&b, `<path d="M%sL%sA%s %s 0 0 1 %sL%sA%s %s 0 0 0 %sZ" fill="#FFFFFF" fill-opacity="%s"/>`+"\n",
-			pt(a0, r0), pt(a0, r1), n(r1), n(r1), pt(a1, r1), pt(a1, r0), n(r0), n(r0), pt(a0, r0), n(o))
+	fmt.Fprintf(&b, `<defs>
+<radialGradient id="%[1]sc" cx="%[2]s" cy="%[3]s" r="%[4]s" gradientUnits="userSpaceOnUse">
+<stop offset="0.1" stop-color="#FFD76A"/><stop offset="0.65" stop-color="#F7A823"/><stop offset="1" stop-color="#EA8A0E"/></radialGradient>
+</defs>
+`, id, n(x), n(y), n(r*chamberOut))
+	for _, deg := range spokes() {
+		fmt.Fprintf(&b, `<path d="%s" fill="url(#%sc)"/>`+"\n", leaf(x, y, deg, r*chamberIn, r*chamberOut, r*chamberHalf), id)
 	}
+	for _, deg := range spokes() {
+		fmt.Fprintf(&b, `<path d="%s" fill="#5A2A11"/>`+"\n", leaf(x, y, deg, r*seedIn, r*seedOut, r*seedHalf))
+	}
+	fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s" fill="#8C4A14"/>`, n(x), n(y), n(r*0.042))
 	return b.String()
 }
 
-func labelSVG() string {
-	return svg(fmt.Sprintf(`<defs>
-<linearGradient id="l" x1="0" y1="0" x2="0" y2="1">
-<stop offset="0" stop-color="#FF5B5B"/><stop offset="1" stop-color="#E3122C"/></linearGradient>
-</defs>
-<circle cx="%[1]s" cy="%[2]s" r="%[3]s" fill="url(#l)"/>
-<circle cx="%[1]s" cy="%[2]s" r="%[4]s" fill="none" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="3"/>
-<circle cx="%[1]s" cy="%[2]s" r="%[5]s" fill="#FFF6F2"/>`, n(rec.cx), n(rec.cy), n(rec.r*0.358), n(rec.r*0.247), n(rec.r*0.052)))
+// brand is the mark and the wordmark as files of their own, by name.
+func brand() map[string]string {
+	const size = 512.0
+	c, r := size/2, size/2-6
+	mark := func(sk skin) string {
+		return svg(size, sliceSVG("s", c, c, r, sk)+"\n"+coreSVG("c", c, c, r))
+	}
+	return map[string]string{
+		"mark.svg":          mark(red),
+		"mark-green.svg":    mark(green),
+		"mark-mono.svg":     svg(size, monoSVG(c, c, r, "#000000")),
+		"wordmark.svg":      wordmarkSVG("#2B1418"),
+		"wordmark-dark.svg": wordmarkSVG("#FFF6E6"),
+	}
+}
+
+// monoSVG is the mark in one color, for where it's tinted or small: the
+// slice's edge as a ring, and the chambers, without their seeds.
+func monoSVG(x, y, r float64, ink string) string {
+	var b strings.Builder
+	w := r * 0.13
+	fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s" fill="none" stroke="%s" stroke-width="%s"/>`+"\n", n(x), n(y), n(r-w/2), ink, n(w))
+	for _, deg := range spokes() {
+		fmt.Fprintf(&b, `<path d="%s" fill="%s"/>`+"\n", leaf(x, y, deg, r*0.12, r*0.64, r*0.165), ink)
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
+// wordmarkSVG is the app's name in letters of one round stroke, drawn here
+// rather than set in a typeface, with the mark for its o.
+func wordmarkSVG(ink string) string {
+	const (
+		stroke = 20.0
+		top    = 70.0  // of the letters without ascenders
+		base   = 170.0 // the baseline
+		bowl   = (base - top) / 2
+		gap    = 46.0 // between the middles of strokes side by side
+	)
+	mid := top + bowl
+	var b strings.Builder
+	x := stroke / 2
+	// r
+	fmt.Fprintf(&b, `<path d="M%[1]s %[2]sV%[3]sM%[1]s %[4]sC%[1]s %[5]s %[6]s %[7]s %[8]s %[7]s"/>`+"\n",
+		n(x), n(base), n(top), n(mid-4), n(mid-32), n(x+18), n(top+2), n(x+46))
+	x += 46 + gap - 8
+	// i
+	fmt.Fprintf(&b, `<path d="M%[1]s %[2]sV%[3]s"/><circle cx="%[1]s" cy="%[4]s" r="%[5]s" fill="%[6]s" stroke="none"/>`+"\n",
+		n(x), n(base), n(top), n(top-40), n(stroke*0.66), ink)
+	x += gap
+	// n
+	fmt.Fprintf(&b, `<path d="M%[1]s %[2]sV%[3]sM%[1]s %[4]sA%[5]s %[5]s 0 0 1 %[6]s %[4]sV%[2]s"/>`+"\n",
+		n(x), n(base), n(top), n(mid), n(bowl), n(x+2*bowl))
+	x += 2*bowl + gap
+	// g
+	gx := x + bowl
+	hook := base - 6
+	fmt.Fprintf(&b, `<circle cx="%[1]s" cy="%[2]s" r="%[3]s"/><path d="M%[4]s %[5]sV%[6]sA%[3]s %[3]s 0 0 1 %[7]s %[8]s"/>`+"\n",
+		n(gx), n(mid), n(bowl), n(gx+bowl), n(top), n(hook),
+		n(gx+bowl*math.Cos(130*math.Pi/180)), n(hook+bowl*math.Sin(130*math.Pi/180)))
+	x += 2*bowl + gap
+	// o, the mark
+	ox := x + bowl
+	width := ox + bowl + stroke/2
+	letters := b.String()
+	r := bowl + stroke/2
+	return fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %s 240">`+"\n"+
+		`<g fill="none" stroke="%s" stroke-width="%s" stroke-linecap="round" stroke-linejoin="round">`+"\n%s</g>\n%s\n%s\n</svg>\n",
+		n(width), ink, n(stroke), letters, sliceSVG("s", ox, mid, r, red), coreSVG("c", ox, mid, r))
 }
 
 // render has ictool draw document as macOS does, and lays it on the

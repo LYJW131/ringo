@@ -1,25 +1,19 @@
 // The configuration of the app, which `mygo dev` and `mygo build` evaluate with
-// Bun, of the command running. The development app (`mygo dev`) opens links of a
-// scheme of its own, for the installed app to keep mygo-music:// links.
-export default ({ command }: { command: string }) => ({
-  name: "MyGo Music",
-  identifier: "dev.egoist.music",
-  slug: "mygo-music",
-  version: "0.1.22",
+// Bun. The Apple Music plugin the apps ship with is in resources/<platform>,
+// where `go run ./scripts/plugin` puts it.
+export default () => ({
+  name: "Ringo",
+  identifier: "io.github.lyjw131.ringo",
+  slug: "ringo",
+  version: "0.1.0",
   out: "build",
-  urlSchemes: [command === "dev" ? "mygo-music-dev" : "mygo-music"],
-  updates: {
-    publicKey: "WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ=",
-    github: "egoist/mygo-music",
-  },
+  resources: ["LICENSE"],
   macos: {
     icon: "icon/AppIcon.icon",
     minimumSystemVersion: "13.0",
-    signingIdentity: "Developer ID Application: xinyu zeng (GJE9R5VE87)",
-    notarize: { keychainProfile: "notary" },
   },
   linux: {
-    comment: "A music player for your files and more",
+    comment: "A native Apple Music player",
     categories: ["AudioVideo", "Audio", "Player"],
     webview: false,
   },
