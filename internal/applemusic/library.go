@@ -35,6 +35,9 @@ func (s *Source) forgetLibrary() {
 	s.libMu.Lock()
 	s.lib = libraryState{changed: map[string]string{}}
 	s.libMu.Unlock()
+	s.subMu.Lock()
+	s.subscribed = nil
+	s.subMu.Unlock()
 }
 
 func (s *Source) favorites() (id string, known bool) {
@@ -240,22 +243,35 @@ var catalogOrPlaylistID = regexp.MustCompile(`^(\d+|pl\.[\w.-]+)$`)
 
 // inLibrary is the library's own resource for what of the catalog is in the library.
 func (s *Source) inLibrary(typ, id string) *resource {
+	own, _, _ := s.personal(typ, id)
+	return own
+}
+
+// personal is what the listener has of what of the catalog: its library's
+// own resource, if it's in the library, and whether it's a favorite. Apple
+// answers these only when the fields are asked for by name.
+func (s *Source) personal(typ, id string) (own *resource, favorite bool, err error) {
 	if !s.signedIn() || !catalogOrPlaylistID.MatchString(id) {
-		return nil
+		return nil, false, nil
 	}
-	b, err := s.catalog("/"+typ+"/"+id, params{"relate": "library"})
-	if err != nil || len(b.Data) == 0 || b.Data[0] == nil {
-		return nil
+	b, err := s.catalog("/"+typ+"/"+id, params{"relate": "library", "fields[" + typ + "]": "inFavorites,inLibrary"})
+	if err != nil {
+		return nil, false, err
 	}
+	if len(b.Data) == 0 || b.Data[0] == nil {
+		return nil, false, nil
+	}
+	favorite = b.Data[0].attrs().InFavorites
 	if d := b.Data[0].related("library").Data; len(d) > 0 {
-		return d[0]
+		return d[0], favorite, nil
 	}
-	return nil
+	return nil, favorite, nil
 }
 
 func (s *Source) saveAlbum(id string, on bool) error {
 	s.forget("albums:")
 	s.forget("recentlyAdded")
+	s.forget("library")
 	if on {
 		_, err := s.me("/library", params{"ids[albums]": id}, reqOpts{method: "POST"})
 		return err
@@ -276,6 +292,7 @@ func (s *Source) saveAlbum(id string, on bool) error {
 
 func (s *Source) savePlaylist(id string, on bool) error {
 	s.forget("recentlyAdded")
+	s.forget("library")
 	if on {
 		_, err := s.me("/library", params{"ids[playlists]": id}, reqOpts{method: "POST"})
 		return err

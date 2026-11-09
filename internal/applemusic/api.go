@@ -193,7 +193,7 @@ func (s *Source) catalog(path string, p params) (*body, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.api(full, withSongAssets(p), reqOpts{})
+	return s.api(full, s.withLanguage(withSongAssets(p)), reqOpts{})
 }
 
 // catalogInto is catalog, read into out, for the answers that aren't a page of resources.
@@ -202,7 +202,7 @@ func (s *Source) catalogInto(path string, p params, out any) error {
 	if err != nil {
 		return err
 	}
-	return s.requestJSON(s.amp+full+query(withSongAssets(p)), reqOpts{}, out)
+	return s.requestJSON(s.amp+full+query(s.withLanguage(withSongAssets(p))), reqOpts{}, out)
 }
 
 // me asks for the listener's own: their library, ratings and recommendations.
@@ -249,11 +249,12 @@ func (s *Source) allPages(path string, p params, most int, pause func()) ([]*res
 	return out, nil
 }
 
-// storefront is the account's, once signed in; else the US. Catalog
-// requests made as the listener have to be in theirs.
+// storefront is the account's, once signed in; else the listener's
+// region's (lang.go). Catalog requests made as the listener have to be in
+// theirs.
 func (s *Source) storefront() (string, error) {
 	if !s.signedIn() {
-		return "us", nil
+		return s.regionStorefront()
 	}
 	if sf := s.storage.getString(storefrontKey); sf != "" {
 		return sf, nil
@@ -267,4 +268,60 @@ func (s *Source) storefront() (string, error) {
 	}
 	s.storage.set(storefrontKey, b.Data[0].ID)
 	return b.Data[0].ID, nil
+}
+
+// The web player's way of asking: in the listener's language, on the web,
+// and with what's related given once, by type and ID, which the answer's
+// pointers lead to (body.get).
+func (s *Source) mapped(p params) params {
+	out := s.withLanguage(p)
+	out["platform"] = "web"
+	out["format[resources]"] = "map"
+	return out
+}
+
+// editorial asks for the editors' pages: path is under /v1/editorial/{sf}.
+func (s *Source) editorial(path string, p params) (*body, error) {
+	sf, err := s.storefront()
+	if err != nil {
+		return nil, err
+	}
+	return s.api("/v1/editorial/"+sf+path, s.mapped(p), reqOpts{})
+}
+
+// continued is where next leads, asked as base was: Apple's next has its
+// offset and little else, so what base asks for that next doesn't say is
+// added. The offset is next's own; it isn't always the count so far.
+func continued(next string, base params) string {
+	u, err := url.Parse(next)
+	if err != nil {
+		return next
+	}
+	q := u.Query()
+	for k, v := range base {
+		if v != "" && !q.Has(k) {
+			q.Set(k, v)
+		}
+	}
+	u.RawQuery = q.Encode()
+	return u.RequestURI()
+}
+
+// follow asks for the next part of a list, at next, as base was asked.
+func (s *Source) follow(next string, base params) (*body, error) {
+	if !strings.HasPrefix(next, "/") {
+		if u, err := url.Parse(next); err == nil {
+			next = u.RequestURI()
+		}
+	}
+	if strings.HasPrefix(next, "/v1/me") {
+		if err := s.needAccount(); err != nil {
+			return nil, err
+		}
+	}
+	var b body
+	if err := s.requestJSON(s.amp+continued(next, base), reqOpts{}, &b); err != nil {
+		return nil, err
+	}
+	return &b, nil
 }

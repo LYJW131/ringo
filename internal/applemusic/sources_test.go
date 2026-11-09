@@ -49,7 +49,17 @@ func TestSourcesPlayOn(t *testing.T) {
 		{regexp.MustCompile(`^/v1/catalog/us/charts$`), func(*url.URL) any {
 			return map[string]any{"results": map[string]any{"songs": []any{map[string]any{"name": "Top Songs", "data": songs(1000, 30)}}}}
 		}},
-		{regexp.MustCompile(`^/v1/me/recommendations$`), func(*url.URL) any { return data() }},
+		// Home: Apple's shelves, of songs here, the second the songs played lately.
+		{regexp.MustCompile(`^/v1/me/recommendations$`), func(*url.URL) any {
+			mu.Lock()
+			defer mu.Unlock()
+			shelf := func(id string, songs []any) map[string]any {
+				return map[string]any{"id": id, "type": "personal-recommendation",
+					"attributes":    map[string]any{"display": map[string]any{"kind": "MusicCoverShelf"}},
+					"relationships": map[string]any{"contents": map[string]any{"data": songs}}}
+			}
+			return data(shelf("top", songs(1000, 30)), shelf("recent", songs(recentFrom, 10)))
+		}},
 		{regexp.MustCompile(`^/v1/me/recent/played/tracks$`), func(*url.URL) any {
 			mu.Lock()
 			defer mu.Unlock()

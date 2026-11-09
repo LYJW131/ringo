@@ -38,6 +38,10 @@ type Options struct {
 	// WebSignIn shows Apple's sign-in page and answers the Cookie header of
 	// CookiesOf's address once it's done.
 	WebSignIn func(WebSignIn) (cookie string, err error)
+	// Region is the listener's country or region, as two letters, such as
+	// jp: signed out, the catalog is the storefront there, if Apple has one,
+	// and the US's otherwise.
+	Region string
 }
 
 // WebSignIn is a sign-in page to show: URL, until a cookie of each name in
@@ -55,6 +59,7 @@ type WebSignIn struct {
 type Source struct {
 	dataDir   string
 	webSignIn func(WebSignIn) (string, error)
+	region    string
 
 	// Where Apple is, and how it's reached; tests put stand-ins here.
 	client                                     *http.Client
@@ -132,6 +137,12 @@ type Source struct {
 	pumping   bool
 	startedAt []time.Time
 
+	sfMu   sync.Mutex
+	sfInfo map[string]*storefrontInfo
+
+	subMu      sync.Mutex
+	subscribed *bool
+
 	actMu      sync.Mutex
 	durations  *omap[int64]
 	nowPlaying *nowPlaying
@@ -140,8 +151,11 @@ type Source struct {
 }
 
 var (
-	_ music.Source   = (*Source)(nil)
-	_ music.Recorder = (*Source)(nil)
+	_ music.Source     = (*Source)(nil)
+	_ music.Recorder   = (*Source)(nil)
+	_ music.Favorer    = (*Source)(nil)
+	_ music.Keeper     = (*Source)(nil)
+	_ music.Autoplayer = (*Source)(nil)
 )
 
 // New makes the source. It asks nothing and starts nothing until it's first called.
@@ -150,6 +164,8 @@ func New(o Options) *Source {
 	return &Source{
 		dataDir:     o.DataDir,
 		webSignIn:   o.WebSignIn,
+		region:      o.Region,
+		sfInfo:      map[string]*storefrontInfo{},
 		client:      &http.Client{},
 		web:         webBase,
 		amp:         ampBase,
@@ -253,8 +269,8 @@ func (s *Source) Info() music.Info {
 
 // can is what the plugin exported: what the app may call.
 var can = map[string]bool{
-	"account": true, "addToPlaylist": true, "album": true, "artist": true, "browse": true,
-	"createPlaylist": true, "home": true, "isLiked": true, "like": true, "liked": true,
+	"account": true, "addToLibrary": true, "addToPlaylist": true, "album": true, "artist": true, "autoplay": true, "browse": true,
+	"createPlaylist": true, "favorite": true, "home": true, "isLiked": true, "like": true, "liked": true,
 	"lyrics": true, "played": true, "playlist": true, "playlists": true, "recent": true,
 	"saveAlbum": true, "savePlaylist": true, "savedAlbums": true, "search": true,
 	"setSetting": true, "signIn": true, "signOut": true, "stationNext": true,
@@ -360,6 +376,21 @@ func (s *Source) Home() (*music.Browse, error) {
 func (s *Source) Browse(page string) (*music.Browse, error) {
 	defer s.asked(true)()
 	return s.browse(page)
+}
+
+func (s *Source) Favorite(kind, id string, on bool) error {
+	defer s.asked(true)()
+	return s.favorite(kind, id, on)
+}
+
+func (s *Source) AddToLibrary(kind, id string, on bool) error {
+	defer s.asked(true)()
+	return s.addToLibrary(kind, id, on)
+}
+
+func (s *Source) Autoplay(ids []string) ([]music.Track, error) {
+	defer s.asked(true)()
+	return s.autoplay(ids)
 }
 
 func (s *Source) IsLiked(ids []string) (map[string]bool, error) {

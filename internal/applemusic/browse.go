@@ -1,42 +1,35 @@
 package applemusic
 
 import (
-	"strconv"
 	"strings"
-	"sync"
 
 	"mygo-music/internal/i18n"
 	"mygo-music/internal/music"
 )
 
-// Home, and the source's own pages: the charts and what was added lately.
+// Home, and the source's own pages, by their names:
+//
+//	new, radio                        the editors' New and Radio (editorial.go)
+//	grouping:<id>                     a genre's or a category's page
+//	room:<id>                         all of an editors' row (See All)
+//	multiroom:<id>                    a feature
+//	curator:<id>                      a curator's or a show's page
+//	charts, charts:<genre>            the charts, of all music or a genre
+//	chart|<path>                      all of one chart (lists.go)
+//	search                            what Search shows before a word is typed
+//	search:<term>                     all a search finds
+//	search-more:<group>:<term>        all it found of one kind
+//	artist-view:<id>:<view>           all of a shelf of an artist's page
+//	rec:<id>                          all of a shelf of Home
+//	library:…                         the library's pages (libpages.go)
+//	library-artist:<id>               an artist of the library
+//	library-folder:<id>               a folder of playlists
+//
+// A page that comes in parts goes on at "<page>|<next>", where next is
+// Apple's own address of the part after, as it gave it.
 
-type chart struct {
-	Name string      `json:"name"`
-	Data []*resource `json:"data"`
-}
-
-type charts struct{ songs, albums, playlists *chart }
-
-func (s *Source) charts(limit int) (charts, error) {
-	var b struct {
-		Results struct {
-			Songs     []*chart `json:"songs"`
-			Albums    []*chart `json:"albums"`
-			Playlists []*chart `json:"playlists"`
-		} `json:"results"`
-	}
-	if err := s.catalogInto("/charts", params{"types": "songs,albums,playlists", "limit": strconv.Itoa(limit)}, &b); err != nil {
-		return charts{}, err
-	}
-	pick := func(c []*chart) *chart {
-		if len(c) > 0 {
-			return c[0]
-		}
-		return nil
-	}
-	return charts{pick(b.Results.Songs), pick(b.Results.Albums), pick(b.Results.Playlists)}, nil
-}
+// Older names of pages, as the plugin's sidebar has them.
+var pageAliases = map[string]string{"recentlyAdded": music.PageRecentlyAdded}
 
 func orT(name, fallback string) string {
 	if name != "" {
@@ -45,140 +38,101 @@ func orT(name, fallback string) string {
 	return fallback
 }
 
+// home is Apple's recommendations for the listener, or New for one signed out.
 func (s *Source) home() (*music.Browse, error) {
 	s.warm()
-	var (
-		wg              sync.WaitGroup
-		chart           charts
-		recommendations *body
-		recent          []music.Track
-	)
-	signedIn := s.signedIn()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		chart, _ = s.charts(30)
-	}()
-	if signedIn {
-		wg.Add(2)
-		go func() {
-			defer wg.Done()
-			recommendations, _ = s.me("/recommendations", params{"limit": "12"}, reqOpts{})
-		}()
-		go func() {
-			defer wg.Done()
-			recent, _ = s.recentTracks()
-		}()
+	if s.signedIn() {
+		return s.listenNow()
 	}
-	wg.Wait()
-	var sections []music.Section
-	if chart.songs != nil {
-		sections = append(sections, music.Section{Title: orT(chart.songs.Name, i18n.T("Top Songs")), Tracks: s.songsOf(chart.songs.Data), MorePage: "charts"})
+	return s.browse(music.PageNew)
+}
+
+// pageKey is what a page is kept under: by the storefront and the language
+// it was asked in, so that it isn't shown in another once either changes.
+// The library's pages start with their own names, which a change to the
+// library forgets.
+func (s *Source) pageKey(page string) string {
+	sf, _ := s.storefront()
+	key := page
+	if rest, ok := strings.CutPrefix(page, music.PageRecentlyAdded); ok {
+		key = "recentlyAdded" + rest // as liking a song forgets it
+	} else if !strings.HasPrefix(page, "library") {
+		key = "page:" + page
 	}
-	if len(recent) > 0 {
-		sections = append(sections, music.Section{Title: i18n.T("Recently Played"), Tracks: recent[:min(30, len(recent))]})
-	}
-	// The app plays a section's songs from the one picked on. It loads home
-	// again by itself, every hour, songs playing or not: what's on it is
-	// noted, and worked out only as it plays, so that it doesn't wake the
-	// wrapper.
-	for _, sec := range sections {
-		s.shown(sec.Tracks)
-	}
-	if recommendations != nil {
-		for _, rec := range recommendations.Data {
-			if rec == nil {
-				continue
-			}
-			var albums []music.Album
-			var playlists []music.Playlist
-			var stations []music.Station
-			for _, i := range rec.related("contents").Data {
-				if i == nil {
-					continue
-				}
-				switch {
-				case i.Type == "albums":
-					albums = append(albums, toAlbum(i))
-				case i.Type == "playlists":
-					playlists = append(playlists, s.toPlaylist(i))
-				case i.Type == "stations" && !i.attrs().IsLive:
-					stations = append(stations, toStation(i))
-				}
-			}
-			if len(albums) == 0 && len(playlists) == 0 && len(stations) == 0 {
-				continue
-			}
-			title := ""
-			if t := rec.attrs().Title; t != nil {
-				title = t.StringForDisplay
-			}
-			sections = append(sections, music.Section{Title: title, Albums: albums, Playlists: playlists, Stations: stations})
-		}
-	}
-	if chart.albums != nil {
-		sections = append(sections, music.Section{Title: orT(chart.albums.Name, i18n.T("Top Albums")), Albums: toAlbums(chart.albums.Data), MorePage: "charts"})
-	}
-	if chart.playlists != nil {
-		sections = append(sections, music.Section{Title: orT(chart.playlists.Name, i18n.T("Top Playlists")), Playlists: s.toPlaylists(chart.playlists.Data)})
-	}
-	return &music.Browse{Title: "Apple Music", Sections: sections}, nil
+	return key + "#" + sf + "#" + s.language()
 }
 
 func (s *Source) browse(page string) (*music.Browse, error) {
 	s.warm()
-	switch page {
-	case "charts":
-		chart, err := s.charts(100)
-		if err != nil {
-			return nil, err
-		}
-		var sections []music.Section
-		if chart.songs != nil {
-			songs := s.songsOf(chart.songs.Data)
-			s.listed(songs, nil)
-			sections = append(sections, music.Section{Title: orT(chart.songs.Name, i18n.T("Top Songs")), Tracks: songs})
-		}
-		if chart.albums != nil {
-			sections = append(sections, music.Section{Title: orT(chart.albums.Name, i18n.T("Top Albums")), Albums: toAlbums(chart.albums.Data)})
-		}
-		if chart.playlists != nil {
-			sections = append(sections, music.Section{Title: orT(chart.playlists.Name, i18n.T("Top Playlists")), Playlists: s.toPlaylists(chart.playlists.Data)})
-		}
-		sf, err := s.storefront()
-		if err != nil {
-			return nil, err
-		}
-		return &music.Browse{Title: i18n.T("Charts"), Subtitle: strings.ToUpper(sf), Sections: sections}, nil
-	case "recentlyAdded":
+	if alias, ok := pageAliases[page]; ok {
+		page = alias
+	}
+	if page == music.PageRecentlyAdded {
 		return s.recentlyAdded(false)
 	}
-	return nil, fail("unavailable", i18n.T("No such page"))
-}
-
-// recentlyAdded is what the listener added lately, kept a while.
-func (s *Source) recentlyAdded(ahead bool) (*music.Browse, error) {
-	return kept(s, "recentlyAdded", freshness{maxAge: listKept}, func(pause func()) (*music.Browse, error) {
-		items, err := s.allPages("/v1/me/library/recently-added", params{"limit": "25"}, 100, pause)
-		if err != nil {
+	if strings.HasPrefix(page, "library") || strings.HasPrefix(page, "rec:") {
+		if err := s.needAccount(); err != nil {
 			return nil, err
 		}
-		var albums, playlists []*resource
-		for _, i := range items {
-			switch {
-			case i == nil:
-			case strings.HasSuffix(i.Type, "albums"):
-				albums = append(albums, i)
-			case strings.HasSuffix(i.Type, "playlists"):
-				playlists = append(playlists, i)
-			}
+	}
+	return kept(s, s.pageKey(page), freshness{maxAge: listKept}, func(func()) (*music.Browse, error) {
+		return s.makePage(page)
+	}, false)
+}
+
+// makePage asks Apple for page.
+func (s *Source) makePage(page string) (*music.Browse, error) {
+	page, next := page, ""
+	if i := strings.Index(page, "|/"); i >= 0 {
+		page, next = page[:i], page[i+1:]
+	}
+	kind, arg, _ := strings.Cut(page, ":")
+	switch {
+	case page == music.PageNew:
+		b, err := s.groupingPage("music", "")
+		if err == nil {
+			b.Title = i18n.TC("New", "Apple Music")
 		}
-		return &music.Browse{
-			Title: i18n.T("Recently Added"),
-			Sections: []music.Section{
-				{Title: i18n.T("Albums"), Albums: toAlbums(albums), Empty: i18n.T("Nothing added lately")},
-				{Title: i18n.T("Playlists"), Playlists: s.toPlaylists(playlists)},
-			},
-		}, nil
-	}, ahead)
+		return b, err
+	case page == music.PageRadio:
+		b, err := s.groupingPage("radio", "")
+		if err == nil {
+			b.Title = i18n.TC("Radio", "Apple Music")
+		}
+		return b, err
+	case page == music.PageSearchLanding:
+		return s.searchLanding()
+	case strings.HasPrefix(page, music.PageSearch):
+		return s.searchPage(strings.TrimPrefix(page, music.PageSearch))
+	case kind == "search-more":
+		group, term, _ := strings.Cut(arg, ":")
+		return s.searchMore(group, term, next)
+	case page == "charts":
+		return s.charts("")
+	case kind == "charts":
+		return s.charts(arg)
+	case kind == "chart" || page == "chart":
+		return s.chart(next)
+	case kind == "grouping":
+		return s.groupingPage("", arg)
+	case kind == "room":
+		if next != "" {
+			return s.more(page, next, roomParams())
+		}
+		return s.room(arg)
+	case kind == "multiroom":
+		return s.multiroom(arg)
+	case kind == "curator":
+		return s.curator(arg)
+	case kind == "artist-view":
+		id, view, _ := strings.Cut(arg, ":")
+		return s.artistView(id, view, next)
+	case kind == "rec":
+		return s.seeAll(arg)
+	case kind == "library-artist":
+		return s.libraryArtist(arg, next)
+	case strings.HasPrefix(page, "library"):
+		return s.libraryPage(page, next)
+	}
+	return nil, fail("unavailable", i18n.T("No such page"))
 }

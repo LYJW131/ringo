@@ -1,0 +1,18 @@
+{
+ "data": [
+  {
+   "id": "cn",
+   "type": "storefronts",
+   "href": "/v1/storefronts/cn?l=zh-Hans-CN",
+   "attributes": {
+    "defaultLanguageTag": "zh-Hans-CN",
+    "explicitContentPolicy": "allowed",
+    "name": "中国大陆",
+    "supportedLanguageTags": [
+     "zh-Hans-CN",
+     "en-GB"
+    ]
+   }
+  }
+ ]
+}

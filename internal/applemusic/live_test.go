@@ -21,7 +21,7 @@ import (
 func sections(b *music.Browse) string {
 	var out []string
 	for _, s := range b.Sections {
-		n := len(s.Tracks) + len(s.Albums) + len(s.Playlists) + len(s.Stations)
+		n := len(s.Tracks) + len(s.Albums) + len(s.Playlists) + len(s.Stations) + len(s.Items)
 		out = append(out, fmt.Sprintf("%s (%d)", s.Title, n))
 	}
 	return strings.Join(out, ", ")
@@ -133,7 +133,8 @@ func TestLiveSignedIn(t *testing.T) {
 		if err != nil || a == nil {
 			return "", fmt.Errorf("signed out: %v", err)
 		}
-		return a.ID + " " + a.Name, nil
+		// Who it is stays out of the test's output.
+		return fmt.Sprintf("signed in, with a name: %v", a.Name != ""), nil
 	})
 	play := func() (string, error) {
 		st, err := s.Stream(id, "high")
@@ -196,7 +197,7 @@ func TestLiveSignedIn(t *testing.T) {
 			if err != nil {
 				return "", err
 			}
-			out += fmt.Sprintf("; %s: %d tracks", l.Name, len(l.Tracks))
+			out += fmt.Sprintf("; the first: %d tracks", len(l.Tracks))
 		}
 		return out, nil
 	})
@@ -205,17 +206,21 @@ func TestLiveSignedIn(t *testing.T) {
 		if err != nil || len(st) == 0 {
 			return "no station", err
 		}
-		next, err := s.StationNext(st[0].ID)
-		return fmt.Sprint(len(st), " stations, ", len(next), " next"), err
+		// A station's next songs are asked for with a POST, which this test,
+		// run with an account it only reads, doesn't send: TestLiveWrites does.
+		return fmt.Sprint(len(st), " stations"), nil
 	})
 	step("home", func() (string, error) { h, err := s.Home(); return sectionsOr(h), err })
 	step("recentlyAdded", func() (string, error) { h, err := s.Browse("recentlyAdded"); return sectionsOr(h), err })
-	s.Played(music.Track{ID: id})
+	// Nothing is reported as played: the test leaves the account's listening
+	// history as it found it.
 }
 
+// sectionsOr is a signed-in page's shape, without its titles, which can
+// name the listener.
 func sectionsOr(b *music.Browse) string {
 	if b == nil {
 		return ""
 	}
-	return sections(b)
+	return shape(b)
 }

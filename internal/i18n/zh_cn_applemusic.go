@@ -39,6 +39,12 @@ var appleMusicChinese = map[string]string{
 	"Wrapper Address": "Wrapper 地址",
 	"Wrapper Key":     "Wrapper 密钥",
 	"Your Station":    "你的电台",
+	// Apple Music's own words, from the web player's (refs/web-player/copy.md).
+	"New|Apple Music":      "新发现",
+	"Radio|Apple Music":    "广播",
+	"Artists|Apple Music":  "艺人",
+	"About %s|Apple Music": "%s简介",
+	"Made for You":         "专属推荐",
 }
 
 func init() {
