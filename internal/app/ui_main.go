@@ -80,7 +80,6 @@ func (a *app) view(c *ui.Context) {
 		a.toast = ""
 	}
 	a.askLikes()
-	a.keepAutoplay()
 	a.syncWindows()
 }
 

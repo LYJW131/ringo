@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -323,5 +324,176 @@ func TestShuffleOrderHead(t *testing.T) {
 	p.shuffleOrder(3)
 	if p.order[0] != 3 {
 		t.Errorf("picked song is at %v", p.order)
+	}
+}
+
+// nothing is a source that does nothing: tests embed it and add what they need.
+type nothing struct{}
+
+func (nothing) Info() music.Info                               { return music.Info{} }
+func (nothing) Can(string) bool                                { return false }
+func (nothing) Setting(string) string                          { return "" }
+func (nothing) SetSetting(string, string) error                { return nil }
+func (nothing) SignIn() (*music.Account, error)                { return nil, music.ErrUnsupported }
+func (nothing) SignOut() error                                 { return music.ErrUnsupported }
+func (nothing) Account() (*music.Account, error)               { return nil, nil }
+func (nothing) Suggest(string) ([]string, error)               { return nil, music.ErrUnsupported }
+func (nothing) Playlists() ([]music.Playlist, error)           { return nil, music.ErrUnsupported }
+func (nothing) Playlist(string) (*music.Playlist, error)       { return nil, music.ErrUnsupported }
+func (nothing) Album(string) (*music.AlbumPage, error)         { return nil, music.ErrUnsupported }
+func (nothing) Artist(string) (*music.ArtistPage, error)       { return nil, music.ErrUnsupported }
+func (nothing) Liked(int) (*music.Page, error)                 { return nil, music.ErrUnsupported }
+func (nothing) Recent() ([]music.Track, error)                 { return nil, music.ErrUnsupported }
+func (nothing) Home() (*music.Browse, error)                   { return nil, music.ErrUnsupported }
+func (nothing) Browse(string) (*music.Browse, error)           { return nil, music.ErrUnsupported }
+func (nothing) IsLiked([]string) (map[string]bool, error)      { return nil, music.ErrUnsupported }
+func (nothing) Like(string, bool) error                        { return music.ErrUnsupported }
+func (nothing) CreatePlaylist(string) (*music.Playlist, error) { return nil, music.ErrUnsupported }
+func (nothing) RenamePlaylist(string, string) error            { return music.ErrUnsupported }
+func (nothing) DeletePlaylist(string) error                    { return music.ErrUnsupported }
+func (nothing) AddToPlaylist(string, []string) error           { return music.ErrUnsupported }
+func (nothing) RemoveFromPlaylist(string, []string) error      { return music.ErrUnsupported }
+func (nothing) MovePlaylistTrack(string, int, int) error       { return music.ErrUnsupported }
+func (nothing) SavePlaylist(string, bool) error                { return music.ErrUnsupported }
+func (nothing) FollowArtist(string, bool) error                { return music.ErrUnsupported }
+func (nothing) SaveAlbum(string, bool) error                   { return music.ErrUnsupported }
+func (nothing) SavedAlbums(int) (*music.AlbumList, error)      { return nil, music.ErrUnsupported }
+func (nothing) Stations() ([]music.Station, error)             { return nil, music.ErrUnsupported }
+func (nothing) StationNext(string) ([]music.Track, error)      { return nil, music.ErrUnsupported }
+func (nothing) Search(string, music.SearchKind, int) (*music.SearchResult, error) {
+	return nil, music.ErrUnsupported
+}
+func (nothing) Lyrics(string) (*music.Lyrics, error)         { return nil, music.ErrUnsupported }
+func (nothing) Stream(string, string) (*music.Stream, error) { return nil, music.ErrUnsupported }
+
+// ids are the IDs of the queue in play order.
+func ids(p *Player) []string {
+	var out []string
+	order, _ := p.PlayOrder()
+	for _, i := range order {
+		out = append(out, p.Queue()[i].ID)
+	}
+	return out
+}
+
+// Play Next and Play Last add to the queue around the song playing, which
+// plays on: they used to load the queue again, opening the song's stream
+// anew.
+func TestPlayNextAndLast(t *testing.T) {
+	p, ch, q := pickyQueue()
+	defer p.stop()
+	p.PlayQueue([]music.Track{q[0], q[2]}, 0)
+	settle(t, ch, p)
+	gen, out := p.gen, p.out
+	p.PlayNext([]music.Track{{ID: "x", Source: "s"}, {ID: "y", Source: "s"}})
+	p.PlayLast([]music.Track{{ID: "z", Source: "s"}})
+	if got := strings.Join(ids(p), " "); got != "a x y c z" {
+		t.Errorf("the queue plays %s", got)
+	}
+	if p.gen != gen || p.out != out || p.Current().ID != "a" || !p.Playing() {
+		t.Errorf("loaded again: gen %d to %d, same audio %v, on %s", gen, p.gen, p.out == out, p.Current().ID)
+	}
+	if next, ok := p.upNext(); !ok || next.ID != "x" {
+		t.Errorf("up next is %+v", next)
+	}
+}
+
+// Shuffled, a song put next still plays next, and is there after shuffle
+// goes off.
+func TestPlayNextShuffled(t *testing.T) {
+	p := &Player{at: -1}
+	p.Cue([]music.Track{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}})
+	p.at, p.track = 2, &p.queue[2]
+	p.ToggleShuffle()
+	p.PlayNext([]music.Track{{ID: "n"}})
+	order, at := p.PlayOrder()
+	if p.Queue()[order[at]].ID != "3" || p.Queue()[order[at+1]].ID != "n" {
+		t.Fatalf("shuffled, the queue plays %v from %d", ids(p), at)
+	}
+	p.ToggleShuffle()
+	if got := strings.Join(ids(p), " "); got != "1 2 3 n 4" {
+		t.Errorf("unshuffled, the queue plays %s", got)
+	}
+}
+
+// More is asked for what follows once a queue nears its end, but not under
+// repeat or while a radio plays, and not again for a queue it gave nothing.
+func TestMore(t *testing.T) {
+	p := &Player{at: -1}
+	asked := 0
+	give := []music.Track{{ID: "3"}}
+	p.More = func(got func([]music.Track)) bool {
+		asked++
+		got(give)
+		return true
+	}
+	p.Cue([]music.Track{{ID: "1"}, {ID: "2"}})
+	p.refill()
+	if asked != 1 || strings.Join(ids(p), " ") != "1 2 3" {
+		t.Fatalf("asked %d, the queue plays %v", asked, ids(p))
+	}
+	give = nil
+	p.at = 2
+	p.refill()
+	p.refill()
+	if asked != 2 {
+		t.Errorf("asked %d times", asked)
+	}
+
+	p.endRadio()
+	p.repeat = RepeatAll
+	p.refill()
+	p.repeat = RepeatOff
+	p.AttachRadio("station", func(got func([]music.Track)) {})
+	p.refill()
+	if asked != 2 {
+		t.Errorf("asked %d times under repeat or a radio", asked)
+	}
+}
+
+// With nothing more after the queue, it stops at its end without a word: it
+// used to say the station had nothing more, of a queue that was no station.
+func TestMoreEndsQuietly(t *testing.T) {
+	for _, answers := range []bool{true, false} {
+		p := &Player{at: -1}
+		p.More = func(got func([]music.Track)) bool {
+			if answers {
+				got(nil)
+			}
+			return answers
+		}
+		p.Cue([]music.Track{{ID: "1"}})
+		p.playing = true
+		p.ended()
+		if p.Playing() || p.Loading() || p.Err() != "" {
+			t.Errorf("answering %v: playing %v, loading %v, saying %q", answers, p.Playing(), p.Loading(), p.Err())
+		}
+	}
+}
+
+// signedOut answers that the listener has to sign in.
+type signedOut struct{ nothing }
+
+func (signedOut) Stream(string, string) (*music.Stream, error) { return nil, music.ErrSignIn }
+
+// A session picked up signed out says why its song can't play, but takes
+// the listener to sign in only once they play it: it opened the sign-in
+// dialog as the app started.
+func TestSignInFailureOnlyWhenAsked(t *testing.T) {
+	ch := make(chan func(), 16)
+	p := New(func(fn func()) { ch <- fn })
+	p.Source = func(string) music.Source { return signedOut{} }
+	failed := 0
+	p.Failed = func(string, error) { failed++ }
+	q := []music.Track{{ID: "a", Source: "s"}}
+	p.Restore(Session{Queue: q, Order: []int{0}})
+	settle(t, ch, p)
+	if failed != 0 || p.Err() == "" {
+		t.Fatalf("restored: told %d times, saying %q", failed, p.Err())
+	}
+	p.TogglePlay()
+	settle(t, ch, p)
+	if failed != 1 {
+		t.Errorf("played: told %d times", failed)
 	}
 }

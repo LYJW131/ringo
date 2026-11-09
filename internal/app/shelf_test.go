@@ -40,6 +40,8 @@ func shelfArt(a *app) {
 		giveCover(a, fmt.Sprintf("cover:%d", i), coverImage(c.from, c.to))
 		wide := ui.NewBitmap(wideImage(c.from, c.to))
 		a.art.art[sized(music.Wide(fmt.Sprintf("wide:%d:{w}x{h}", i), wideArt, wideArt*9/16), wideArt)] = &artwork{bmp: wide}
+		// And as an artist's page heads with it.
+		a.art.art[sized(music.Wide(fmt.Sprintf("wide:%d:{w}x{h}", i), wideArt, wideArt*21/50), wideArt)] = &artwork{bmp: wide}
 	}
 }
 

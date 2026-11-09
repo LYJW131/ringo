@@ -19,7 +19,6 @@ var appleMusicChinese = map[string]string{
 	"Favorite Songs":                                   "喜爱歌曲",
 	"For an Apple Account that signs in with a passkey or security key, which the sign-in window can't use: sign in at music.apple.com in your browser, and paste the value of its media-user-token cookie here. Empty it to sign out, or to sign in with the window again.": "用于以通行密钥或安全密钥登录的 Apple 账户（登录窗口无法使用它们）：在浏览器里登录 music.apple.com，把 Cookie 中 media-user-token 的值粘贴到这里。清空即退出登录，或改回用登录窗口登录。",
 	"For lossless: the wrapper-manager that holds your Apple Music account, such as http://127.0.0.1:8080. Songs play lossless when the quality is Lossless, and as AAC without a wrapper.":                                                                                  "用于无损音频：登录了你的 Apple Music 账户的 wrapper-manager，例如 http://127.0.0.1:8080。音质设为无损时以无损播放；没有 wrapper 时播放 AAC。",
-	"Library Albums":   "资料库专辑",
 	"Media User Token": "Media User Token",
 	"New|Apple Music":  "新发现",
 	"No such page":     "没有这个页面",

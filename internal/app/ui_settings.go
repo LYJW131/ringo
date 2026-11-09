@@ -476,16 +476,6 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 	return sections
 }
 
-// anyCan reports whether any source does what's named.
-func (a *app) anyCan(what string) bool {
-	for _, lib := range a.libs {
-		if lib.can(what) {
-			return true
-		}
-	}
-	return false
-}
-
 // setupNotice says what a source that needs setting up wants: what it said,
 // or else the settings still empty, or else only that it does.
 func setupNotice(lib *library, info music.Info) string {

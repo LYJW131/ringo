@@ -378,5 +378,6 @@ func (s *Source) losslessStream(id string) (*music.Stream, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &music.Stream{URL: base + "/song/" + id + ".m4a" + q.Query, Type: "m4a", Quality: "lossless", BitRate: q.Bandwidth}, nil
+	return &music.Stream{URL: base + "/song/" + id + ".m4a" + q.Query, Type: "m4a", Quality: "lossless", BitRate: q.Bandwidth,
+		SampleRate: q.SampleRate, BitDepth: q.BitDepth}, nil
 }

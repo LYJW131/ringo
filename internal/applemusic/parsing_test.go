@@ -122,7 +122,7 @@ func TestCan(t *testing.T) {
 		t.Errorf("Can: %q", got)
 	}
 	s := New(Options{DataDir: t.TempDir()})
-	for _, name := range append(want, "shows", "comments", "followArtist", "renamePlaylist") {
+	for _, name := range append(want, "followArtist", "renamePlaylist", "deletePlaylist") {
 		if s.Can(name) != slices.Contains(want, name) {
 			t.Errorf("Can(%q) = %v", name, s.Can(name))
 		}
@@ -134,10 +134,10 @@ func TestInfo(t *testing.T) {
 	i18n.SetLanguage(i18n.Chinese)
 	defer i18n.SetLanguage(i18n.English)
 	info := s.Info()
-	if info.ID != ID || info.Name != "Apple Music" || info.Playback != "stream" || len(info.Settings) != 5 || len(info.Navigation) != 6 {
+	if info.ID != ID || info.Name != "Apple Music" || info.Playback != "stream" || len(info.Settings) != 5 {
 		t.Fatalf("info: %+v", info)
 	}
-	if info.Navigation[1].Title != "排行榜" || info.Settings[1].Label != "Wrapper 地址" {
-		t.Errorf("not in Chinese: %+v %+v", info.Navigation[1], info.Settings[1])
+	if info.Settings[1].Label != "Wrapper 地址" {
+		t.Errorf("not in Chinese: %+v", info.Settings[1])
 	}
 }

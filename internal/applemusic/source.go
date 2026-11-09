@@ -258,14 +258,6 @@ func (s *Source) Info() music.Info {
 				Help:  i18n.T("Songs you play here show in Recently Played and count toward Apple Music Replay and recommendations, as in Apple's own apps. Empty means on; type off to turn it off."),
 			},
 		},
-		Navigation: []music.NavItem{
-			{Builtin: "home", Title: i18n.T("Home")},
-			{Title: i18n.T("Charts"), Page: "charts", Icon: "chart"},
-			{Title: i18n.T("Favorite Songs"), Builtin: "liked"},
-			{Builtin: "savedAlbums", Title: i18n.T("Library Albums")},
-			{Title: i18n.T("Recently Added"), Page: "recentlyAdded", Icon: "album"},
-			{Builtin: "stations"},
-		},
 	}
 }
 
@@ -458,25 +450,8 @@ func (s *Source) Stream(id, quality string) (*music.Stream, error) {
 
 // What Apple Music doesn't do, or the web player's API doesn't let it.
 
-func (s *Source) LikeEpisode(string, bool) error                   { return music.ErrUnsupported }
-func (s *Source) RenamePlaylist(string, string) error              { return music.ErrUnsupported }
-func (s *Source) DeletePlaylist(string) error                      { return music.ErrUnsupported }
-func (s *Source) RemoveFromPlaylist(string, []string) error        { return music.ErrUnsupported }
-func (s *Source) MovePlaylistTrack(string, int, int) error         { return music.ErrUnsupported }
-func (s *Source) FollowArtist(string, bool) error                  { return music.ErrUnsupported }
-func (s *Source) Shows() ([]music.Show, error)                     { return nil, music.ErrUnsupported }
-func (s *Source) Show(string, int) (*music.ShowPage, error)        { return nil, music.ErrUnsupported }
-func (s *Source) SubscribeShow(string, bool) error                 { return music.ErrUnsupported }
-func (s *Source) Comments(string, int) (*music.CommentPage, error) { return nil, music.ErrUnsupported }
-func (s *Source) LikeComment(string, string, bool) error           { return music.ErrUnsupported }
-func (s *Source) PostComment(string, string) (*music.Comment, error) {
-	return nil, music.ErrUnsupported
-}
-func (s *Source) RemotePlay([]string, int, int64) error    { return music.ErrUnsupported }
-func (s *Source) RemotePause() error                       { return music.ErrUnsupported }
-func (s *Source) RemoteResume() error                      { return music.ErrUnsupported }
-func (s *Source) RemoteSeek(int64) error                   { return music.ErrUnsupported }
-func (s *Source) RemoteVolume(int) error                   { return music.ErrUnsupported }
-func (s *Source) RemoteState() (*music.RemoteState, error) { return nil, music.ErrUnsupported }
-func (s *Source) RemoteDevices() ([]music.Device, error)   { return nil, music.ErrUnsupported }
-func (s *Source) RemoteUse(string) error                   { return music.ErrUnsupported }
+func (s *Source) RenamePlaylist(string, string) error       { return music.ErrUnsupported }
+func (s *Source) DeletePlaylist(string) error               { return music.ErrUnsupported }
+func (s *Source) RemoveFromPlaylist(string, []string) error { return music.ErrUnsupported }
+func (s *Source) MovePlaylistTrack(string, int, int) error  { return music.ErrUnsupported }
+func (s *Source) FollowArtist(string, bool) error           { return music.ErrUnsupported }

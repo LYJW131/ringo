@@ -62,6 +62,7 @@ func TestTimedLyricsReachTheStage(t *testing.T) {
 	ch := posts(a)
 	a.pl = player.New(a.post)
 	a.pl.Source = a.sourceByID
+	a.pl.More = a.autoplay
 	fake(a).lyrics = func(string) (*music.Lyrics, error) {
 		return &music.Lyrics{Lines: []music.LyricLine{
 			{Start: 1000, End: 3000, Translation: "你好世界", Words: []music.LyricWord{{Start: 1000, End: 2000, Text: "hello "}, {Start: 2000, End: 3000, Text: "world"}}},

@@ -174,6 +174,10 @@ func (a *app) playlistRows(c *ui.Context, lists []music.Playlist, mine bool) {
 	p := a.pal
 	for i := range lists {
 		pl := &lists[i]
+		if !mine && !a.isSaved(pl) {
+			// Deleted from the library, and on its way out.
+			continue
+		}
 		selected := a.route.page == pagePlaylist && a.route.id == pl.ID && !a.nowPlaying
 		b := ui.ButtonBase(c.Key(pl.ID)).Height(32).PaddingX(8).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(pl.Name)
 		switch {
@@ -190,10 +194,10 @@ func (a *app) playlistRows(c *ui.Context, lists []music.Playlist, mine bool) {
 		case mine && pl.Fixed:
 		case mine && (a.can("renamePlaylist") || a.can("deletePlaylist")):
 			b.ContextMenu(func(m *ui.Menu) { a.playlistMenu(m, pl) })
-		case !mine && a.can("savePlaylist"):
+		case !mine && a.can("addToLibrary"):
 			b.ContextMenu(func(m *ui.Menu) {
 				if m.Item(T("Delete From Library")).Chosen() {
-					a.toggleSaved(*pl)
+					a.setInLibrary(a.library, music.ItemPlaylist, pl.ID, false)
 				}
 			})
 		}

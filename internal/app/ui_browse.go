@@ -113,7 +113,6 @@ func joinPages(page, next *music.Browse) *music.Browse {
 		last.Albums = slices.Concat(last.Albums, add.Albums)
 		last.Artists = slices.Concat(last.Artists, add.Artists)
 		last.Playlists = slices.Concat(last.Playlists, add.Playlists)
-		last.Shows = slices.Concat(last.Shows, add.Shows)
 		last.Stations = slices.Concat(last.Stations, add.Stations)
 		last.Links = slices.Concat(last.Links, add.Links)
 		joined.Sections[n-1] = last

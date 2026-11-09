@@ -1,8 +1,6 @@
 package app
 
 import (
-	"slices"
-
 	"github.com/egoist/mygo/ui"
 
 	"mygo-music/internal/music"
@@ -125,41 +123,21 @@ func (a *app) setInLibrary(lib *library, kind, id string, on bool) {
 // enqueue plays tracks after the song playing, if next, or after the rest
 // of the queue, which go on as they were; what says what they are, for the
 // toast. With nothing playing, they play now.
-//
-// The player can only take a whole queue: the song playing is loaded again
-// where it was, as a session picked up is, which may skip a beat of it.
 func (a *app) enqueue(tracks []music.Track, next bool, what string) {
 	tracks = playable(tracks)
 	if len(tracks) == 0 {
 		return
 	}
 	pl := a.pl
-	s, ok := pl.Session()
-	if !ok {
+	if pl.Current() == nil {
 		pl.PlayQueue(tracks, 0)
 		return
 	}
-	playing := pl.Playing()
-	queue := slices.Clone(s.Queue)
-	add := make([]int, len(tracks))
-	for i := range tracks {
-		add[i] = len(queue)
-		queue = append(queue, tracks[i])
-	}
-	order := slices.Clone(s.Order)
 	if next {
-		order = slices.Insert(order, s.At+1, add...)
-	} else {
-		order = append(order, add...)
-	}
-	s.Queue, s.Order = queue, order
-	pl.Restore(s)
-	if playing {
-		pl.TogglePlay()
-	}
-	if next {
+		pl.PlayNext(tracks)
 		a.toast = Tf("“%s” will play next", what)
 	} else {
+		pl.PlayLast(tracks)
 		a.toast = Tf("“%s” will play last", what)
 	}
 }

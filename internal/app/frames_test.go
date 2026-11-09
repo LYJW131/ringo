@@ -191,3 +191,29 @@ func TestSettingsFrame(t *testing.T) {
 	settled(tt)
 	saveFrame(t, dir, "settings.png", tt.Image())
 }
+
+// With MM_FRAMES set, saves the badge of a Hi-Res stream in Now Playing, and
+// of a lossless one in the player bar, light and dark.
+func TestQualityBadgeFrames(t *testing.T) {
+	dir := framesDir(t)
+	a := newTestApp()
+	a.account = &music.Account{ID: "1", Name: "Alex"}
+	a.pl.Cue(framesTracks(a))
+	a.pl.SetLyrics(nil)
+	a.pl.SetStream(&music.Stream{Quality: "lossless", SampleRate: 96000, BitDepth: 24})
+	a.nowPlaying = true
+	tt := ui.NewTester(a.view, 1180, 780)
+	tt.SetDark(true)
+	settled(tt)
+	saveFrame(t, dir, "badge-now-playing.png", tt.Image())
+	a.nowPlaying = false
+	a.pl.SetStream(&music.Stream{Quality: "lossless", SampleRate: 44100, BitDepth: 16})
+	for _, dark := range []bool{false, true} {
+		tt.SetDark(dark)
+		settled(tt)
+		img := tt.Image()
+		b := img.Bounds()
+		bar := img.SubImage(image.Rect(b.Min.X, b.Max.Y-b.Dy()*120/780, b.Max.X, b.Max.Y))
+		saveFrame(t, dir, fmt.Sprintf("badge-player-bar-dark-%v.png", dark), bar)
+	}
+}

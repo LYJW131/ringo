@@ -108,7 +108,11 @@ func one(sec music.Section) []music.Section {
 }
 
 // hero is a hero element as the item it shows: what it's of, with the
-// editors' badge and words, over a picture wider than tall.
+// editors' badge and words, over a picture wider than tall. As the web
+// player has them, a Hero (317) is its album, playlist or station's name
+// and who made it under the badge, and the editors' words (designTag, or
+// else its notes) over the picture; a HeroCustom (320), of nothing to play,
+// has its designTag for a title, and no words over the picture.
 func (s *Source) hero(b *body, e *resource) (music.Item, bool) {
 	a := e.attrs()
 	var it music.Item
@@ -127,12 +131,11 @@ func (s *Source) hero(b *body, e *resource) (music.Item, bool) {
 		if page == "" && it.URL == "" {
 			return music.Item{}, false
 		}
-		it = music.Item{Kind: music.ItemLink, ID: e.ID, Title: orT(a.Name, a.DesignBadge), Page: page, URL: it.URL}
-	}
-	it.Badge = a.DesignBadge
-	if a.DesignTag != "" {
+		it = music.Item{Kind: music.ItemLink, ID: e.ID, Title: orT(a.DesignTag, orT(a.Name, a.DesignBadge)), Page: page, URL: it.URL}
+	} else if a.DesignTag != "" {
 		it.Note = a.DesignTag
 	}
+	it.Badge = a.DesignBadge
 	// The element's own picture first: it's the one made for the hero.
 	var w *artwork
 	switch {

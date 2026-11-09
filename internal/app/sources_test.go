@@ -836,48 +836,6 @@ func TestSetLanguage(t *testing.T) {
 	}
 }
 
-// A source's QR code and what it says show while signing in, and go with it.
-func TestSignInShowsPrompt(t *testing.T) {
-	release := make(chan struct{})
-	a := newTestApp()
-	ch := posts(a)
-	src := &promptingSource{fakeSource: newFakeSource("qr")}
-	src.signIn = func() (*music.Account, error) {
-		src.show(music.SignInPrompt{QR: "https://example.com/code", Text: "Scan this code"})
-		<-release
-		return &music.Account{ID: "1", Name: "Me"}, nil
-	}
-	lib := addFake(a, src)
-	a.homeLoading = true // for the dialog's Sign In to be the one that shows
-	a.promptSignIn(lib)
-	tt := ui.NewTester(a.view, 1200, 800)
-	settled(tt)
-	if err := tt.Click("Sign In"); err != nil {
-		t.Fatal(err)
-	}
-	runPost(t, ch)
-	settled(tt)
-	if a.signIn.qr == nil {
-		t.Fatal("no QR code")
-	}
-	if _, ok := tt.Find("Scan this code"); !ok {
-		t.Errorf("the prompt doesn't show: %q", tt.Texts())
-	}
-	close(release)
-	until(t, ch, func() bool { return lib.account != nil })
-	if a.signIn.open {
-		t.Error("the dialog stayed")
-	}
-}
-
-// promptingSource is a fake source with something to show while signing in.
-type promptingSource struct {
-	*fakeSource
-	show func(music.SignInPrompt)
-}
-
-func (s *promptingSource) OnSignInPrompt(show func(music.SignInPrompt)) { s.show = show }
-
 // Signing in to a source other than the active one goes to it. If the listener
 // closed the dialog before it finished, it signs in without moving them.
 func TestSignInSwitchesToTheSource(t *testing.T) {
@@ -1006,4 +964,37 @@ func TestSettingsFoundControlWorks(t *testing.T) {
 	if a.settings.Normalize == was {
 		t.Error("the switch did nothing")
 	}
+}
+
+// Started signed out, the app asks for no playlists and opens no sign-in
+// dialog by itself: it used to ask for them as it started, and open the
+// dialog when told to sign in. Signed in, it asks for them.
+func TestSignedOutStartAsksNothing(t *testing.T) {
+	asked := make(chan struct{}, 4)
+	a := newTestApp()
+	ch := posts(a)
+	lib := a.library
+	lib.started, lib.accountAsked = false, false
+	fake(a).playlists = func() ([]music.Playlist, error) {
+		asked <- struct{}{}
+		return nil, music.ErrSignIn
+	}
+	tt := ui.NewTester(a.view, 1200, 800)
+	a.startLibrary(lib)
+	until(t, ch, func() bool { return lib.accountAsked && !lib.homeLoading })
+	settled(tt)
+	if a.signIn.open || len(asked) > 0 {
+		t.Fatalf("signed out: dialog open %v, playlists asked %d times", a.signIn.open, len(asked))
+	}
+
+	b := newTestApp()
+	ch = posts(b)
+	b.library.started, b.library.accountAsked = false, false
+	fake(b).account = func() (*music.Account, error) { return &music.Account{ID: "1", Name: "Alex"}, nil }
+	fake(b).playlists = func() ([]music.Playlist, error) {
+		asked <- struct{}{}
+		return nil, nil
+	}
+	b.startLibrary(b.library)
+	until(t, ch, func() bool { return len(asked) > 0 })
 }

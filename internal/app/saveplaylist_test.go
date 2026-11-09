@@ -24,12 +24,19 @@ func TestOwnPlaylistNotSavable(t *testing.T) {
 	}
 }
 
-// Choosing Remove from Saved from a saved playlist's menu in the sidebar
-// unsaves it, and its page, once loaded, no longer reads saved.
+// Delete From Library on a saved playlist's menu in the sidebar goes the way
+// its page's does, through the library: it called SavePlaylist, and its page
+// AddToLibrary. It leaves the sidebar at once, and its page no longer reads
+// saved.
 func TestUnsavePlaylistFromSidebar(t *testing.T) {
 	calls := make(chan saveCall, 1)
 	a := editTestApp()
-	fake(a).save = func(id string, save bool) error { calls <- saveCall{id, save}; return nil }
+	fake(a).addToLibrary = func(kind, id string, on bool) error {
+		if kind == music.ItemPlaylist {
+			calls <- saveCall{id, on}
+		}
+		return nil
+	}
 	a.playlists["20"] = &music.Playlist{ID: "20", Name: "飙升榜", Saved: true}
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -40,10 +47,10 @@ func TestUnsavePlaylistFromSidebar(t *testing.T) {
 		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
 	}
 	tt.Frame()
-	if got := wait(t, calls, "the unsaving"); got != (saveCall{"20", false}) {
-		t.Errorf("asked the source for %+v, want playlist 20 unsaved", got)
+	if got := wait(t, calls, "the deleting"); got != (saveCall{"20", false}) {
+		t.Errorf("asked the source for %+v, want playlist 20 deleted from the library", got)
 	}
-	if len(a.saved) != 0 || a.isSaved(a.playlists["20"]) {
+	if _, ok := tt.Find("飙升榜"); ok || a.isSaved(a.playlists["20"]) {
 		t.Errorf("playlist 20 still reads saved: %+v", a.saved)
 	}
 }

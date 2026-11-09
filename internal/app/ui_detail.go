@@ -239,8 +239,8 @@ func traitLabels(tr music.Traits) []string {
 }
 
 // traitBadge is a small outlined label of how something sounds.
-func traitBadge(c *ui.Context, label string, color ui.Color) {
-	ui.Text(c.Key(label), T(label)).FontSize(9.5).FontWeight(700).LetterSpacing(0.3).TextColor(color).SingleLine().
+func traitBadge(c *ui.Context, label string, color ui.Color) ui.Element {
+	return ui.Text(c.Key(label), T(label)).FontSize(9.5).FontWeight(700).LetterSpacing(0.3).TextColor(color).SingleLine().
 		Padding(1, 5).Radius(3).Border(1, color.Alpha(0.55))
 }
 

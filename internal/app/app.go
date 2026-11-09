@@ -270,6 +270,7 @@ func Run() error {
 		a.pl.Normalize = func() bool { return a.settings.Normalize }
 		a.pl.Cache = newSongCache(a.settings.CacheMB)
 		a.pl.Changed = a.keepSession
+		a.pl.More = a.autoplay
 		a.volume = a.settings.Volume
 		a.pl.SetVolume(a.volume)
 		a.win = mygo.NewWindow(mygo.WindowOptions{

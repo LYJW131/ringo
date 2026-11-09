@@ -69,7 +69,6 @@ type library struct {
 
 	mine, saved []music.Playlist // the listener's playlists: made, and saved
 	mineAt      time.Time        // when they were last asked for
-	savingPl    map[string]bool  // the playlists whose saving or its end is on its way
 
 	liked      map[string]bool // the tracks known to be liked, or not
 	wantLikes  []string        // the tracks a heart showed for, to ask about

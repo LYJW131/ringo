@@ -212,7 +212,6 @@ func (s *fakeSource) Like(id string, on bool) error {
 	}
 	return s.like(id, on)
 }
-func (s *fakeSource) LikeEpisode(id string, on bool) error { return music.ErrUnsupported }
 func (s *fakeSource) CreatePlaylist(name string) (*music.Playlist, error) {
 	if s.create == nil {
 		return nil, music.ErrUnsupported
@@ -270,26 +269,12 @@ func (s *fakeSource) SaveAlbum(id string, on bool) error {
 func (s *fakeSource) SavedAlbums(offset int) (*music.AlbumList, error) {
 	return nil, music.ErrUnsupported
 }
-func (s *fakeSource) Shows() ([]music.Show, error) { return nil, music.ErrUnsupported }
-func (s *fakeSource) Show(id string, offset int) (*music.ShowPage, error) {
-	return nil, music.ErrUnsupported
-}
-func (s *fakeSource) SubscribeShow(id string, on bool) error { return music.ErrUnsupported }
-func (s *fakeSource) Stations() ([]music.Station, error)     { return nil, music.ErrUnsupported }
+func (s *fakeSource) Stations() ([]music.Station, error) { return nil, music.ErrUnsupported }
 func (s *fakeSource) StationNext(id string) ([]music.Track, error) {
 	if s.stationNext == nil {
 		return nil, music.ErrUnsupported
 	}
 	return s.stationNext(id)
-}
-func (s *fakeSource) Comments(track string, offset int) (*music.CommentPage, error) {
-	return nil, music.ErrUnsupported
-}
-func (s *fakeSource) LikeComment(track, comment string, on bool) error {
-	return music.ErrUnsupported
-}
-func (s *fakeSource) PostComment(track, text string) (*music.Comment, error) {
-	return nil, music.ErrUnsupported
 }
 func (s *fakeSource) Lyrics(id string) (*music.Lyrics, error) {
 	if s.lyrics == nil {
@@ -303,18 +288,6 @@ func (s *fakeSource) Stream(id, quality string) (*music.Stream, error) {
 	}
 	return s.stream(id, quality)
 }
-func (s *fakeSource) RemotePlay(ids []string, start int, position int64) error {
-	return music.ErrUnsupported
-}
-func (s *fakeSource) RemotePause() error              { return music.ErrUnsupported }
-func (s *fakeSource) RemoteResume() error             { return music.ErrUnsupported }
-func (s *fakeSource) RemoteSeek(position int64) error { return music.ErrUnsupported }
-func (s *fakeSource) RemoteVolume(percent int) error  { return music.ErrUnsupported }
-func (s *fakeSource) RemoteState() (*music.RemoteState, error) {
-	return nil, music.ErrUnsupported
-}
-func (s *fakeSource) RemoteDevices() ([]music.Device, error) { return nil, music.ErrUnsupported }
-func (s *fakeSource) RemoteUse(deviceID string) error        { return music.ErrUnsupported }
 
 func (s *fakeSource) Favorite(kind, id string, on bool) error {
 	if s.favorite == nil {
@@ -358,6 +331,7 @@ func newTestApp() *app {
 	a.art = newArtCache(func(func()) {})
 	a.pl = player.New(func(func()) {})
 	a.pl.Source = a.sourceByID
+	a.pl.More = a.autoplay
 	a.pl.SetVolume(0.5)
 	return a
 }

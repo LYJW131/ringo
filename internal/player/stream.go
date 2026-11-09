@@ -202,18 +202,6 @@ func (d *download) Close() {
 	}
 }
 
-// share counts one more user of the song, as a second stream decoding it, unless
-// it is gone already.
-func (d *download) share() bool {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if d.users <= 0 {
-		return false
-	}
-	d.users++
-	return true
-}
-
 // release lets the song go for one of its users. With none left, nothing
 // reads it any more: its file closes, and goes unless the cache kept it.
 func (d *download) release() {
@@ -358,33 +346,6 @@ func openStream(dl *download, durationMs int64) (stream, error) {
 		}
 	}
 	return openMP3Stream(dl, durationMs)
-}
-
-// openShared opens a second stream of what dl fetches, for decoding apart
-// from what plays: it measures no spectrum, and closing it lets the song
-// go for it alone, leaving the download to the stream that plays.
-func openShared(dl *download, durationMs int64) (stream, error) {
-	if !dl.share() {
-		return nil, errors.New("player: the song is gone")
-	}
-	s, err := openStream(dl, durationMs)
-	if err != nil {
-		dl.release()
-		return nil, err
-	}
-	switch s := s.(type) {
-	case *mp3Stream:
-		s.spec, s.drop = nil, dl.release
-	case *oggStream:
-		s.spec, s.drop = nil, dl.release
-	case *wavStream:
-		s.spec, s.drop = nil, dl.release
-	case *decodedStream:
-		s.spec, s.drop = nil, dl.release
-	case *adtsStream:
-		s.spec, s.drop = nil, dl.release
-	}
-	return s, nil
 }
 
 // mp3Stream decodes a download for package audio. Coming in, it seeks by

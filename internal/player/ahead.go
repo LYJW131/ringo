@@ -39,7 +39,7 @@ func (p *Player) upNext() (music.Track, bool) {
 }
 
 // getAhead asks for the next track's audio at quality, unless it's kept
-// already or its source plays it elsewhere. What was asked for before that
+// already. What was asked for before that
 // isn't next any more is let go.
 func (p *Player) getAhead(quality string) {
 	t, ok := p.upNext()
@@ -53,7 +53,7 @@ func (p *Player) getAhead(quality string) {
 		return
 	}
 	src := p.sourceOf(&t)
-	if src == nil || src.Info().Playback == music.PlaybackRemote || p.Cache.has(t.Source, t.ID, quality) {
+	if src == nil || p.Cache.has(t.Source, t.ID, quality) {
 		return
 	}
 	a := &ahead{source: t.Source, id: t.ID, quality: quality, done: make(chan struct{})}

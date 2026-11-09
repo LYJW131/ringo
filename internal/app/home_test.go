@@ -153,6 +153,7 @@ func TestHomeFallsBackToRecentAndPlaylists(t *testing.T) {
 	a := newTestApp()
 	ch := posts(a)
 	without(a, "home", "isLiked")
+	a.account = &music.Account{ID: "1", Name: "Alex"}
 	fake(a).recent = func() ([]music.Track, error) { return []music.Track{song("1", "一")}, nil }
 	fake(a).playlists = func() ([]music.Playlist, error) { return []music.Playlist{{ID: "10", Name: "通勤", Mine: true}}, nil }
 	a.loadHome(a.library)
@@ -183,6 +184,7 @@ func TestHomeWaitsForTheSourcesOwn(t *testing.T) {
 	ch := posts(a)
 	without(a, "isLiked")
 	answer := make(chan struct{})
+	a.account = &music.Account{ID: "1", Name: "Alex"}
 	fake(a).home = func() (*music.Browse, error) {
 		<-answer
 		return &music.Browse{Sections: []music.Section{{Title: "推荐歌单", Playlists: []music.Playlist{{ID: "20", Name: "夜跑"}}}}}, nil

@@ -28,8 +28,6 @@ go vet ./...
 go test ./...
 ```
 
-`gofmt -l` lists `internal/player/player.go`, as it does upstream.
-
 What only Apple can answer is tested live, and skipped without its variable:
 
 | Variable | What runs |

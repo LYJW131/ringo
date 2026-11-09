@@ -24,6 +24,9 @@ type Artist struct {
 	Bio    string `json:"bio,omitempty"`
 	Born   string `json:"born,omitempty"`
 	Origin string `json:"origin,omitempty"`
+	// Group says they're a band or the like, for whom Born is when they
+	// formed.
+	Group bool `json:"group,omitempty"`
 	// WideURL is the picture that heads their page, wider than tall (Wide).
 	WideURL string `json:"wideUrl,omitempty"`
 	// VideoURL is that picture moving, an HLS stream.
@@ -89,12 +92,6 @@ type Track struct {
 	Video bool `json:"video,omitempty"`
 	// Saved says it's in the listener's library.
 	Saved bool `json:"saved,omitempty"`
-
-	// An episode of a podcast is a track like any other, that says which show
-	// it's of, what it's about and when it came out, as the source has it.
-	ShowID      string `json:"showId,omitempty"`
-	Description string `json:"description,omitempty"`
-	Published   string `json:"published,omitempty"`
 }
 
 // ArtistNames joins the track's artists as the credits read.
@@ -174,7 +171,6 @@ const (
 	SearchAlbums    SearchKind = "albums"
 	SearchArtists   SearchKind = "artists"
 	SearchPlaylists SearchKind = "playlists"
-	SearchShows     SearchKind = "shows"
 )
 
 // SearchResult is a page of what a search found; only the kind searched for
@@ -184,13 +180,12 @@ type SearchResult struct {
 	Albums    []Album    `json:"albums,omitempty"`
 	Artists   []Artist   `json:"artists,omitempty"`
 	Playlists []Playlist `json:"playlists,omitempty"`
-	Shows     []Show     `json:"shows,omitempty"`
 	More      bool       `json:"more,omitempty"` // there is a next page
 }
 
 // Len is how many things the page holds.
 func (r *SearchResult) Len() int {
-	return len(r.Tracks) + len(r.Albums) + len(r.Artists) + len(r.Playlists) + len(r.Shows)
+	return len(r.Tracks) + len(r.Albums) + len(r.Artists) + len(r.Playlists)
 }
 
 // Page is a page of tracks.
@@ -203,27 +198,6 @@ type Page struct {
 type AlbumList struct {
 	Albums []Album `json:"albums,omitempty"`
 	More   bool    `json:"more,omitempty"`
-}
-
-// Show is a podcast. Its episodes are tracks.
-type Show struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	ImageURL    string `json:"imageUrl,omitempty"`
-	Description string `json:"description,omitempty"`
-	Publisher   string `json:"publisher,omitempty"`
-	// PublisherPage is the Browse page of who publishes it, such as their
-	// profile, which their name on the show's page opens.
-	PublisherPage string `json:"publisherPage,omitempty"`
-	EpisodeCount  int    `json:"episodeCount,omitempty"`
-	Subscribed    bool   `json:"subscribed,omitempty"`
-}
-
-// ShowPage is a show and a page of its episodes.
-type ShowPage struct {
-	Show     Show    `json:"show"`
-	Episodes []Track `json:"episodes,omitempty"`
-	More     bool    `json:"more,omitempty"`
 }
 
 // Station is an endless radio: it goes on with what StationNext gives.
@@ -241,26 +215,8 @@ type Station struct {
 	Colors   Colors `json:"colors,omitzero"`
 }
 
-// Comment is what a listener said of a track.
-type Comment struct {
-	ID        string `json:"id"`
-	Author    string `json:"author"`
-	AvatarURL string `json:"avatarUrl,omitempty"`
-	Text      string `json:"text"`
-	Time      int64  `json:"time,omitempty"` // milliseconds since 1970
-	Likes     int    `json:"likes,omitempty"`
-	Liked     bool   `json:"liked,omitempty"`
-}
-
-// CommentPage is a page of a track's comments.
-type CommentPage struct {
-	Comments []Comment `json:"comments,omitempty"`
-	Total    int       `json:"total,omitempty"` // of all pages, if the source knows
-	More     bool      `json:"more,omitempty"`
-}
-
 // Browse is a page a source makes up itself, of sections it chooses: what its
-// Home shows, and any other opened from a Link, a MorePage or its Navigation.
+// Home shows, and any other opened from a Link or a MorePage.
 type Browse struct {
 	Title    string `json:"title,omitempty"`
 	Subtitle string `json:"subtitle,omitempty"`
@@ -289,7 +245,6 @@ type Section struct {
 	Albums    []Album    `json:"albums,omitempty"`
 	Artists   []Artist   `json:"artists,omitempty"`
 	Playlists []Playlist `json:"playlists,omitempty"`
-	Shows     []Show     `json:"shows,omitempty"`
 	Stations  []Station  `json:"stations,omitempty"`
 	Links     []Link     `json:"links,omitempty"`
 	// MorePage is the Browse page with the rest of it, if there is one.
@@ -321,30 +276,21 @@ type Link struct {
 	Page     string `json:"page"`
 }
 
-// NavItem is an entry of the sidebar: a Browse page of the source's own, by
-// Page, or one of the app's, by Builtin.
-type NavItem struct {
-	Title string `json:"title"`
-	Page  string `json:"page,omitempty"`
-	// Builtin is home, liked, savedAlbums, stations or shows. One the source
-	// can't do doesn't show.
-	Builtin string `json:"builtin,omitempty"`
-	// Icon names one of the app's: home, note, album, artist, playlist, radio,
-	// podcast, chart, calendar, heart, search or star.
-	Icon string `json:"icon,omitempty"`
-}
-
 // Stream is audio the app plays itself: what a source of PlaybackStream
 // answers for a track.
 type Stream struct {
-	URL     string            `json:"url"`
-	Type    string            `json:"type"` // mp3, flac, ogg, wav, m4a or aac
-	Quality string            `json:"quality,omitempty"`
-	BitRate int               `json:"bitRate,omitempty"`
-	Size    int64             `json:"size,omitempty"`
-	Peak    float64           `json:"peak,omitempty"`
-	Gain    float64           `json:"gain,omitempty"`
-	Headers map[string]string `json:"headers,omitempty"`
+	URL     string `json:"url"`
+	Type    string `json:"type"` // mp3, flac, ogg, wav, m4a or aac
+	Quality string `json:"quality,omitempty"`
+	BitRate int    `json:"bitRate,omitempty"`
+	// SampleRate, in Hz, and BitDepth are the lossless audio's, where the
+	// source knows them: 0 where it doesn't, as of AAC.
+	SampleRate int               `json:"sampleRate,omitempty"`
+	BitDepth   int               `json:"bitDepth,omitempty"`
+	Size       int64             `json:"size,omitempty"`
+	Peak       float64           `json:"peak,omitempty"`
+	Gain       float64           `json:"gain,omitempty"`
+	Headers    map[string]string `json:"headers,omitempty"`
 }
 
 // Lyrics are a track's words: as LRC, the simple way, or as timed Lines, which
@@ -371,32 +317,12 @@ type LyricWord struct {
 	Text  string `json:"text"`
 }
 
-// Device is somewhere a source of PlaybackRemote can play.
-type Device struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Active bool   `json:"active,omitempty"`
-}
-
-// RemoteState is what a source of PlaybackRemote is playing.
-type RemoteState struct {
-	Playing  bool   `json:"playing"`
-	TrackID  string `json:"trackId,omitempty"`
-	Position int64  `json:"position"` // milliseconds
-	Duration int64  `json:"duration"` // milliseconds
-	Volume   int    `json:"volume"`   // 0 to 100
-	Device   string `json:"device,omitempty"`
-}
-
 // Playback is how a source's tracks get heard.
 type Playback string
 
 const (
 	// PlaybackStream sources give audio for the app to play.
 	PlaybackStream Playback = "stream"
-	// PlaybackRemote sources play elsewhere, in their own app, and the app
-	// only tells them what to do.
-	PlaybackRemote Playback = "remote"
 )
 
 // A Setting is something a plugin asks the listener for, such as an API key.
@@ -415,9 +341,6 @@ type Info struct {
 	Version  string    `json:"version,omitempty"`
 	Playback Playback  `json:"playback"`
 	Settings []Setting `json:"settings,omitempty"`
-	// Navigation is the sidebar while the source is active, in this order. With
-	// none, the sidebar has an entry for each of the app's pages the source can do.
-	Navigation []NavItem `json:"navigation,omitempty"`
 }
 
 var (
@@ -461,19 +384,6 @@ func Reason(err error) string {
 // first. A source may have others, or none, and answers what it has.
 var Qualities = []string{"standard", "high", "lossless"}
 
-// SignInPrompt is what a source wants shown while the listener signs in.
-type SignInPrompt struct {
-	// QR is what to show as a QR code, for signing in from a phone.
-	QR string `json:"qr,omitempty"`
-	// Text says what to do, or how it's going.
-	Text string `json:"text,omitempty"`
-}
-
-// A Prompter is a source that has something to show while signing in.
-type Prompter interface {
-	OnSignInPrompt(show func(SignInPrompt))
-}
-
 // A Recorder is a source that wants to know what's played, for its Recent.
 // A source that keeps that itself, as a service does, needn't be one.
 type Recorder interface {
@@ -516,9 +426,6 @@ type Source interface {
 
 	IsLiked(ids []string) (map[string]bool, error)
 	Like(id string, on bool) error
-	// LikeEpisode likes an episode of a podcast, which not every source that
-	// likes songs can: a service's liked songs may take none.
-	LikeEpisode(id string, on bool) error
 
 	CreatePlaylist(name string) (*Playlist, error)
 	RenamePlaylist(id, name string) error
@@ -534,31 +441,12 @@ type Source interface {
 	SaveAlbum(id string, on bool) error
 	SavedAlbums(offset int) (*AlbumList, error)
 
-	// Shows lists the podcasts the listener subscribes to.
-	Shows() ([]Show, error)
-	Show(id string, offset int) (*ShowPage, error)
-	SubscribeShow(id string, on bool) error
-
 	Stations() ([]Station, error)
 	// StationNext answers the next tracks of a station.
 	StationNext(id string) ([]Track, error)
 
-	Comments(trackID string, offset int) (*CommentPage, error)
-	LikeComment(trackID, commentID string, on bool) error
-	PostComment(trackID, text string) (*Comment, error)
-
 	Lyrics(id string) (*Lyrics, error)
 
-	// Stream answers audio for a track, of PlaybackStream sources.
+	// Stream answers audio for a track.
 	Stream(id, quality string) (*Stream, error)
-
-	// The rest is of PlaybackRemote sources.
-	RemotePlay(ids []string, start int, position int64) error
-	RemotePause() error
-	RemoteResume() error
-	RemoteSeek(position int64) error
-	RemoteVolume(percent int) error
-	RemoteState() (*RemoteState, error)
-	RemoteDevices() ([]Device, error)
-	RemoteUse(deviceID string) error
 }

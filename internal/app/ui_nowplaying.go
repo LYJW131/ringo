@@ -2,6 +2,7 @@ package app
 
 import (
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -359,7 +360,7 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 				a.npRise(ui.Row(c).Height(16).AlignItems(ui.Center), 2).Children(func() {
 					ui.Text(c, clock(pl.Position())).FontSize(11).FontFeatures("tnum").TextColor(white.Alpha(0.5))
 					ui.Spacer(c)
-					qualityBadge(c, pl.Stream())
+					qualityBadge(c, pl.Stream(), ui.Hex("#f5d58a"))
 					ui.Spacer(c)
 					status := "-" + clock(pl.Duration()-pl.Position())
 					if pl.Loading() {
@@ -505,13 +506,28 @@ func (a *app) radioChip(c *ui.Context, name string) {
 }
 
 // qualityBadge marks a lossless stream, as it plays, with the badge of an
-// album's page (traitBadge). A stream says no more of itself than that it is
-// lossless: not whether it's of high resolution, or Dolby Atmos.
-func qualityBadge(c *ui.Context, st *music.Stream) {
-	if st == nil || st.Quality != "lossless" && st.Type != "flac" && st.Type != "wav" {
+// album's page (traitBadge): Hi-Res Lossless past 48 kHz, as Apple Music
+// has it, and Lossless up to that, or where the rate isn't known. Its
+// tooltip says what the stream is. AAC has none.
+func qualityBadge(c *ui.Context, st *music.Stream, color ui.Color) {
+	if st == nil || st.Quality != "lossless" {
 		return
 	}
-	traitBadge(c, traitLosless, ui.Hex("#f5d58a"))
+	label := traitLosless
+	if st.SampleRate > 48000 {
+		label = traitHiRes
+	}
+	traitBadge(c, label, color).Shrink(0).Tooltip(streamSpec(st))
+}
+
+// streamSpec says what a lossless stream is, as 24-bit/96 kHz ALAC, or ""
+// where the source doesn't know.
+func streamSpec(st *music.Stream) string {
+	if st.SampleRate <= 0 || st.BitDepth <= 0 {
+		return ""
+	}
+	khz := strconv.FormatFloat(float64(st.SampleRate)/1000, 'f', -1, 64)
+	return Tf("%d-bit/%s kHz ALAC", st.BitDepth, khz)
 }
 
 // stageBar is the slim bar along the foot of the stage: what plays, where

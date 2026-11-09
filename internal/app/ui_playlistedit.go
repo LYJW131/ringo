@@ -48,72 +48,18 @@ func (a *app) ownList(id string) bool {
 }
 
 // isSaved reports whether the listener saved playlist pl, as its page or
-// the sidebar says.
+// the sidebar says, or as they since added it to their library or deleted
+// it from there (setInLibrary).
 func (a *app) isSaved(pl *music.Playlist) bool {
-	return pl.Saved || slices.ContainsFunc(a.saved, func(s music.Playlist) bool { return s.ID == pl.ID })
+	was := pl.Saved || slices.ContainsFunc(a.saved, func(s music.Playlist) bool { return s.ID == pl.ID })
+	return a.library.inLibrary(music.ItemPlaylist, pl.ID, was)
 }
 
-// toggleSaved saves playlist pl for the listener, or unsaves it, at once
-// in the app and then with the source, going back if it refuses. Signed
-// out, it asks the listener to sign in.
-func (a *app) toggleSaved(pl music.Playlist) {
-	lib := a.library
-	if lib.signedOut() {
-		a.promptSignIn(lib)
-		return
-	}
-	id := pl.ID
-	if lib.savingPl[id] {
-		return
-	}
-	if lib.savingPl == nil {
-		lib.savingPl = map[string]bool{}
-	}
-	lib.savingPl[id] = true
-	save := !a.isSaved(&pl)
-	at := lib.setSaved(pl, save, 0)
-	go func() {
-		err := lib.src.SavePlaylist(id, save)
-		a.post(func() {
-			delete(lib.savingPl, id)
-			switch {
-			case err != nil:
-				lib.setSaved(pl, !save, max(at, 0))
-				a.actionFailed(lib, err, T("That didn't work. Try again later."))
-			case save:
-				a.toast = T("Added to Library")
-			default:
-				a.toast = T("Deleted From Library")
-			}
-		})
-	}()
-}
-
-// setSaved marks playlist pl saved or not, on its page and in the sidebar,
-// where a saved one goes at index at, and returns where it was there, or
-// -1.
-func (l *library) setSaved(pl music.Playlist, save bool, at int) int {
-	if loaded := l.playlists[pl.ID]; loaded != nil {
-		loaded.Saved = save
-	}
-	// A new slice, not shifting the one the sidebar may be listing.
-	saved := slices.Clone(l.saved)
-	was := slices.IndexFunc(saved, func(s music.Playlist) bool { return s.ID == pl.ID })
-	if was >= 0 {
-		saved = slices.Delete(saved, was, was+1)
-	}
-	if save {
-		pl.Saved = true
-		pl.Tracks = nil
-		saved = slices.Insert(saved, min(at, len(saved)), pl)
-	}
-	l.saved = saved
-	return was
-}
-
-// loadMine loads the playlists the listener made and saved.
+// loadMine loads the playlists the listener made and saved, once someone
+// is signed in: signed out, there are none to ask for, and asking would only
+// be told to sign in, which the listener didn't ask to.
 func (a *app) loadMine(lib *library) {
-	if !lib.can("playlists") {
+	if !lib.can("playlists") || lib.can("account") && lib.account == nil {
 		return
 	}
 	lib.mineAt = time.Now()
@@ -125,6 +71,14 @@ func (a *app) loadMine(lib *library) {
 				return
 			}
 			lib.mine, lib.saved = nil, nil
+			// The list is the source's word on which playlists are in the
+			// library, over what the listener did here since, but for what's
+			// still on its way: saved again elsewhere, one stays hidden no more.
+			for key := range lib.kept {
+				if _, id, ok := strings.Cut(key, "\x00"); ok && key == itemKey(music.ItemPlaylist, id) && !lib.busy[key] {
+					delete(lib.kept, key)
+				}
+			}
 			for _, pl := range lists {
 				if pl.Mine {
 					lib.mine = append(lib.mine, pl)

@@ -172,14 +172,6 @@ func bitmap(art *artwork) *ui.Bitmap {
 	return art.bmp
 }
 
-// backdrop returns the blurred cover of art, nil while it loads.
-func backdrop(art *artwork) *ui.Bitmap {
-	if art == nil {
-		return nil
-	}
-	return art.backdrop
-}
-
 // artFade is how an artwork fades in over its placeholder.
 var artFade = ui.Animation{Duration: 320 * time.Millisecond}
 

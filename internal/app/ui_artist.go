@@ -260,10 +260,17 @@ func (a *app) artistHeader(c *ui.Context, lib *library, d *artistData) {
 	ink := hexColor(ar.Colors.Text1, white)
 	ui.Box(c).Height(h).Margin(-(top + pageGap), 12-pagePad, 30, 12-pagePad).Background(hexColor(ar.Colors.BG, p.hover)).
 		ContextMenu(a.artistItems(lib, *ar)).Children(func() {
-		bmp := bitmap(a.art.get(sized(music.Wide(ar.WideURL, wideArt, wideArt*9/16), wideArt), false))
+		// As wide as the head is at its tallest, which Apple crops around
+		// the artist; wider, the head cuts it from nearer its top, where
+		// their face is.
+		bmp := bitmap(a.art.get(sized(music.Wide(ar.WideURL, wideArt, wideArt*21/50), wideArt), false))
 		box := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0)
 		in := artIn(box, bmp)
-		box.Children(func() { artImage(c, bmp, 0, in) })
+		box.Children(func() {
+			if bmp != nil && in > 0 {
+				ui.Image(c, bmp).Absolute().Top(0).Left(0).Right(0).Bottom(0).Fit(ui.Cover).ObjectPosition(0.5, 0.3).Opacity(in)
+			}
+		})
 		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(h * 0.5).
 			LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
 				{Color: ui.RGBA(0, 0, 0, 0), At: 0},
@@ -341,8 +348,12 @@ func (a *app) artistBio(c *ui.Context, ar *music.Artist, sec *music.Section) {
 				}
 			}
 		}
+		born := T("Born")
+		if ar.Group {
+			born = T("Formed")
+		}
 		facts := []struct{ label, value string }{
-			{T("Born"), ar.Born},
+			{born, ar.Born},
 			{T("From"), ar.Origin},
 			{T("Genre"), ar.Genre},
 		}

@@ -132,7 +132,6 @@ var zhCN = map[string]string{
 	"Play":                                   "播放",
 	"Play/Pause":                             "播放/暂停",
 	"Playback":                               "播放",
-	"Playing something else elsewhere":       "另一端正在播放其他内容",
 	"Playlist":                               "播放列表",
 	"Playlist deleted":                       "已删除播放列表",
 	"Playlists":                              "播放列表",

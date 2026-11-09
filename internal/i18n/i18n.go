@@ -127,14 +127,6 @@ func Date(t time.Time) string {
 	return fmt.Sprintf("%s %d", t.Month(), t.Day())
 }
 
-// Today says the day of t, as a page heading does.
-func Today(t time.Time) string {
-	if Language() == Chinese {
-		return Date(t) + " " + [...]string{"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"}[t.Weekday()]
-	}
-	return t.Weekday().String() + ", " + Date(t)
-}
-
 // Songs says how many songs there are.
 func Songs(n int) string {
 	if n == 1 {

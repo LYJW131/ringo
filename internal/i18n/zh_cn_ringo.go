@@ -7,6 +7,7 @@ package i18n
 var ringoChinese = map[string]string{
 	"%d Songs":           "%d 首歌曲",
 	"%d hr %d min":       "%d 小时 %d 分钟",
+	"%d-bit/%s kHz ALAC": "%d 位/%s kHz ALAC",
 	"%d min":             "%d 分钟",
 	"%s, %s|length":      "%s、%s",
 	"%s|year":            "%s年",
@@ -37,6 +38,7 @@ var ringoChinese = map[string]string{
 	"Explicit":                          "儿童不宜",
 	"Favorite":                          "个人收藏",
 	"Favorite/Undo Favorite":            "个人收藏/取消收藏",
+	"Formed":                            "成立于",
 	"Friday":                            "周五",
 	"From":                              "来自",
 	"From the next song on. Lossless plays through a wrapper, set up under Apple Music, and songs play as AAC without one": "下一首歌曲开始生效。无损通过 wrapper 播放，在“Apple Music”里设置；没有 wrapper 时以 AAC 播放",

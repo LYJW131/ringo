@@ -200,25 +200,6 @@ func (a *app) playlistHeaderSkeleton(c *ui.Context, s shimmer) {
 
 // Skeletons of the now playing view.
 
-// commentSkeleton is n of commentRow's comments.
-func commentSkeleton(c *ui.Context, s shimmer, n int) {
-	for i := range n {
-		ui.Row(c.Key(i)).Padding(12).Gap(12).AlignItems(ui.Start).Children(func() {
-			s.bone(c, 17).Size(34, 34)
-			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(6).Children(func() {
-				s.text(c, 13, 1.3).Width(60 + boneWidth(i))
-				ui.Column(c).Children(func() {
-					s.text(c, 15, 1.55).WidthPercent(94)
-					if i%3 != 2 {
-						s.text(c, 15, 1.55).WidthPercent(boneWidth(i + 2))
-					}
-				})
-				s.text(c, 11.5, 1.3).Width(96)
-			})
-		})
-	}
-}
-
 // lyricsSkeleton is lyricsPane's lines while they load.
 func lyricsSkeleton(c *ui.Context, s shimmer) {
 	ui.Column(c).Gap(6).Padding(0, 8, 0, 0).Children(func() {

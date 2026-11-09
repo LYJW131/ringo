@@ -90,3 +90,16 @@ func TestArtistAlbums(t *testing.T) {
 		t.Error("the tab went back to the songs")
 	}
 }
+
+// A band's date is when it formed, not when it was born.
+func TestGroupFormed(t *testing.T) {
+	for _, group := range []bool{false, true} {
+		a := artistApp(false)
+		a.artists["159260351"].page.Artist.Group = group
+		tt := ui.NewTester(a.view, 1180, 1700)
+		settled(tt)
+		if _, ok := tt.Find("Formed"); ok != group {
+			t.Errorf("a group %v reads Formed %v: %q", group, ok, tt.Texts())
+		}
+	}
+}

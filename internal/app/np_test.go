@@ -370,3 +370,36 @@ func TestLyricsFillATallWindow(t *testing.T) {
 		}
 	}
 }
+
+// The badge of what plays says Hi-Res Lossless past 48 kHz and Lossless up
+// to it, in Now Playing and the player bar, and AAC has none.
+func TestQualityBadgeByRate(t *testing.T) {
+	for _, c := range []struct {
+		st   *music.Stream
+		want string
+	}{
+		{&music.Stream{Quality: "lossless", SampleRate: 96000, BitDepth: 24}, "Hi-Res Lossless"},
+		{&music.Stream{Quality: "lossless", SampleRate: 48000, BitDepth: 24}, "Lossless"},
+		{&music.Stream{Quality: "lossless"}, "Lossless"},
+		{&music.Stream{Quality: "high", Type: "m4a"}, ""},
+	} {
+		for _, np := range []bool{false, true} {
+			a := newTestApp()
+			a.pl.Cue([]music.Track{song("1", "一")})
+			a.pl.SetStream(c.st)
+			a.nowPlaying = np
+			tt := ui.NewTester(a.view, 1200, 800)
+			tt.Frame()
+			tt.Advance(time.Second)
+			tt.Frame()
+			for _, label := range []string{"Hi-Res Lossless", "Lossless"} {
+				if _, ok := tt.Find(label); ok != (label == c.want) {
+					t.Errorf("%+v, Now Playing %v: %q shows %v", c.st, np, label, ok)
+				}
+			}
+		}
+	}
+	if got := streamSpec(&music.Stream{Quality: "lossless", SampleRate: 88200, BitDepth: 24}); got != "24-bit/88.2 kHz ALAC" {
+		t.Errorf("spec %q", got)
+	}
+}

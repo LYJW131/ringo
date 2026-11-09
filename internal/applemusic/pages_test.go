@@ -147,6 +147,11 @@ func TestNewPage(t *testing.T) {
 	if h := heroes[0]; h.Badge == "" || !strings.Contains(h.WideURL, "{w}x{h}") || h.Colors.BG == "" || h.Kind != music.ItemLink || h.Page != "multiroom:6820621614" {
 		t.Errorf("hero %+v", h)
 	}
+	// A HeroCustom's words are its title, under its badge, as the web player
+	// has them: it showed its badge twice, and its words over the picture.
+	if h := heroes[0]; h.Badge != "THE WOMAN WE NEEDED" || h.Title != "In 2026, Olivia Dean was the sound of unconditional love." || h.Note != "" || h.Subtitle != "" {
+		t.Errorf("HeroCustom: badge %q, title %q, subtitle %q, note %q", h.Badge, h.Title, h.Subtitle, h.Note)
+	}
 	if h := heroes[1]; h.Badge == "" || !strings.Contains(h.WideURL, "{w}x{h}") || h.Kind != music.ItemPlaylist || h.Playlist == nil || h.Title == "" {
 		t.Errorf("hero %+v", h)
 	}
@@ -316,8 +321,13 @@ func TestArtistPage(t *testing.T) {
 		}
 	}
 	a := page.Artist
-	if len(page.Tracks) == 0 || a.Bio == "" || a.Born == "" || a.Origin == "" || !strings.Contains(a.WideURL, "{w}") || a.Colors.BG == "" || a.Genre == "" {
+	if len(page.Tracks) == 0 || a.Bio == "" || a.Born == "" || a.Origin == "" || !strings.Contains(a.WideURL, "{w}") || a.Colors.BG == "" || a.Genre == "" || a.Group {
 		t.Errorf("artist %+v, %d top songs", a, len(page.Tracks))
+	}
+	// Their square photo, cut wide around them by a crop Apple made for it:
+	// cut from its middle, it showed only their body.
+	if !strings.HasSuffix(a.WideURL, "/{w}x{h}vb.{f}") {
+		t.Errorf("the head's picture is %q", a.WideURL)
 	}
 }
 
