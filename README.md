@@ -1,185 +1,92 @@
-# MyGo Music
+<div align="center">
 
-A native desktop music player written in Go with [MyGo](https://github.com/egoist/mygo), no WebView. It plays your local files out of the box, and everything else comes from plugins.
+<img src="resources/icon.png" width="112" alt="Ringo">
 
-## Features
+# Ringo
 
-- Local files (MP3, FLAC, Ogg Vorbis, WAV, and ALAC, FLAC or AAC in .m4a and .aac) with tags, covers and `.lrc` lyrics
-- Playlists, liked songs, search, albums and artists
-- Now Playing with lyric stage styles, cover wall, queue, shuffle and repeat
-- Notch player on macOS, tray, media keys
-- Audio cache, fades on pause and seek, loudness normalization
-- Session restore
-- Podcast captions, written down on the device as episodes play
-- English and Simplified Chinese
-- Plugins can add accounts, catalogs, podcasts, stations, comments and pages of their own
+**Apple Music 的原生桌面客户端**
 
-## Build
+用 Go 写成，界面由 [MyGo](https://github.com/egoist/mygo) 的原生 UI 绘制，不套网页。macOS、Windows、Linux 三个平台。
 
-```bash
-go tool mygo dev     # run in development
-go tool mygo build   # package into build/
-go test ./internal/...
-```
+**简体中文** · [English](README.en.md)
 
-## Podcast captions
+</div>
 
-Episodes are written down on the device as they play, with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and Qwen3-ASR, which the app downloads when the listener asks for them. The libraries come from this repository's `sherpa-onnx-<version>` prerelease, which only changes with that version:
+> [!IMPORTANT]
+> Ringo 是个人项目，与 Apple 没有任何关系，也没有得到它的认可。它使用 music.apple.com 网页播放器自己的接口，不是公开 API，Apple 随时可能更改；这样使用很可能不符合 Apple 的服务条款，账户有被限制的风险。只用你自己的、有有效订阅的账户，后果自负。
 
-```bash
-go run ./scripts/sherpa -sign "Developer ID Application: …"
-gh release create sherpa-onnx-2.0.1 --prerelease --latest=false build/sherpa/*
-```
+## 功能
 
-## Plugins
+- **主页、新发现、广播**：按 Apple Music 自己的版式呈现，顶部大图、横向货架、歌曲列、直播电台，每个区块都能「查看全部」。
+- **搜索**：未输入时是类别浏览；搜索结果一页列出最佳结果、艺人、专辑、歌曲、播放列表、电台和视频。
+- **资料库**：最近添加、艺人、专辑、歌曲、专属推荐、所有播放列表，滚动到底自动加载；你的播放列表在侧栏里。
+- **专辑、艺人、播放列表页**：编辑介绍、封面取色的背景、音质标识、热门歌曲标记，以及「其他版本」「更多作品」「类似艺人」等后续内容。
+- **播放**：整首 256 kbps AAC；配置 wrapper 后可播放至高 24-bit/192 kHz 的 ALAC 无损。
+- **歌词**：逐字跟随，有翻译时一并显示。
+- **操作**：插播、最后播放、个人收藏、添加到资料库与移除、添加到歌单、新建和编辑播放列表、自动连播。
+- **桌面端该有的**：媒体键、托盘、macOS 刘海播放器、深浅色外观、会话恢复、歌曲缓存、响度均衡。
+- 简体中文和英文，用语与 Apple Music 一致。
 
-A plugin is a folder in the app's `plugins` directory (Settings > Plugins > + > Show Plugins Folder) with a `plugin.json` and one JavaScript or TypeScript file. Install one with the + in Settings > Plugins from GitHub, by its repository or its address, or from its folder or a zip of it on this computer, or drop the folder in by hand. Remove one from its ⋯ menu there. There's nothing to build, and the same plugin runs on every platform. [`examples/demo-plugin`](examples/demo-plugin) does everything a plugin can with made-up data: copy it to start.
+还没有的：音乐视频的播放、动态封面、Replay、社交资料、演出信息。
 
-```json
-{
-  "id": "example",
-  "name": "Example",
-  "version": "1.0.0",
-  "minAppVersion": "0.1.8",
-  "main": "index.js",
-  "playback": "stream",
-  "permissions": { "network": ["api.example.com"] },
-  "settings": [{ "key": "apiKey", "label": "API Key", "help": "From your account page", "link": "https://example.com/keys" }],
-  "navigation": [
-    { "builtin": "home" },
-    { "title": "Charts", "page": "charts", "icon": "chart" },
-    { "title": "Stations", "builtin": "stations" }
-  ]
-}
-```
-
-```js
-export async function search({ query, kind, offset }) {
-  const res = await fetch(`https://api.example.com/search?q=${encodeURIComponent(query)}&type=${kind}&offset=${offset}`, {
-    headers: { authorization: `Bearer ${host.setting("apiKey")}` },
-  });
-  return { tracks: (await res.json()).items.map(toTrack), more: false };
-}
-
-export function stream({ id, quality }) {
-  return { url: `https://api.example.com/audio/${id}.mp3`, type: "mp3" };
-}
-```
-
-Export a function for each thing the plugin does. Each takes one object of parameters and returns a value or a promise. What it doesn't export, the app leaves out of its pages.
-
-| Export | Parameters | Returns |
-| --- | --- | --- |
-| `signIn`, `signOut`, `account` | | `{id, name, imageUrl, page}`; `account` returns `null` when signed out. `page` is a `browse` page of the listener's own, which the account menu opens as My Page |
-| `setSetting` | `{key, value}` | |
-| `home` | | `Browse` |
-| `browse` | `{page}` | `Browse` |
-| `search` | `{query, kind, offset}`, where `kind` is `tracks`, `albums`, `artists`, `playlists` or `shows` | `{tracks or albums or ..., more}` |
-| `suggest` | `{query}` | `[string]` |
-| `recent` | | `[Track]` |
-| `played` | `{id}` | |
-| `liked` | `{offset}` | `{tracks, more}` |
-| `isLiked` | `{ids}` | `{id: bool}` |
-| `like`, `likeEpisode` | `{id, on}` | `like` likes a song, and `likeEpisode` an episode: without it, episodes show no heart |
-| `album` | `{id}` | `{album, tracks}` |
-| `artist` | `{id}` | `{artist, tracks, albums}` |
-| `saveAlbum`, `followArtist`, `savePlaylist`, `subscribeShow` | `{id, on}` | |
-| `savedAlbums` | `{offset}` | `{albums, more}` |
-| `playlists` | | `[Playlist]` |
-| `playlist` | `{id}` | `Playlist` with `tracks` |
-| `createPlaylist` | `{name}` | `Playlist` |
-| `renamePlaylist` | `{id, name}` | |
-| `deletePlaylist` | `{id}` | |
-| `addToPlaylist`, `removeFromPlaylist` | `{id, trackIds}` | |
-| `movePlaylistTrack` | `{id, from, to}` | |
-| `shows` | | `[Show]` |
-| `show` | `{id, offset}` | `{show, episodes, more}` |
-| `stations` | | `[Station]` |
-| `stationNext` | `{id}` | `[Track]` |
-| `comments` | `{trackId, offset}` | `{comments, total, more}` |
-| `likeComment` | `{trackId, commentId, on}` | |
-| `postComment` | `{trackId, text}` | `Comment` |
-| `lyrics` | `{id}` | `{lrc, translation}`, or `{lines}` with timed `words` |
-| `stream` | `{id, quality}` | `{url, type, headers, size, gain, peak}`, where `type` is `mp3`, `flac`, `ogg`, `wav`, `m4a` (ALAC, FLAC or AAC-LC, whole or in fragments as a DASH stream serves it) or `aac` (AAC-LC in ADTS) |
-| `remotePlay` | `{ids, start, position}` | |
-| `remotePause`, `remoteResume` | | |
-| `remoteSeek` | `{position}` | |
-| `remoteVolume` | `{percent}` | |
-| `remoteState` | | `{playing, trackId, position, duration, volume, device}` or `null` |
-| `remoteDevices` | | `[{id, name, active}]` |
-| `remoteUse` | `{deviceId}` | |
-
-The shapes are in [`internal/music/music.go`](internal/music/music.go) by their JSON names. Times are in milliseconds. A `Browse` is `{title, subtitle, imageUrl, description, sections}`: with an `imageUrl`, such as a listener's avatar, it's headed round, as an artist's page is, and `description` goes under the title a line to each line. A section can hold `tracks`, `albums`, `artists`, `playlists`, `shows`, `stations`, `links` (`{title, subtitle, imageUrl, page}`), a `morePage`, and `empty`, what it says while it holds nothing. A source's first section of `tracks` leads its Home as a card of the day's songs, which opens a page of all of them, headed by the section's `pageTitle` if it has one, else its `title`, and its `subtitle` after the count of songs. A show's `publisherPage` is a `browse` page of who publishes it, which their name on the show's page opens.
-
-An `imageUrl` can say where its size goes, with `{size}`, for an image server that makes pictures the size asked: `https://img.example.com/cover.jpg?param={size}y{size}` or `https://img.example.com/{size}/cover.jpg`. The app fills in how many pixels across it shows the picture at, 40 in a row and 600 in Now Playing, or 600 where nothing asks for a size. `%7Bsize%7D`, as JavaScript's `URL` writes it in a query, counts too. An app older than 0.1.20 fetches `{size}` as it is, so a plugin that gives it wants a `minAppVersion` of 0.1.20. Without it, give pictures at about 800 pixels if the service can, rather than as large as they were made: the app fetches and decodes the whole of each, a few megabytes for one thousands of pixels across, to show it in a row.
-
-Of the `playlists`, those with `mine` are the listener's own, listed under My Playlists, and the rest are ones they saved. One that is `mine` and also `fixed`, such as the songs they liked, is kept by the source itself: the app doesn't offer to rename it, delete it, add songs to it, take them out or move them.
-
-`navigation` is the plugin's sidebar, in its order. An entry opens a `browse` page of its own by `page`, or one of the app's by `builtin`: `home`, `liked`, `savedAlbums`, `stations` or `shows`, which can be given a `title`. Without `navigation`, the sidebar has an entry for each of the app's pages the plugin can do. Up to four stations show as a switch over one card, and more as a grid.
-
-`minAppVersion` is the oldest version of MyGo Music the plugin works with. An older one won't install it, and says to update first. Versions before 0.1.8 don't read it.
-
-### Translating a plugin
-
-Put the translations in `locales/<language>.json` next to `plugin.json`: `locales/zh-CN.json` for Simplified Chinese, the language the app speaks besides English. Each one maps the English text to the translation:
-
-```json
-{ "Example": "示例", "API Key": "API 密钥", "From your account page": "在你的账号页面获取", "Charts": "排行榜" }
-```
-
-The app translates the plugin's `name`, its settings' `label` and `help` and its `navigation` titles with them. For what the plugin says itself, such as a page's titles or an error's message, `host.t(text)` answers the translation, or `text` when there's none, and `host.language()` the listener's language, `en` or `zh-CN`. Both follow the listener as they change it, and the page they're on loads again.
-
-With `"playback": "stream"`, the app plays what `stream` answers. With `"playback": "remote"`, the plugin makes the sound itself, or has another program do so, and the app calls the `remote` functions and polls `remoteState`.
-
-Throw an error with a `code` to say what's wrong: `signIn` prompts the listener to sign in, `setup` sends them to the plugin's settings, `unavailable` means this can't be played, and `unsupported` means the plugin doesn't do this. Any other error shows its message.
-
-### Publishing a plugin
-
-Put it in a public GitHub repository, with `plugin.json` at the top. The app takes the latest release: a `.zip` asset named for the platform, such as `plugin-darwin-arm64.zip`, or one named for none, or else the source. Without a release it takes the latest commit of the default branch. A new tag or commit is a new version, which shows as an update in the settings. An update asking for more permissions asks the listener again.
-
-Add the topic `mygo-music-plugin` to the repository to have it listed on the [plugins page](https://mygo-music.egoist.dev/plugins).
-
-Link to `mygo-music://install-plugin?repo=owner/repo` for an install button: it opens the app, which downloads the plugin and asks the listener before installing it. The development app (`mygo dev`) answers `mygo-music-dev://` instead.
-
-### What a plugin can reach
-
-A plugin has the JavaScript standard library, timers, `fetch` and its relatives, `URL`, `console` and `host`:
+## 截图
 
 | | |
 | --- | --- |
-| `host.platform`, `host.arch` | such as `darwin`, `arm64` |
-| `host.dir`, `host.dataDir` | the plugin's folder, and one for its data |
-| `host.storage.get(key)`, `.set(key, value)`, `.remove(key)` | JSON values that outlive the app |
-| `host.setting(key)` | what the listener filled in |
-| `host.t(text)`, `host.language()` | the text in the listener's language, from the plugin's `locales`, and that language: `en` or `zh-CN` |
-| `host.removeDataDir(name)` | removes a folder inside `host.dataDir` |
-| `host.crypto.md5(text)` | its hash, in hex |
-| `host.crypto.aesEcbEncrypt(key, text)` | AES-ECB with PKCS#7 padding, in hex, for services whose requests are made that way |
-| `host.openURL(url)` | opens a web page in the listener's browser |
-| `host.signInPrompt({qr, text})` | what the sign-in window shows while `signIn` goes on: a QR code to scan, and what to do |
-| `host.waitForRedirect({port, path, timeout, page})` | the end of a browser sign-in: listens on `127.0.0.1` and answers the query it's redirected back with. Needs the network permission |
-| `host.webSignIn({url, cookiesOf, until, userAgent})` | a sign-in on the service's own page, for one that has no other way in: the app shows `url` in a window of its own, apart from every other page and forgotten after, and once the cookies named in `until` are all there, closes it and answers `{cookie}`, the Cookie header a request to `cookiesOf` would send. `cookiesOf` has to be a host the network permission reaches. `userAgent` is what the page is told it's shown in |
-| `host.spawn(command, args)` | starts a program, by a path from the plugin's folder or absolute, or a name on `PATH`. Needs the process permission to name it. Returns `{pid, write(text), closeStdin(), readLine(), wait(), kill(), errorOutput()}` |
+| ![新发现](docs/screenshots/new.jpg) | ![艺人](docs/screenshots/artist.jpg) |
+| ![专辑](docs/screenshots/album.jpg) | ![搜索](docs/screenshots/search.jpg) |
 
-Everything else takes a permission in `plugin.json`:
+截图由测试离屏渲染，封面是色块，内容是示例数据。
 
-- `"network": ["api.example.com", "*.example.com"]` lists the hosts `fetch` can reach, or `["*"]` for any. Without it, `fetch` reaches nothing.
-- `"requestHeaders"` are headers the app sends with what it fetches itself for the plugin, its pictures (`image`) and its songs' audio (`audio`), for a service that keeps those behind its session as well as its API:
+## 登录
 
-  ```json
-  "requestHeaders": [
-    { "hosts": ["{setting:server}"], "kinds": ["image", "audio"], "headers": { "cookie": "music-token={storage:token}" } },
-    { "hosts": ["img.example.com"], "kinds": ["image"], "headers": { "referer": "https://example.com/" } }
-  ]
-  ```
+三种方式，任选其一：
 
-  `hosts` are hosts or `*.domain`, which the network permission has to reach, or `{setting:key}`, the host of the server a setting names, such as `https://nas.local:5666`, while the network permission reaches it. `*` isn't one. Without `kinds`, they go with both. In `headers`, `{setting:key}` is what the listener filled in and `{storage:key}` what the plugin keeps with `host.storage`, as each is when the request goes out: a token the plugin stores anew goes with the next one, and none is kept in a URL. A header whose value isn't there yet, as before signing in, is left out. The headers a `stream` answers come first. Neither goes on to another host a request is redirected to.
-- `"process": ["bin/helper-*", "ffmpeg"]` lists the programs `host.spawn` can start, for what JavaScript can't do: a path from the plugin's folder or absolute, or a name looked up on `PATH`. A path only matches a path and a name only a name, and `*` matches within one folder, as in a glob. `["*"]`, or `true`, asks for any program, which the listener is warned about. The listener has to allow it in Settings first, as a program can do anything they can. Programs end when the plugin does, and once allowed, `fetch` can reach this machine too, to talk to them. Ship one binary per platform and pick it with `host.platform` and `host.arch`.
+1. **登录窗口**：点侧栏底部的「登录」，在弹出的 Apple 登录页面里登录。这个窗口不支持通行密钥和安全密钥。
+2. **Media User Token**：在已登录的 [music.apple.com](https://music.apple.com) 打开开发者工具，从 Cookies 里复制 `media-user-token` 的值，粘贴到「设置 › Apple Music › Media User Token」。清空即退出登录。
+3. **Wrapper 账户**：已经在 wrapper-manager 里登录了账户的，填好 Wrapper 地址，再在 **Wrapper 账户** 里填这个账户的 Apple ID 或国家或地区代码（如 `jp`）。
 
-## Credits
+未登录也能浏览目录、搜索和查看页面；播放、资料库和个人推荐需要登录。
 
-- [folia-major](https://github.com/chthollyphile/folia-major): the lyric stage animations
+## 无损
 
-## License
+无损和高解析度无损通过 [wrapper-manager](https://github.com/AMDL-Web/wrapper/tree/amdl/manager) 播放：
 
-AGPL-3.0. See [LICENSE](LICENSE).
+1. 部署一个 wrapper-manager 并在其中登录 Apple Music 账户。
+2. 在「设置 › Apple Music」里填 **Wrapper 地址**；wrapper 放在需要密钥的网关后面时，再填 **Wrapper 密钥**。
+3. 在「设置 › 播放」里把音质设为「无损」。
+
+没有 wrapper 或取不到无损音轨时，自动以 AAC 播放。能访问 wrapper 端口的人都能使用其中的账户，不要把没有密钥保护的 wrapper 暴露到公网。
+
+## 构建
+
+需要 [Go](https://go.dev/dl/) 1.27 或更高版本，以及运行 `mygo.config.ts` 用的 [Bun](https://bun.sh)。不需要 cgo，任何一台机器都能编译三个平台的包。
+
+```bash
+go tool mygo dev
+```
+
+```bash
+go tool mygo build -platform darwin/arm64,windows/amd64,linux/amd64
+```
+
+```bash
+go test ./...
+```
+
+产物在 `build/` 下：macOS 是 `.app` 和 `.dmg`，Windows 是 `.exe` 和安装程序，Linux 是可执行文件、`.deb` 和 `.tar.gz`。macOS 的包没有经过 Apple 公证，第一次打开要在「系统设置 › 隐私与安全性」里放行。
+
+## 隐私
+
+- 没有统计和跟踪。Ringo 只连接 Apple 的服务器，以及你自己填的 wrapper。
+- media-user-token 以明文保存在本机的应用数据目录里，只发给 Apple；退出登录只删除本机的这一份。
+- 「使用收听历史记录」开启时（默认开启），每首歌开始播放时会像 Apple 自己的 App 一样把播放记录发给 Apple，用于「最近播放」、Replay 和推荐。可在「设置 › Apple Music」里关闭。
+- 解密在本机进行；Ringo 只播放，不提供把歌曲另存为文件的功能。
+
+## 致谢与许可证
+
+[AGPL-3.0](LICENSE)。
+
+- 播放器和界面基础来自 [MyGo Music](https://github.com/egoist/mygo-music)（AGPL-3.0），界面框架是 [MyGo](https://github.com/egoist/mygo)。
+- Apple Music 部分移植自 [mygo-music-apple-music](https://github.com/LYJW131/mygo-music-apple-music)；无损部分的实现基于 [apple-music-downloader](https://github.com/AMDL-Web/apple-music-downloader)、[wrapper](https://github.com/WorldObservationLog/wrapper) 和 [Temari](https://github.com/WorldObservationLog/Temari)。
+- 品牌资产的说明见 [brand/README.md](brand/README.md)。Ringo 的名称与图形不使用 Apple 的商标；Apple Music 是 Apple Inc. 的商标。
