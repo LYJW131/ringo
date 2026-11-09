@@ -224,3 +224,47 @@ func sectionsOr(b *music.Browse) string {
 	}
 	return shape(b)
 }
+
+// With APPLE_MUSIC_WRAPPER too, the address of a wrapper that holds an
+// account, a song asked for lossless comes as ALAC through it, rather than
+// falling back to AAC.
+func TestLiveLossless(t *testing.T) {
+	file, wrapper := os.Getenv("APPLE_MUSIC_TOKEN_FILE"), os.Getenv("APPLE_MUSIC_WRAPPER")
+	if file == "" || wrapper == "" {
+		t.Skip("APPLE_MUSIC_TOKEN_FILE names a file holding a media-user-token, and APPLE_MUSIC_WRAPPER a wrapper")
+	}
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New(Options{DataDir: t.TempDir()})
+	defer s.Close()
+	s.storage.set(userTokenKey, strings.TrimSpace(string(raw)))
+	s.settings.set("wrapper", wrapper)
+	id := os.Getenv("APPLE_MUSIC_SONG")
+	if id == "" {
+		id = "1783644604"
+	}
+	t0 := time.Now()
+	st, err := s.Stream(id, "lossless")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Quality != "lossless" {
+		t.Fatalf("the song came as %q, not lossless", st.Quality)
+	}
+	res, err := http.Get(st.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	// The start of it is enough to tell it's there: a whole song is tens of megabytes.
+	b, err := io.ReadAll(io.LimitReader(res.Body, 2<<20))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != 200 || len(b) < 100_000 || !strings.Contains(string(b[:64]), "ftyp") {
+		t.Fatalf("HTTP %d, %d bytes", res.StatusCode, len(b))
+	}
+	t.Logf("lossless in %d ms: %s Hz, %s bit", time.Since(t0).Milliseconds(), res.Header.Get("X-Sample-Rate"), res.Header.Get("X-Bit-Depth"))
+}
