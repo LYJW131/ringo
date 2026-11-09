@@ -286,7 +286,22 @@ func (s *Source) saveAlbum(id string, on bool) error {
 	if own == "" {
 		return nil
 	}
-	_, err := s.me("/library/albums/"+own, nil, reqOpts{method: "DELETE"})
+	// Its songs first: Apple answers 204 for an album taken out with its
+	// songs still in the library, and goes on listing it, as it lists an
+	// album for the songs of it the library holds.
+	songs, err := s.allPages("/v1/me/library/albums/"+own+"/tracks", nil, 1000, nil)
+	if err != nil {
+		return err
+	}
+	for _, song := range songs {
+		if song.Type != "library-songs" {
+			continue
+		}
+		if _, err := s.me("/library/songs/"+song.ID, nil, reqOpts{method: "DELETE"}); err != nil {
+			return err
+		}
+	}
+	_, err = s.me("/library/albums/"+own, nil, reqOpts{method: "DELETE"})
 	return err
 }
 

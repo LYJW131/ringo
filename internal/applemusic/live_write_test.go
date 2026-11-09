@@ -13,10 +13,7 @@ import (
 // the token of an account kept for testing, apart from the read-only
 // APPLE_MUSIC_TOKEN_FILE: favorites, the library and autoplay, each read
 // back, and everything put back as it was. Nothing is reported as played.
-// Reading back waits up to settleWithin for Apple to show a change. An album
-// taken out of the library is the exception: Apple answers 204 at once and
-// lists it for a quarter of an hour and more after, so that it's still
-// listed is said, and fails nothing.
+// Reading back waits up to settleWithin for Apple to show a change.
 
 const settleWithin = 2 * time.Minute
 
@@ -81,14 +78,7 @@ func TestLiveWrites(t *testing.T) {
 			if err := s.AddToLibrary(kind, id, false); err != nil {
 				t.Errorf("taking the %s out: %v", kind, err)
 			}
-			gone := func() bool { _, lib := state(typ, id); return !lib }
-			if kind == music.ItemAlbum {
-				if !gone() {
-					t.Logf("the album is still listed in the library, as Apple lists one for a while after it's taken out")
-				}
-			} else {
-				waitFor("the "+kind+" out of the library", gone)
-			}
+			waitFor("the "+kind+" out of the library", func() bool { _, lib := state(typ, id); return !lib })
 		}
 	}
 

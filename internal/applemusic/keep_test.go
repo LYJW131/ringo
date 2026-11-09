@@ -36,6 +36,10 @@ func TestWrites(t *testing.T) {
 				"station": map[string]any{"id": "ra.cp-1", "type": "stations", "attributes": map[string]any{"kind": "albumSeeded"}},
 				"tracks": []any{map[string]any{"id": "11", "type": "songs",
 					"attributes": map[string]any{"name": "Next", "playParams": map[string]any{"id": "11", "kind": "song"}}}}}})
+		case r.URL.Path == "/v1/me/library/albums/l.own/tracks":
+			return answer(200, map[string]any{"data": []any{
+				map[string]any{"id": "i.one", "type": "library-songs"},
+				map[string]any{"id": "i.two", "type": "library-songs"}}})
 		case inLibrary.MatchString(r.URL.Path) && r.Method == "GET":
 			m := inLibrary.FindStringSubmatch(r.URL.Path)
 			own := map[string]string{"songs": "i.own", "albums": "l.own"}[m[1]]
@@ -100,7 +104,12 @@ func TestWrites(t *testing.T) {
 	must(ts.AddToLibrary(music.ItemSong, "400", false))
 	check("take a song out", writes(), call{method: "DELETE", path: "/v1/me/library/songs/i.own"})
 	must(ts.AddToLibrary(music.ItemAlbum, "500", false))
-	check("take an album out", writes(), call{method: "DELETE", path: "/v1/me/library/albums/l.own"})
+	// Its songs go first: Apple lists an album for as long as the library
+	// holds songs of it, whatever it answered to taking the album out.
+	check("take an album out", writes(),
+		call{method: "DELETE", path: "/v1/me/library/songs/i.one"},
+		call{method: "DELETE", path: "/v1/me/library/songs/i.two"},
+		call{method: "DELETE", path: "/v1/me/library/albums/l.own"})
 
 	next, err := ts.Autoplay([]string{"10", "i.upload"})
 	must(err)
