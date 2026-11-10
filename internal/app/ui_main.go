@@ -63,7 +63,7 @@ func (a *app) view(c *ui.Context) {
 			side.Children(func() { a.sidebar(c) })
 			// Keyed, so that a popover of the sidebar opening or closing
 			// keeps what the page and its bars hold, their edges' fades.
-			ui.Box(c.Key("main")).Grow(1).Background(p.bg).Children(func() {
+			ui.Box(c.Key("main")).Grow(1).Background(p.bg).HandleInput(a.scrollInput).Children(func() {
 				a.content(c)
 				// The bars float over the page, which scrolls under them:
 				// positioned, they paint over it.
@@ -403,7 +403,7 @@ func (a *app) pageTop(c *ui.Context) {
 type pagePlace struct {
 	list       ui.ListState
 	scroll     ui.ScrollState
-	shelves    map[int]*ui.ScrollState
+	shelves    map[int]*shelfScroll
 	shelfSongs map[int]*shelfTracks
 }
 

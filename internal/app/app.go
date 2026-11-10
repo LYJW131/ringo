@@ -88,7 +88,12 @@ type app struct {
 	// shelves are where the shelves of the page that scroll sideways are
 	// scrolled, by their section: kept here, as a shelf scrolled out of the
 	// list is not built.
-	shelves map[int]*ui.ScrollState
+	shelves map[int]*shelfScroll
+	// touch is the way the touchpad's scrolling goes, and overShelf the
+	// shelf under the pointer as it scrolls, if there is one: the page asks
+	// the first which of them it scrolls.
+	touch     touchGesture
+	overShelf *shelfScroll
 	// shelfSongs are the songs of the page's sections, by their section.
 	shelfSongs map[int]*shelfTracks
 	// pagePlaces are where the pages back and forward lead to were scrolled

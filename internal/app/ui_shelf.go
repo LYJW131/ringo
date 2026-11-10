@@ -254,13 +254,13 @@ func (a *app) shelfTitle(c *ui.Context, sec *music.Section, first bool) {
 }
 
 // shelfState is where the shelf of section s scrolls to.
-func (a *app) shelfState(s int) *ui.ScrollState {
+func (a *app) shelfState(s int) *shelfScroll {
 	if a.shelves == nil {
-		a.shelves = map[int]*ui.ScrollState{}
+		a.shelves = map[int]*shelfScroll{}
 	}
 	st := a.shelves[s]
 	if st == nil {
-		st = &ui.ScrollState{}
+		st = &shelfScroll{focused: -1}
 		a.shelves[s] = st
 	}
 	return st
@@ -303,37 +303,79 @@ func (a *app) shelf(c *ui.Context, secs []music.Section, s int, m shelfMetrics, 
 		_, w = m.fit(squareMin)
 		artH = w
 	}
+	// Its items in a row as wide as they all are, shifted by how far it is
+	// scrolled (shelfScroll) and clipped to the shelf; the tracks in columns.
+	units := len(sec.Items)
+	if sec.Style == music.ShelfTracks {
+		units = (units + tracksRows - 1) / tracksRows
+	}
+	step := w + shelfGap
+	st.MaxX = max(0, float32(units)*step-shelfGap-m.inner)
 	box := ui.Box(c.Key("shelf")).Margin(top, 12-pagePad, 0, 12-pagePad)
 	hovered := box.Hovered()
+	box.HandleInput(func(ev ui.InputEvent) bool {
+		if ev.Kind == ui.InputScroll {
+			a.overShelf = st
+		}
+		return false
+	})
+	// The focus brings its item into view only as the keys move it: a press
+	// on one half out of view must not slide it from under the pointer.
+	box.ObserveInput(func(ev ui.InputEvent) {
+		switch ev.Kind {
+		case ui.InputKeyDown:
+			st.keyed = true
+		case ui.InputPointerDown:
+			st.keyed = false
+		}
+	})
 	box.Children(func() {
-		ui.ScrollHorizontal(c.Key("scroll")).TrackScroll(st).Scrollbars(false).Padding(0, pagePad).Gap(shelfGap).
-			AlignItems(ui.Start).Label(sec.Title).Children(func() {
-			switch sec.Style {
-			case music.ShelfTracks:
-				for col := 0; col*tracksRows < len(sec.Items); col++ {
-					ui.Column(c.Key(col)).Width(w).Shrink(0).Children(func() {
-						for i := col * tracksRows; i < min((col+1)*tracksRows, len(sec.Items)); i++ {
-							a.trackCell(c.Key(i), secs, s, i)
+		ui.Box(c.Key("scroll")).Clip().Label(sec.Title).Children(func() {
+			row := ui.Row(c.Key("row")).Width(2*pagePad+float32(units)*step-shelfGap).Shrink(0).Padding(0, pagePad).Gap(shelfGap).AlignItems(ui.Start)
+			focus := -1
+			row.Children(func() {
+				switch sec.Style {
+				case music.ShelfTracks:
+					for col := range units {
+						column := ui.Column(c.Key(col)).Width(w).Shrink(0)
+						column.Children(func() {
+							for i := col * tracksRows; i < min((col+1)*tracksRows, len(sec.Items)); i++ {
+								a.trackCell(c.Key(i), secs, s, i)
+							}
+						})
+						if column.FocusWithin() {
+							focus = col
 						}
-					})
+					}
+				default:
+					for i := range sec.Items {
+						item := ui.Box(c.Key(i)).Shrink(0)
+						item.Children(func() { a.shelfItem(c, secs, s, i, w) })
+						if item.FocusWithin() {
+							focus = i
+						}
+					}
 				}
-			default:
-				for i := range sec.Items {
-					a.shelfItem(c.Key(i), secs, s, i, w)
+			})
+			if focus != st.focused {
+				st.focused = focus
+				if focus >= 0 && st.keyed {
+					st.reveal(float32(focus)*step, float32(focus)*step+w, m.inner)
 				}
 			}
+			row.Translate(-st.place(row), 0)
 		})
 		// A screen at a time, as far as there is more that way.
-		step := m.inner + shelfGap
+		page := m.inner + shelfGap
 		y := artTop + artH/2 - 16
 		if hovered && st.X > 0.5 {
 			if a.shelfArrow(c.Key("prev"), iconBack, T("Previous Page")).Absolute().Left(10).Top(y).Clicked() {
-				st.ScrollTo(max(0, st.X-step), 0, ui.Smooth)
+				st.glideTo(st.X - page)
 			}
 		}
 		if hovered && st.X < st.MaxX-0.5 {
 			if a.shelfArrow(c.Key("next"), iconForward, T("Next Page")).Absolute().Right(10).Top(y).Clicked() {
-				st.ScrollTo(min(st.MaxX, st.X+step), 0, ui.Smooth)
+				st.glideTo(st.X + page)
 			}
 		}
 	})
