@@ -50,7 +50,8 @@ const placeholderSize = 600
 // as a source gives it or escaped, as a URL parsed and written again has it.
 var sizePlaceholder = regexp.MustCompile(`\{size\}|%7[Bb]size%7[Dd]`)
 
-// Fetch returns what's at url, of the web or a file://, such as a cover.
+// Fetch returns what's at url, of the web or a file:// (a cover kept on this
+// machine).
 func Fetch(u string) ([]byte, error) {
 	if path, ok := PathOf(u); ok {
 		return os.ReadFile(path)
@@ -102,16 +103,8 @@ func HeadersStay(client *http.Client, host string, headers map[string]string) *h
 	return &c
 }
 
-// FileURL is the file:// URL of a path.
-func FileURL(path string) string {
-	path = filepath.ToSlash(path)
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path // C:/Music
-	}
-	return (&url.URL{Scheme: "file", Path: path}).String()
-}
-
-// PathOf returns the path a file:// URL names, and whether u is one.
+// PathOf returns the path a file:// URL names, and whether u is one. The
+// source writes them for the covers it keeps on this machine.
 func PathOf(u string) (string, bool) {
 	if !strings.HasPrefix(u, "file:") {
 		return "", false

@@ -7,18 +7,13 @@ import (
 	"mygo-music/internal/music"
 )
 
-func TestParseLRC(t *testing.T) {
-	lines := Build("[00:01.000] 作词 : 某人\n[00:30.54]故事的小黄花\n[00:34.165][01:10.1]从出生那年就飘着\n[00:40.00]\n",
-		"[00:30.54]The little yellow flower\n")
-	if len(lines) != 4 {
-		t.Fatalf("got %d lines: %+v", len(lines), lines)
-	}
-	if lines[1].At != 30540*time.Millisecond || lines[1].Translation != "The little yellow flower" {
-		t.Errorf("line 1: %+v", lines[1])
-	}
-	if lines[3].At != 70100*time.Millisecond || lines[3].Text != "从出生那年就飘着" {
-		t.Errorf("line 3: %+v", lines[3])
-	}
+// Index finds the line being sung at a time, and none before the first.
+func TestIndex(t *testing.T) {
+	lines := FromSource(&music.Lyrics{Lines: []music.LyricLine{
+		{Start: 1000, Text: "作词 : 某人"},
+		{Start: 30540, Text: "故事的小黄花"},
+		{Start: 34165, Text: "从出生那年就飘着"},
+	}})
 	if i := Index(lines, 33*time.Second); i != 1 {
 		t.Errorf("index at 33s = %d", i)
 	}
@@ -64,56 +59,6 @@ func TestFromSourceLines(t *testing.T) {
 	}
 	if lines[1].End != 26*time.Second || len(lines[1].Words) != 2 {
 		t.Errorf("plain line %+v", lines[1])
-	}
-}
-
-// With no lines of its own, a source's LRC is used.
-func TestFromSourceLRC(t *testing.T) {
-	lines := FromSource(&music.Lyrics{LRC: "[00:01.00]One", Translation: "[00:01.00]Uno"})
-	if len(lines) != 1 || lines[0].Translation != "Uno" {
-		t.Errorf("lines %+v", lines)
-	}
-}
-
-func TestQuiets(t *testing.T) {
-	s := time.Second
-	lines := []Line{
-		{At: 0, End: 2 * s, Text: "作词 : 林夕"},
-		{At: 2 * s, End: 4 * s, Text: "作曲：陈小霞"},
-		{At: 20 * s, End: 25 * s, Text: "一"},
-		{At: 26 * s, End: 30 * s, Text: "二"},
-		{At: 45 * s, End: 50 * s, Text: "三"},
-	}
-	got := Quiets(lines, 60*s, 8*s)
-	want := []Quiet{{0, 20 * s}, {30 * s, 45 * s}, {50 * s, 60 * s}}
-	if len(got) != len(want) {
-		t.Fatalf("got %v, want %v", got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("quiet %d: %v, want %v", i, got[i], want[i])
-		}
-	}
-	if q := Quiets(nil, 60*s, 8*s); len(q) != 0 {
-		t.Errorf("a song without lyrics: %v", q)
-	}
-}
-
-func TestIsCredit(t *testing.T) {
-	for text, want := range map[string]bool{
-		"作词 : 林夕":            true,
-		"作曲：陈小霞":             true,
-		"编曲: 藤田淳平(Elements)": true,
-		"Producer: 周杰伦":      true,
-		"我说：你好":              false,
-		"时间：是一把刀":            false,
-		"悴んだ心 ふるえる眼差し":       false,
-		"词：方文山":              true,
-		"曲终人散：空余叹":           false,
-	} {
-		if IsCredit(text) != want {
-			t.Errorf("%q: %v", text, !want)
-		}
 	}
 }
 

@@ -1,9 +1,7 @@
 package lyrics
 
 import (
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -29,46 +27,11 @@ type Word struct {
 	Start, End time.Duration
 }
 
-var lrcTime = regexp.MustCompile(`\[(\d+):(\d+)(?:[.:](\d+))?\]`)
-
-// parseLRC reads lyrics in the LRC format: a line may carry several times,
-// and credits come as lines of their own.
-func parseLRC(lrc string) []Line {
-	var out []Line
-	for _, raw := range strings.Split(lrc, "\n") {
-		times := lrcTime.FindAllStringSubmatchIndex(raw, -1)
-		if len(times) == 0 {
-			continue
-		}
-		text := strings.TrimSpace(raw[times[len(times)-1][1]:])
-		for _, m := range times {
-			min, _ := strconv.Atoi(raw[m[2]:m[3]])
-			sec, _ := strconv.Atoi(raw[m[4]:m[5]])
-			var frac time.Duration
-			if m[6] >= 0 {
-				f := raw[m[6]:m[7]]
-				n, _ := strconv.Atoi(f)
-				frac = time.Duration(n) * time.Second
-				for range len(f) {
-					frac /= 10
-				}
-			}
-			at := time.Duration(min)*time.Minute + time.Duration(sec)*time.Second + frac
-			out = append(out, Line{At: at, Text: text})
-		}
-	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].At < out[j].At })
-	return out
-}
-
-// FromSource makes the lines to show from what a source answers: its own timed
-// lines where it has them, else its LRC.
+// FromSource makes the lines to show from what a source answers: its timed
+// lines, each word with its time or, where it has none, sharing the line's.
 func FromSource(l *music.Lyrics) []Line {
 	if l == nil {
 		return nil
-	}
-	if len(l.Lines) == 0 {
-		return Build(l.LRC, l.Translation)
 	}
 	ms := func(n int64) time.Duration { return time.Duration(n) * time.Millisecond }
 	out := make([]Line, 0, len(l.Lines))
@@ -104,45 +67,6 @@ func FromSource(l *music.Lyrics) []Line {
 		}
 	}
 	return out
-}
-
-// Build makes the lines to show from timed lines and their translation, the
-// words of each sharing its time.
-func Build(lrc, translation string) []Line {
-	var lines []Line
-	for _, l := range parseLRC(lrc) {
-		if l.Text != "" {
-			lines = append(lines, l)
-		}
-	}
-	for i := range lines {
-		end := lines[i].At + 6*time.Second
-		if i+1 < len(lines) {
-			end = min(end, lines[i+1].At)
-		}
-		lines[i].End = end
-		lines[i].Words = SpreadWords(lines[i].Text, lines[i].At, end)
-	}
-	// Translations go to the line nearest their time.
-	for _, t := range parseLRC(translation) {
-		if t.Text == "" {
-			continue
-		}
-		best, bestGap := -1, 1500*time.Millisecond
-		for i := range lines {
-			gap := lines[i].At - t.At
-			if gap < 0 {
-				gap = -gap
-			}
-			if gap < bestGap {
-				best, bestGap = i, gap
-			}
-		}
-		if best >= 0 && lines[best].Translation == "" {
-			lines[best].Translation = t.Text
-		}
-	}
-	return lines
 }
 
 // SpreadWords splits text into words, each Chinese, Japanese or Korean
@@ -222,54 +146,4 @@ func Still(lines []Line) bool {
 func Index(lines []Line, pos time.Duration) int {
 	i := sort.Search(len(lines), func(i int) bool { return lines[i].At > pos })
 	return i - 1
-}
-
-// A Quiet is a stretch of a song with nothing sung: its intro, an
-// interlude, or its outro.
-type Quiet struct {
-	From, To time.Duration
-}
-
-// Quiets returns the stretches of a song length long, of at least least,
-// in which none of lines is sung. Credits, as 作词 and 作曲, are not sung.
-func Quiets(lines []Line, length, least time.Duration) []Quiet {
-	var out []Quiet
-	add := func(from, to time.Duration) {
-		if to-from >= least {
-			out = append(out, Quiet{from, to})
-		}
-	}
-	at := time.Duration(0)
-	sung := false
-	for _, l := range lines {
-		if IsCredit(l.Text) {
-			continue
-		}
-		add(at, l.At)
-		at, sung = max(at, l.End), true
-	}
-	if sung && length > 0 {
-		add(at, length)
-	}
-	return out
-}
-
-// creditNames are what credit lines begin with.
-var creditNames = []string{"作词", "作曲", "编曲", "制作", "监制", "混音", "录音", "母带", "和声", "吉他", "贝斯", "鼓", "键盘", "弦乐", "出品", "发行", "OP", "SP", "词", "曲", "Lyrics", "Music", "Composer", "Arranger", "Producer"}
-
-// IsCredit reports whether a line names who made the song, as "作词 :
-// 林夕", rather than being sung.
-func IsCredit(text string) bool {
-	i := strings.IndexAny(text, ":：")
-	if i <= 0 || utf8.RuneCountInString(text[:i]) > 12 {
-		return false
-	}
-	head := strings.TrimSpace(text[:i])
-	for _, n := range creditNames {
-		// A name of one character, as 词, is the whole of the head.
-		if head == n || utf8.RuneCountInString(n) > 1 && strings.HasPrefix(head, n) {
-			return true
-		}
-	}
-	return false
 }

@@ -16,16 +16,11 @@ func playingApp() (*app, *ui.Tester, *int) {
 	a := newTestApp()
 	a.pl.Cue([]music.Track{song("7", "宝船", "DOUDOU")})
 	// A line every 10 seconds, sung over the first 5 of them.
-	var lrc string
+	var sung []music.LyricLine
 	for i := range 12 {
-		lrc += "[0" + string(rune('0'+i*10/60)) + ":" + string(rune('0'+i*10%60/10)) + "0.00]一二三四五六\n"
+		sung = append(sung, music.LyricLine{Start: int64(i) * 10000, End: int64(i)*10000 + 5000, Text: "一二三四五六"})
 	}
-	lines := lyrics.Build(lrc, "")
-	for i := range lines {
-		l := &lines[i]
-		l.End = l.At + 5*time.Second
-		l.Words = lyrics.SpreadWords(l.Text, l.At, l.End)
-	}
+	lines := lyrics.FromSource(&music.Lyrics{Lines: sung})
 	a.pl.SetLyrics(lines)
 	a.pl.Hold(0)
 	builds := 0

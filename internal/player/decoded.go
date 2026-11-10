@@ -8,7 +8,6 @@ import (
 
 	"github.com/egoist/mygo/audio"
 	_ "github.com/egoist/mygo/audio/aac" // AAC in MP4
-	"github.com/egoist/mygo/audio/flac"
 	"github.com/egoist/mygo/audio/mp4"
 )
 
@@ -49,7 +48,7 @@ func (f *downloadFile) Seek(off int64, whence int) (int64, error) {
 	case io.SeekEnd:
 		f.dl.mu.Lock()
 		size := f.dl.size
-		if f.dl.done || f.dl.onDisk {
+		if f.dl.done {
 			size = f.dl.n
 		}
 		f.dl.mu.Unlock()
@@ -65,7 +64,7 @@ func (f *downloadFile) Seek(off int64, whence int) (int64, error) {
 	return off, nil
 }
 
-// decodedStream decodes a download with one of MyGo's decoders, and measures
+// decodedStream decodes a download with MyGo's MP4 decoder, and measures
 // the spectrum of what it decodes, for the visualizers.
 type decodedStream struct {
 	audio.Decoder
@@ -76,8 +75,8 @@ type decodedStream struct {
 	once sync.Once
 }
 
-// openDecoded opens dl with open, one of MyGo's decoders, which decode to
-// stereo.
+// openDecoded opens dl with open, one of MyGo's decoders, which must decode
+// to stereo.
 func openDecoded(dl *download, open func(io.ReadSeeker) (audio.Decoder, error)) (*decodedStream, error) {
 	d, err := open(&downloadFile{dl: dl})
 	if err != nil {
@@ -89,14 +88,10 @@ func openDecoded(dl *download, open func(io.ReadSeeker) (audio.Decoder, error)) 
 	return &decodedStream{Decoder: d, dl: dl, spec: newSpectrum(d.SampleRate()), drop: dl.Close}, nil
 }
 
-// openMP4Stream opens an .m4a, of ALAC, FLAC or AAC. One cut into fragments,
-// as a stream for DASH is, plays as its fragments come, its length from its
+// openMP4Stream opens an .m4a, of ALAC or AAC. One cut into fragments, as a
+// stream for DASH is, plays as its fragments come, its length from its
 // index.
 func openMP4Stream(dl *download) (*decodedStream, error) { return openDecoded(dl, mp4.NewDecoder) }
-
-// openFLACStream opens a FLAC file: the lossless and Hi-Res streams. A seek
-// lands on the very sample.
-func openFLACStream(dl *download) (*decodedStream, error) { return openDecoded(dl, flac.NewDecoder) }
 
 func (s *decodedStream) Read(dst []float32) (int, error) {
 	n, err := s.Decoder.Read(dst)

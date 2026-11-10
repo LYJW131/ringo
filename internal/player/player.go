@@ -4,7 +4,6 @@ import (
 	"errors"
 	"math"
 	"math/rand/v2"
-	"os"
 	"slices"
 	"time"
 
@@ -881,9 +880,9 @@ func errorText(err error) string {
 var errNoSource = errors.New("player: no such source")
 
 // open opens track t's audio at quality: what was asked for ahead of it, if
-// that worked; or kept in the cache, or else a file on disk, played from
-// there, or else streamed into the cache, and kept once it has all come in.
-// What failed ahead is asked for again: it may have been a moment's.
+// that worked; or kept in the cache, or else streamed into the cache, and
+// kept once it has all come in. What failed ahead is asked for again: it may
+// have been a moment's.
 func (p *Player) open(src music.Source, t music.Track, quality string, pre *ahead) (*music.Stream, stream, error) {
 	if src == nil {
 		if pre != nil {
@@ -898,13 +897,6 @@ func (p *Player) open(src music.Source, t music.Track, quality string, pre *ahea
 		<-pre.done
 		if pre.err == nil {
 			info, dl, ok = pre.info, pre.dl, true
-			if dl == nil {
-				path, _ := music.PathOf(info.URL)
-				var err error
-				if dl, err = openFile(path); err != nil {
-					return nil, nil, err
-				}
-			}
 		}
 	}
 	if !ok {
@@ -919,35 +911,14 @@ func (p *Player) open(src music.Source, t music.Track, quality string, pre *ahea
 		if info == nil {
 			return nil, nil, music.ErrUnavailable
 		}
-		if path, isFile := music.PathOf(info.URL); isFile {
-			dl, err = openFile(path)
-			if err != nil {
-				return nil, nil, err
-			}
-		} else {
-			dl = p.Cache.download(t.Source, t.ID, quality, info)
-		}
+		dl = p.Cache.download(t.Source, t.ID, quality, info)
 	}
-	s, err := openStream(dl, t.Duration)
+	s, err := openMP4Stream(dl)
 	if err != nil {
 		dl.Close()
 		return nil, nil, err
 	}
 	return info, s, nil
-}
-
-// openFile opens a song on disk as a download that has all of it in.
-func openFile(path string) (*download, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	info, err := f.Stat()
-	if err != nil {
-		f.Close()
-		return nil, err
-	}
-	return opened(f, info.Size()), nil
 }
 
 // Session is where playback was left, to pick up again.

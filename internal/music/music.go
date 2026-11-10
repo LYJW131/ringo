@@ -337,7 +337,7 @@ type Link struct {
 // answers for a track.
 type Stream struct {
 	URL  string `json:"url"`
-	Type string `json:"type"` // mp3, flac, ogg, wav, m4a or aac
+	Type string `json:"type"` // m4a: ALAC or AAC in an MP4
 	// Quality is the level of Qualities that the stream satisfies, which is
 	// the one it was asked for when it plays as that, or "high" where it fell
 	// back to AAC: a song asked for at Hi-Res Lossless is "hires" even if it
@@ -348,20 +348,16 @@ type Stream struct {
 	BitRate int    `json:"bitRate,omitempty"`
 	// SampleRate, in Hz, and BitDepth are the lossless audio's, where the
 	// source knows them: 0 where it doesn't, as of AAC.
-	SampleRate int               `json:"sampleRate,omitempty"`
-	BitDepth   int               `json:"bitDepth,omitempty"`
-	Size       int64             `json:"size,omitempty"`
-	Peak       float64           `json:"peak,omitempty"`
-	Gain       float64           `json:"gain,omitempty"`
-	Headers    map[string]string `json:"headers,omitempty"`
+	SampleRate int     `json:"sampleRate,omitempty"`
+	BitDepth   int     `json:"bitDepth,omitempty"`
+	Size       int64   `json:"size,omitempty"`
+	Peak       float64 `json:"peak,omitempty"`
+	Gain       float64 `json:"gain,omitempty"`
 }
 
-// Lyrics are a track's words: as LRC, the simple way, or as timed Lines, which
-// can time each word, and are used if there are any.
+// Lyrics are a track's words, as timed Lines, which can time each word.
 type Lyrics struct {
-	LRC         string      `json:"lrc,omitempty"`
-	Translation string      `json:"translation,omitempty"` // LRC too
-	Lines       []LyricLine `json:"lines,omitempty"`
+	Lines []LyricLine `json:"lines,omitempty"`
 }
 
 // LyricLine is a line of timed lyrics, in milliseconds from the track's start.

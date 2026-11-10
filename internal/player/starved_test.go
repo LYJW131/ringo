@@ -19,13 +19,13 @@ type onServer struct {
 }
 
 func (s onServer) Stream(string, string) (*music.Stream, error) {
-	return &music.Stream{URL: s.url, Type: "mp3"}, nil
+	return &music.Stream{URL: s.url, Type: "m4a"}, nil
 }
 
 // A seek past what has come in says it's loading until it has, as the stream
 // waits for it: it said nothing, and the song only went quiet.
 func TestSeekPastWhatsInLoads(t *testing.T) {
-	b, err := os.ReadFile("testdata/seek.mp3")
+	b, err := os.ReadFile("testdata/seek-aac-frag.m4a")
 	if err != nil {
 		t.Fatal(err)
 	}

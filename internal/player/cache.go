@@ -47,7 +47,7 @@ func cacheKey(source, id, quality string) string {
 }
 
 // songTypes are the types of song the app knows, which name their files.
-var songTypes = []string{"mp3", "flac", "ogg", "wav", "m4a", "aac"}
+var songTypes = []string{"m4a"}
 
 // keepable reports whether a song of quality and type ext may be kept: they
 // name its file, so only those known, which keep it in the cache's folder.
@@ -113,9 +113,9 @@ func (c *Cache) find(source, id, quality string) (*os.File, *music.Stream, bool)
 func (c *Cache) download(source, id, quality string, st *music.Stream) *download {
 	part := c.part(st)
 	if part == nil {
-		return startDownload(st.URL, st.Size, st.Headers, nil, nil)
+		return startDownload(st.URL, st.Size, nil, nil)
 	}
-	return startDownload(st.URL, st.Size, st.Headers, part, func(path string, n int64) (string, bool) {
+	return startDownload(st.URL, st.Size, part, func(path string, n int64) (string, bool) {
 		return c.keep(source, id, quality, st, path, n)
 	})
 }
@@ -157,12 +157,11 @@ func (c *Cache) keep(source, id, quality string, st *music.Stream, part string, 
 	}
 	kept := *st
 	if kept.Type == "" {
-		kept.Type = "mp3"
+		kept.Type = "m4a"
 	}
 	kept.Size = n
-	// The URL and its headers are of no use once it's here, and a source may
-	// sign them.
-	kept.URL, kept.Headers = "", nil
+	// The URL is of no use once it's here, and a source may sign it.
+	kept.URL = ""
 	if slices.Contains(music.Qualities, kept.Quality) {
 		quality = kept.Quality
 	}

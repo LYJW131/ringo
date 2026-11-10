@@ -317,8 +317,13 @@ func TestBackdropFrame(t *testing.T) {
 	}
 	a := newTestApp()
 	a.pl.Cue([]music.Track{coveredSong(a)})
-	a.pl.SetLyrics(lyrics.Build("[00:00.00]Written by Solveig\n[00:15.00]The sky goes green at the edges\n[00:20.00]And everyone stops to look\n[00:25.00]Nobody says a word\n[00:30.00]Nobody needs to",
-		"[00:15.00]天边泛起了绿光\n[00:20.00]所有人都停下来看\n[00:25.00]没有人说话\n[00:30.00]也不需要说话"))
+	a.pl.SetLyrics(lyrics.FromSource(&music.Lyrics{Lines: []music.LyricLine{
+		{Start: 0, Text: "Written by Solveig"},
+		{Start: 15000, Text: "The sky goes green at the edges", Translation: "天边泛起了绿光"},
+		{Start: 20000, Text: "And everyone stops to look", Translation: "所有人都停下来看"},
+		{Start: 25000, Text: "Nobody says a word", Translation: "没有人说话"},
+		{Start: 30000, Text: "Nobody needs to", Translation: "也不需要说话"},
+	}}))
 	a.pl.Seek(2500 * time.Millisecond)
 	a.nowPlaying = true
 	tt := ui.NewTester(a.view, 1000, 680)

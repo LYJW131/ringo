@@ -26,7 +26,7 @@ func (s *served) Stream(id, _ string) (*music.Stream, error) {
 	s.mu.Lock()
 	s.asked[id]++
 	s.mu.Unlock()
-	return &music.Stream{URL: s.url + "/" + id, Type: "mp3"}, nil
+	return &music.Stream{URL: s.url + "/" + id, Type: "m4a"}, nil
 }
 
 func (s *served) count(of map[string]int, key string) int {
@@ -37,7 +37,7 @@ func (s *served) count(of map[string]int, key string) int {
 
 func servedQueue(t *testing.T, ids ...string) (*Player, chan func(), *served, []music.Track) {
 	t.Helper()
-	b, err := os.ReadFile("testdata/seek.mp3")
+	b, err := os.ReadFile("testdata/seek-aac-frag.m4a")
 	if err != nil {
 		t.Fatal(err)
 	}

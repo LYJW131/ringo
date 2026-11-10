@@ -11,7 +11,7 @@ type ahead struct {
 	source, id, quality string
 	done                chan struct{} // closed once info, dl and err are in
 	info                *music.Stream
-	dl                  *download // nil for a song on disk, which opens at once
+	dl                  *download
 	err                 error
 }
 
@@ -69,9 +69,7 @@ func (p *Player) getAhead(quality string) {
 			return
 		}
 		a.info = info
-		if _, isFile := music.PathOf(info.URL); !isFile {
-			a.dl = p.Cache.download(t.Source, t.ID, quality, info)
-		}
+		a.dl = p.Cache.download(t.Source, t.ID, quality, info)
 	}()
 }
 

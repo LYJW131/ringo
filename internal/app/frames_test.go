@@ -80,10 +80,14 @@ func TestNowPlayingFrame(t *testing.T) {
 	a.account = &music.Account{ID: "1", Name: "Alex"}
 	tracks := framesTracks(a)
 	a.pl.Cue(tracks)
-	a.pl.SetLyrics(lyrics.Build(
-		"[00:04.00]The sky goes green at the edges\n[00:09.00]And everyone stops to look\n[00:14.00]Nobody says a word\n[00:19.00]Nobody needs to\n[00:24.00]We stand out on the ice\n[00:29.00]Until the light goes home",
-		"",
-	))
+	a.pl.SetLyrics(lyrics.FromSource(&music.Lyrics{Lines: []music.LyricLine{
+		{Start: 4000, Text: "The sky goes green at the edges"},
+		{Start: 9000, Text: "And everyone stops to look"},
+		{Start: 14000, Text: "Nobody says a word"},
+		{Start: 19000, Text: "Nobody needs to"},
+		{Start: 24000, Text: "We stand out on the ice"},
+		{Start: 29000, Text: "Until the light goes home"},
+	}}))
 	a.pl.Hold(10 * time.Second)
 	a.nowPlaying, a.npPane = true, paneLyrics
 	tt := ui.NewTester(a.view, 1180, 780)

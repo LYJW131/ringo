@@ -2,6 +2,8 @@ package player
 
 import (
 	"math"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -172,9 +174,9 @@ func TestCache(t *testing.T) {
 		f.Close()
 		c.keep("src", id, st.Quality, st, f.Name(), int64(n))
 	}
-	store("1", &music.Stream{Quality: "lossless", Type: "flac", Gain: -3}, 100)
+	store("1", &music.Stream{Quality: "lossless", Type: "m4a", Gain: -3}, 100)
 	dl, st, ok := c.lookup("src", "1", "high")
-	if !ok || dl.size != 100 || st.Type != "flac" || st.Gain != -3 {
+	if !ok || dl.size != 100 || st.Type != "m4a" || st.Gain != -3 {
 		t.Fatalf("lookup: %v %+v", ok, st)
 	}
 	dl.Close()
@@ -182,11 +184,11 @@ func TestCache(t *testing.T) {
 		t.Error("found another source's song of the same ID")
 	}
 	old := time.Now().Add(-time.Hour)
-	os.Chtimes(filepath.Join(dir, cacheKey("src", "1", "lossless")+".flac"), old, old)
-	store("2", &music.Stream{Quality: "high", Type: "mp3"}, 100)
-	store("3", &music.Stream{Quality: "high", Type: "mp3"}, 100)
-	store("4", &music.Stream{Quality: "high", Type: "mp3"}, 100)
-	store("5", &music.Stream{Quality: "high", Type: "mp3"}, 100)
+	os.Chtimes(filepath.Join(dir, cacheKey("src", "1", "lossless")+".m4a"), old, old)
+	store("2", &music.Stream{Quality: "high", Type: "m4a"}, 100)
+	store("3", &music.Stream{Quality: "high", Type: "m4a"}, 100)
+	store("4", &music.Stream{Quality: "high", Type: "m4a"}, 100)
+	store("5", &music.Stream{Quality: "high", Type: "m4a"}, 100)
 	if _, _, ok := c.lookup("src", "1", "high"); ok {
 		t.Error("kept the song played longest ago")
 	}
@@ -255,27 +257,34 @@ func TestEndRadio(t *testing.T) {
 	}
 }
 
-// picky plays the songs in ok, from one on disk, and says the rest aren't
+// picky plays the songs in ok, from a server, and says the rest aren't
 // available.
 type picky struct {
 	nothing
-	ok map[string]bool
+	ok  map[string]bool
+	url string
 }
 
 func (s picky) Stream(id, _ string) (*music.Stream, error) {
 	if !s.ok[id] {
 		return nil, music.ErrUnavailable
 	}
-	path, err := filepath.Abs("testdata/seek.mp3")
-	return &music.Stream{URL: "file://" + filepath.ToSlash(path), Type: "mp3"}, err
+	return &music.Stream{URL: s.url, Type: "m4a"}, nil
 }
 
 // pickyQueue is a, b and c, of which b can't play.
-func pickyQueue() (*Player, chan func(), []music.Track) {
+func pickyQueue(t *testing.T) (*Player, chan func(), []music.Track) {
+	t.Helper()
+	b, err := os.ReadFile("testdata/seek-aac-frag.m4a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(b) }))
+	t.Cleanup(srv.Close)
 	ch := make(chan func(), 64)
 	p := New(func(fn func()) { ch <- fn })
 	p.SetVolume(0)
-	src := picky{ok: map[string]bool{"a": true, "c": true}}
+	src := picky{ok: map[string]bool{"a": true, "c": true}, url: srv.URL}
 	p.Source = func(string) music.Source { return src }
 	return p, ch, []music.Track{{ID: "a", Source: "s"}, {ID: "b", Source: "s"}, {ID: "c", Source: "s"}}
 }
@@ -297,7 +306,7 @@ func settle(t *testing.T, ch chan func(), p *Player) {
 // A song the listener picks that can't play stays, saying why. Clicking one
 // the source refused for a moment used to play the one after it instead.
 func TestPickedTrackStays(t *testing.T) {
-	p, ch, q := pickyQueue()
+	p, ch, q := pickyQueue(t)
 	defer p.stop()
 	p.PlayTrack(q, 1)
 	settle(t, ch, p)
@@ -317,7 +326,7 @@ func TestPickedTrackStays(t *testing.T) {
 // forward. It used to skip forward, back onto the song playing, so Previous
 // seemed to do nothing.
 func TestPrevSkipsBack(t *testing.T) {
-	p, ch, q := pickyQueue()
+	p, ch, q := pickyQueue(t)
 	defer p.stop()
 	p.PlayTrack(q, 2)
 	settle(t, ch, p)
@@ -407,7 +416,7 @@ func ids(p *Player) []string {
 // plays on: they used to load the queue again, opening the song's stream
 // anew.
 func TestPlayNextAndLast(t *testing.T) {
-	p, ch, q := pickyQueue()
+	p, ch, q := pickyQueue(t)
 	defer p.stop()
 	p.PlayQueue([]music.Track{q[0], q[2]}, 0)
 	settle(t, ch, p)
