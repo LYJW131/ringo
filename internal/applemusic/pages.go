@@ -184,13 +184,56 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 
 // albumSections are the shelves that follow a catalog album's songs.
 func (s *Source) albumSections(b *body, item *resource) []music.Section {
+	return s.pageSections(b, "albums", item, albumViews)
+}
+
+// pageSections are the shelves of a catalog page of typ that its views
+// give, in order, each with See All when Apple has more of it than it gave,
+// as Music's have.
+func (s *Source) pageSections(b *body, typ string, item *resource, views []struct{ name, style string }) []music.Section {
 	var out []music.Section
-	for _, v := range albumViews {
-		if sec, ok := s.viewSection(b, item.Views[v.name], v.style); ok {
+	for _, v := range views {
+		view := item.Views[v.name]
+		if sec, ok := s.viewSection(b, view, v.style); ok {
+			if view.Next != "" {
+				sec.MorePage = "view:" + typ + ":" + item.ID + ":" + v.name
+			}
 			out = append(out, sec)
 		}
 	}
 	return out
+}
+
+// viewPage is all of one of the shelves of a catalog page of typ: the page
+// asked for with that view alone, which has its title, then the view's
+// next parts.
+func (s *Source) viewPage(typ, id, view, next string) (*music.Browse, error) {
+	base := params{"art[url]": "f", "include[albums]": "artists", "include[songs]": "artists", "fields[artists]": "name,url"}
+	prefix := "view:" + typ + ":" + id + ":" + view
+	if next != "" {
+		return s.more(prefix, next, base)
+	}
+	p := s.mapped(withSongAssets(base))
+	p["views"], p["limit[view."+view+"]"] = view, "30"
+	b, err := s.catalog("/"+typ+"/"+id, p)
+	if err != nil {
+		return nil, err
+	}
+	item, err := first(b)
+	if err != nil {
+		return nil, err
+	}
+	if item = b.get(item); item == nil || item.Views[view] == nil {
+		return nil, fail("unavailable", i18n.T("Apple Music doesn't have this"))
+	}
+	v := item.Views[view]
+	items := s.items(b, v.Data)
+	out := &music.Browse{Title: v.title(), Sections: []music.Section{{Style: gridStyle(items), Items: items}}}
+	if v.Next != "" {
+		out.Next = prefix + "|" + v.Next
+	}
+	s.listed(songItems(items), nil)
+	return out, nil
 }
 
 // catalogAlbum is the catalog album a library album is of, asked for with

@@ -407,6 +407,15 @@ func TestAlbumPage(t *testing.T) {
 	if len(titles) == 0 || titles[0] != "More By Taylor Swift" {
 		t.Errorf("shelves %q", titles)
 	}
+	// See All on a shelf Apple has more of: the album asked for with that
+	// shelf alone, which has its title, then the shelf's next parts.
+	if page.Sections[0].MorePage != "view:albums:1440935467:more-by-artist" {
+		t.Fatalf("See All of the first shelf: %q", page.Sections[0].MorePage)
+	}
+	all := browse(t, ts, page.Sections[0].MorePage)
+	if all.Title != "More By Taylor Swift" || len(all.Sections) != 1 || len(all.Sections[0].Items) == 0 || !strings.HasPrefix(all.Next, "view:albums:1440935467:more-by-artist|/v1/catalog/us/albums/1440935467/view/more-by-artist") {
+		t.Errorf("all of it: %q, %d sections, next %q", all.Title, len(all.Sections), all.Next)
+	}
 }
 
 // A library album with some of its songs has its catalog album's shelves
