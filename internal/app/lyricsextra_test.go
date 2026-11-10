@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -88,6 +89,62 @@ func TestLyricsExtraShowsOnlyWhatWasChosen(t *testing.T) {
 			if saidShown(a) || tt.HasText(extraSaid) || tt.HasText(extraTranslated) {
 				t.Errorf("pane %d, %s chosen: how it is said shows %v, the translation %v", pane, c.extra, saidShown(a) || tt.HasText(extraSaid), tt.HasText(extraTranslated))
 			}
+		}
+	}
+}
+
+// The button over the lyrics chooses what shows under their lines: how
+// they are said in place of their translation, neither, and the
+// translation again.
+func TestLyricsExtraMenu(t *testing.T) {
+	a, tt := extraApp(paneLyrics, true, true)
+	if !tt.HasText(extraTranslated) || saidShown(a) {
+		t.Fatalf("before any choice, the translation shows %v, how it is said %v", tt.HasText(extraTranslated), saidShown(a))
+	}
+	for _, c := range []struct {
+		item, want       string
+		said, translated bool
+	}{
+		{"Pronunciation", extraPronunciation, true, false},
+		{"Off", extraOff, false, false},
+		{"Translation", extraTranslation, false, true},
+	} {
+		if err := tt.Click("Translation and Pronunciation"); err != nil {
+			t.Fatal(err)
+		}
+		if err := tt.ChooseMenuItem(c.item); err != nil {
+			t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+		}
+		settled(tt)
+		if a.settings.LyricsExtra != c.want {
+			t.Errorf("chose %s: the settings keep %q, want %q", c.item, a.settings.LyricsExtra, c.want)
+		}
+		if saidShown(a) != c.said || tt.HasText(extraTranslated) != c.translated {
+			t.Errorf("chose %s: how it is said shows %v, the translation %v", c.item, saidShown(a), tt.HasText(extraTranslated))
+		}
+	}
+}
+
+// What the song playing hasn't can't be chosen from the button's menu:
+// there would be nothing of it to show.
+func TestLyricsExtraMenuOffersWhatTheSongHas(t *testing.T) {
+	for _, c := range []struct {
+		said, translated bool
+		item             string
+	}{
+		{false, true, "Pronunciation"},
+		{true, false, "Translation"},
+	} {
+		a, tt := extraApp(paneLyrics, c.said, c.translated)
+		if err := tt.Click("Translation and Pronunciation"); err != nil {
+			t.Fatal(err)
+		}
+		if err := tt.ChooseMenuItem(c.item); err == nil || !strings.Contains(err.Error(), "disabled") {
+			t.Errorf("%s, which the song hasn't, was chosen: %v", c.item, err)
+		}
+		tt.CloseMenu()
+		if a.settings.LyricsExtra != "" {
+			t.Errorf("the settings keep %q", a.settings.LyricsExtra)
 		}
 	}
 }

@@ -48,7 +48,7 @@ type settings struct {
 	// LyricsStage shows lyrics on the stage, Folia's style, in Now
 	// Playing, rather than scrolling.
 	LyricsStage bool `json:"lyricsStage"`
-	// LyricsExtra is what shows under a line of lyrics (extraOff and on): its
+	// LyricsExtra is what shows under a line of lyrics (lyricsExtras): its
 	// translation, how it is said, or neither. Anything else, as in settings
 	// kept before there was a choice, reads as the translation, which was
 	// what showed then.
@@ -194,8 +194,15 @@ const (
 	extraTranslation   = "translation"
 )
 
+// lyricsExtras are those, by Apple Music's names.
+var lyricsExtras = []struct{ id, label string }{
+	{extraOff, N("Off")},
+	{extraPronunciation, N("Pronunciation")},
+	{extraTranslation, N("Translation")},
+}
+
 // lyricsExtra is what shows under a line of lyrics: its translation, for
-// anything the settings keep that isn't one of those.
+// anything the settings keep that isn't one of lyricsExtras.
 func (s settings) lyricsExtra() string {
 	if s.LyricsExtra == extraOff || s.LyricsExtra == extraPronunciation {
 		return s.LyricsExtra

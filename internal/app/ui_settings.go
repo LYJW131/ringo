@@ -548,6 +548,23 @@ func (a *app) settingsPages(c *ui.Context, p palette) []settingsPage {
 		})
 	}})
 
+	playback.groups = append(playback.groups, settingsGroup{T("Lyrics"), func(row settingsRow, block settingsBlock) {
+		row(T("Translation and Pronunciation"), T("What shows under each line of the lyrics. A song without the one you chose shows neither."), func() {
+			labels := make([]string, len(lyricsExtras))
+			at := 0
+			for i, e := range lyricsExtras {
+				labels[i] = e.label
+				if e.id == s.lyricsExtra() {
+					at = i
+				}
+			}
+			if i, ok := choice(c, "lyrics-extra", T("Translation and Pronunciation"), labels, at); ok {
+				s.LyricsExtra = lyricsExtras[i].id
+				a.changed()
+			}
+		})
+	}})
+
 	advanced := settingsPage{id: "advanced", title: T("Advanced"), icon: iconFlask}
 	advanced.groups = append(advanced.groups, settingsGroup{T("Cache"), func(row settingsRow, block settingsBlock) {
 		row(T("Song Cache"), Tf("Songs you've played are kept on this computer to play again at once. %s", a.cacheUsage()), func() {

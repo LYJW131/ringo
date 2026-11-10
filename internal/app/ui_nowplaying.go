@@ -322,8 +322,9 @@ func (a *app) paneFade(c *ui.Context, e ui.Element) {
 
 // npChrome is what every pane of Now Playing has in the same place, over
 // whichever shows, and which stays as they cross: the top strip, which
-// drags the window, with the chevron that closes the view, and the tabs.
-// The chevron and the tabs show only while the pointer is in the window.
+// drags the window, with the chevron that closes the view, the tabs, and
+// what the lyrics show under their lines. They show only while the pointer
+// is in the window.
 func (a *app) npChrome(c *ui.Context, w float32, pointerIn bool) {
 	a.npRise(ui.Row(c.Key("top-strip")).Absolute().Top(0).Left(0).Right(0).Height(topBar(c)).Justify(ui.Center).AlignItems(ui.Center).DragWindow(), 0).Children(func() {
 		reveal(ui.Box(c.Key("close-reveal")), pointerIn).Children(func() {
@@ -338,6 +339,13 @@ func (a *app) npChrome(c *ui.Context, w float32, pointerIn bool) {
 			a.stageStyleButton(c)
 		}
 	})
+	// Level with the tabs, at the other side: over the lyrics, and where
+	// the stage and the wall end, which show them too.
+	if a.npPane != paneQueue {
+		a.npRise(reveal(ui.Row(c.Key("lyrics-tools")).Absolute().Top(topBar(c)).Right(npSideX(w)).Height(npTabsHeight).AlignItems(ui.Center), pointerIn), 0).Children(func() {
+			a.lyricsExtraButton(c)
+		})
+	}
 }
 
 func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accent ui.Color, w, h float32, pointerIn bool) {

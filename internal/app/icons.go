@@ -83,3 +83,7 @@ var (
 // iconInfinity marks AutoPlay, which goes on without end, as Apple Music's
 // does.
 var iconInfinity = strokeIcon(`<path d="M6 16c5 0 7-8 12-8a4 4 0 0 1 0 8c-5 0-7-8-12-8a4 4 0 1 0 0 8"/>`)
+
+// iconTranslate is two scripts side by side: what the lyrics show under
+// their lines, a translation or how they are said.
+var iconTranslate = strokeIcon(`<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>`)

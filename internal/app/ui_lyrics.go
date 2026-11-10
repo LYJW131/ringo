@@ -107,6 +107,41 @@ func (a *app) under(l *lyrics.Line) string {
 	return ""
 }
 
+// lyricsOffer reports which of the two a song's lines come with, in any of
+// them.
+func lyricsOffer(lines []lyrics.Line) (pronunciation, translation bool) {
+	for i := range lines {
+		pronunciation = pronunciation || lines[i].Pronunciation != ""
+		translation = translation || lines[i].Translation != ""
+	}
+	return pronunciation, translation
+}
+
+// lyricsExtraButton chooses what shows under the lines of the lyrics, in
+// every pane that shows them: a menu of the three, those the song playing
+// hasn't grayed out, there being nothing of them to show.
+func (a *app) lyricsExtraButton(c *ui.Context) {
+	lines, _ := a.pl.Lyrics()
+	pronunciation, translation := lyricsOffer(lines)
+	has := map[string]bool{extraOff: true, extraPronunciation: pronunciation, extraTranslation: translation}
+	chosen := a.settings.lyricsExtra()
+	// Lit while something of this song shows for it.
+	color := white.Alpha(0.45)
+	if chosen != extraOff && has[chosen] {
+		color = white.Alpha(0.85)
+	}
+	label := T("Translation and Pronunciation")
+	b := iconButton(c.Key("lyrics-extra"), iconTranslate, 17, color, label).Tooltip(label)
+	b.Menu(func(m *ui.Menu) {
+		for _, e := range lyricsExtras {
+			if m.Item(T(e.label)).Radio(chosen == e.id).Disabled(!has[e.id]).Chosen() && chosen != e.id {
+				a.settings.LyricsExtra = e.id
+				a.settings.save()
+			}
+		}
+	})
+}
+
 // linesStyle is how timedLines sets its lines: the size, weight and
 // leading of their type.
 type linesStyle struct {

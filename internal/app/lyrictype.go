@@ -72,7 +72,7 @@ type lyricType struct {
 	lines []*lyricText
 	// behind are the backing vocals of the lines that have them.
 	behind []*lyricText
-	// extra is what shows under the lines (extraOff and on), and said how the
+	// extra is what shows under the lines (lyricsExtras), and said how the
 	// lines that have it are said, set only while that is what shows.
 	extra string
 	said  []*lyricText

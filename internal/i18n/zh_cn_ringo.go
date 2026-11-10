@@ -157,6 +157,13 @@ var ringoChinese = map[string]string{
 	"The wrapper can't be reached, so its accounts aren't listed.": "连不上 wrapper，它里面的账户暂未列出。",
 	"Use a Media User Token": "用 Media User Token",
 	"Wrapper":                "Wrapper",
+
+	// What the lyrics show under their lines. The two are Apple Music's
+	// words for them.
+	"Pronunciation":                 "发音",
+	"Translation":                   "翻译",
+	"Translation and Pronunciation": "翻译与发音",
+	"What shows under each line of the lyrics. A song without the one you chose shows neither.": "显示在每行歌词下方的内容。歌曲没有所选的那一项时，两者都不显示。",
 }
 
 func init() {
