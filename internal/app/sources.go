@@ -27,6 +27,8 @@ func N(text string) string { return i18n.N(text) }
 // compiling it, so the first frame shows the source as it stays.
 var capabilities = []string{
 	"signIn", "signOut", "account",
+	// music.Switcher, which a source may be or not.
+	"accounts",
 	"search", "suggest",
 	"playlists", "playlist", "album", "artist", "liked", "recent",
 	"home", "browse",
@@ -67,6 +69,16 @@ type library struct {
 	askedSignIn, askedSetup bool
 	// setupReason is what the source said it needs setting up for, if it did.
 	setupReason string
+
+	// choices are the accounts a music.Switcher can switch to, as last
+	// listed, and choicesErr what kept some from being listed. switching is
+	// the one being switched to, and switchErr why the last switch failed.
+	choices              []music.AccountChoice
+	choicesErr           string
+	choicesBusy          bool
+	choicesAgain         bool // asked for while on its way
+	choicesAt            time.Time
+	switching, switchErr string
 
 	mine, saved []music.Playlist // the listener's playlists: made, and saved
 	mineAt      time.Time        // when they were last asked for

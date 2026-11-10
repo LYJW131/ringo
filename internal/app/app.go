@@ -61,8 +61,9 @@ type app struct {
 	history []route
 	forward []route // the pages gone back from, the last first to go to
 
-	accountOpen bool         // the dropdown of the account row shows
-	signIn      signInDialog // signing in to a source
+	accountOpen bool          // the dropdown of the account row shows
+	signIn      signInDialog  // signing in to a source
+	adding      addingAccount // adding an account, in the settings
 	// signInWin is the window of Apple's sign-in page, while it shows. Main
 	// thread only.
 	signInWin *mygo.Window

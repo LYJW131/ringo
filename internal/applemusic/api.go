@@ -37,6 +37,9 @@ type reqOpts struct {
 	anonymous bool
 	// userHeader is the header the listener's token goes in.
 	userHeader string
+	// token is the media-user-token to ask with instead of the current
+	// account's, to learn who it is before switching to it.
+	token string
 }
 
 func (s *Source) signInAgain() error {
@@ -54,7 +57,7 @@ func (s *Source) request(u string, o reqOpts) ([]byte, error) {
 	if o.userHeader == "" {
 		o.userHeader = "media-user-token"
 	}
-	if !o.anonymous {
+	if !o.anonymous && o.token == "" {
 		s.renewIfDue()
 	}
 	var payload []byte
@@ -85,7 +88,11 @@ func (s *Source) request(u string, o reqOpts) ([]byte, error) {
 		req.Header.Set("User-Agent", userAgent)
 		req.Header.Set("Accept", "application/json")
 		mine := ""
-		if !o.anonymous {
+		switch {
+		case o.token != "":
+			// Not the current account's: nothing to renew, and no one to sign in again.
+			mine, renewed = o.token, true
+		case !o.anonymous:
 			mine = s.userToken()
 		}
 		if mine != "" {
@@ -117,6 +124,9 @@ func (s *Source) request(u string, o reqOpts) ([]byte, error) {
 			if mine != "" && !renewed && s.renewRefused(mine) {
 				renewed = true
 				continue
+			}
+			if o.token != "" {
+				return nil, fail("signIn", i18n.T("Apple Music didn't accept the sign-in. Sign in again."))
 			}
 			if mine != "" {
 				return nil, s.signInAgain()

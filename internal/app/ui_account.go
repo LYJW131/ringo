@@ -2,6 +2,8 @@ package app
 
 import (
 	"runtime"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -48,6 +50,7 @@ func (a *app) loadAccount(lib *library) {
 			}
 			was := lib.account
 			lib.account = acc
+			a.loadAccounts(lib, false)
 			switch {
 			case first && was == nil && acc != nil && lib.homeErr == "" && !lib.needsSignIn:
 				// Home, as it started, was already this listener's, and loading
@@ -68,6 +71,8 @@ func (a *app) afterAccount(lib *library) {
 	lib.accountAsked = true
 	lib.forget()
 	lib.needsSignIn, lib.askedSignIn = false, false
+	lib.choicesAt = time.Time{}
+	a.loadAccounts(lib, false)
 	a.loadMine(lib)
 	a.loadHome(lib)
 	if a.route.src == lib.id {
@@ -139,16 +144,185 @@ func (a *app) startSignIn() {
 	}()
 }
 
-// signOut signs out of a source.
+// signOut signs out of a source. One that goes on as another account the
+// listener signed in to says so as it's asked who's signed in after.
 func (a *app) signOut(lib *library) {
 	lib.account = nil
 	a.afterAccount(lib)
 	go func() {
-		if err := lib.src.SignOut(); err != nil {
-			a.post(func() { a.actionFailed(lib, err, T("Couldn't sign out")) })
-		}
+		err := lib.src.SignOut()
+		a.post(func() {
+			if err != nil {
+				a.actionFailed(lib, err, T("Couldn't sign out"))
+			}
+			lib.choicesAt = time.Time{}
+			a.loadAccount(lib)
+		})
 	}()
 }
+
+// switcher is the source as a music.Switcher, if it lets the listener switch accounts.
+func (l *library) switcher() music.Switcher {
+	sw, _ := l.src.(music.Switcher)
+	if !l.can("accounts") {
+		return nil
+	}
+	return sw
+}
+
+// choicesKept is how long the accounts listed are shown before they're
+// asked for again, as the settings or the account menu show.
+const choicesKept = time.Minute
+
+// loadAccounts asks the source for the accounts to switch to, again only
+// after a while unless fresh, which also asks whoever lends them anew.
+func (a *app) loadAccounts(lib *library, fresh bool) {
+	sw := lib.switcher()
+	if sw == nil || !fresh && !lib.choicesAt.IsZero() && time.Since(lib.choicesAt) < choicesKept {
+		return
+	}
+	// Asked again once the answer on its way is in, as it may be from before what changed.
+	if lib.choicesBusy {
+		lib.choicesAgain = true
+		return
+	}
+	lib.choicesBusy = true
+	go func() {
+		list, err := sw.Accounts(fresh)
+		a.post(func() {
+			lib.choicesBusy, lib.choicesAt = false, time.Now()
+			lib.choices, lib.choicesErr = list, ""
+			if err != nil {
+				lib.choicesErr = errText(err)
+			}
+			if lib.choicesAgain {
+				lib.choicesAgain, lib.choicesAt = false, time.Time{}
+				a.loadAccounts(lib, false)
+			}
+		})
+	}()
+}
+
+// errText is what the listener is told of err: what the source said of it, if anything.
+func errText(err error) string {
+	if r := music.Reason(err); r != "" {
+		return r
+	}
+	return err.Error()
+}
+
+// useAccount switches to another account, off the main thread, as the
+// wrapper may be asked for its token: the row shows it's on its way, and
+// everything personal loads anew once it's there. What plays goes on.
+func (a *app) useAccount(lib *library, id string) {
+	sw := lib.switcher()
+	if sw == nil || lib.switching != "" {
+		return
+	}
+	lib.switching, lib.switchErr = id, ""
+	go func() {
+		acc, err := sw.UseAccount(id)
+		a.post(func() {
+			lib.switching = ""
+			if err != nil {
+				lib.switchErr = errText(err)
+				a.toast = Tf("Couldn't switch accounts: %s", lib.switchErr)
+				return
+			}
+			lib.account = acc
+			lib.needsSetup, lib.setupReason = false, ""
+			a.afterAccount(lib)
+		})
+	}()
+}
+
+// addAccount signs in with a media-user-token the listener pasted, as an
+// account to switch to, and switches to it.
+func (a *app) addAccount(lib *library, token string) {
+	sw := lib.switcher()
+	add := &a.adding
+	if sw == nil || add.busy {
+		return
+	}
+	add.busy, add.err = true, ""
+	go func() {
+		acc, err := sw.AddAccount(token)
+		a.post(func() {
+			add.busy = false
+			if err != nil {
+				add.err = errText(err)
+				return
+			}
+			*add = addingAccount{}
+			lib.account = acc
+			lib.needsSetup, lib.setupReason = false, ""
+			a.afterAccount(lib)
+		})
+	}()
+}
+
+// removeAccount forgets an account the listener signed in to, other than
+// the current one, whose way out is signing out.
+func (a *app) removeAccount(lib *library, id string) {
+	sw := lib.switcher()
+	if sw == nil {
+		return
+	}
+	lib.choices = slices.DeleteFunc(slices.Clone(lib.choices), func(c music.AccountChoice) bool { return c.ID == id })
+	go func() {
+		err := sw.RemoveAccount(id)
+		a.post(func() {
+			if err != nil {
+				a.toast = Tf("Couldn't remove the account: %s", errText(err))
+			}
+			a.loadAccounts(lib, false)
+		})
+	}()
+	lib.choicesAt = time.Time{}
+}
+
+// addingAccount is the Add Account… of the settings, opened: the ways to
+// add one, and the token being pasted.
+type addingAccount struct {
+	open, token bool
+	text        string
+	busy        bool
+	err         string
+}
+
+// menuChoices are the accounts the account menu lists: none for one alone,
+// and of many, the most recently used, as they're listed. more says some were left out.
+func menuChoices(all []music.AccountChoice) (shown []music.AccountChoice, more bool) {
+	if len(all) < 2 {
+		return nil, false
+	}
+	if len(all) <= menuAccounts {
+		return all, false
+	}
+	recent := slices.Clone(all)
+	slices.SortStableFunc(recent, func(x, y music.AccountChoice) int {
+		if x.Current != y.Current {
+			if x.Current {
+				return -1
+			}
+			return 1
+		}
+		return y.Used.Compare(x.Used)
+	})
+	keep := map[string]bool{}
+	for _, c := range recent[:menuAccounts] {
+		keep[c.ID] = true
+	}
+	for _, c := range all {
+		if keep[c.ID] {
+			shown = append(shown, c)
+		}
+	}
+	return shown, true
+}
+
+// menuAccounts is how many accounts the account menu lists at most.
+const menuAccounts = 6
 
 // signInDialog says which source the listener signs in to, while it waits for
 // them there, in the window it was asked in: settings says whether that's
@@ -300,11 +474,81 @@ func (a *app) accountMenu(c *ui.Context, row ui.Element) {
 			a.accountOpen = false
 			a.openSettings()
 		}
-		ui.Box(c).Height(0.5).Margin(4, 8).Background(pop.edge)
-		if a.menuItem(c, iconSignOut, T("Sign Out"), "").Clicked() {
-			a.accountOpen = false
-			a.signOut(a.library)
+		lib := a.library
+		// Listed as the account loads; here only asked again once it's been a while.
+		if !lib.choicesAt.IsZero() {
+			a.loadAccounts(lib, false)
 		}
+		if shown, more := menuChoices(lib.choices); len(shown) > 0 {
+			ui.Box(c).Height(0.5).Margin(4, 8).Background(pop.edge)
+			for _, ch := range shown {
+				if a.accountItem(c, ch, lib.switching == ch.ID).Clicked() {
+					a.accountOpen = false
+					if !ch.Current {
+						a.useAccount(lib, ch.ID)
+					}
+				}
+			}
+			if more && a.menuItem(c, iconMore, T("More Accounts…"), "").Clicked() {
+				a.accountOpen = false
+				a.openAccountSettings()
+			}
+		}
+		// An account lent by a wrapper has nothing to sign out of: the way out
+		// of it is to switch to another.
+		if acc := lib.account; acc == nil || !acc.Shared {
+			ui.Box(c).Height(0.5).Margin(4, 8).Background(pop.edge)
+			if a.menuItem(c, iconSignOut, T("Sign Out"), "").Clicked() {
+				a.accountOpen = false
+				a.signOut(lib)
+			}
+		}
+	})
+}
+
+// accountItem is an account to switch to in the account menu: its picture,
+// or where it is for one without, its name, and a check on the current one.
+func (a *app) accountItem(c *ui.Context, ch music.AccountChoice, busy bool) ui.Element {
+	p := a.pal
+	b := ui.ButtonBase(c.Key("account:" + ch.ID)).Role(ui.RoleMenuItem).Label(ch.Name).Height(30).PaddingX(8).Gap(9).Radius(7).
+		AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
+	if b.Hovered() || b.FocusVisible() {
+		b.Background(p.press)
+	}
+	b.Children(func() {
+		a.choiceAvatar(c, p, ch, 18, true)
+		ui.Text(c, ch.Name).FontSize(13).SingleLine().Grow(1).Shrink(1).MinWidth(0)
+		switch {
+		case busy:
+			ui.Text(c, "…").FontSize(13).TextColor(p.faint)
+		case ch.Current:
+			ui.Icon(c, iconCheck).Size(13, 13).TextColor(p.accent)
+		}
+	})
+	return b
+}
+
+// choiceAvatar is an account's picture, or, for one without, a circle with
+// the letters of where it is if letters, as in a menu with no other place
+// to say it, or else a figure.
+func (a *app) choiceAvatar(c *ui.Context, p palette, ch music.AccountChoice, size float32, letters bool) {
+	if ch.ImageURL != "" {
+		a.avatar(c, ch.ImageURL, size, p.press)
+		return
+	}
+	ui.Box(c).Size(size, size).Radius(size / 2).Shrink(0).Background(p.press).Center().Children(func() {
+		if !letters || ch.Region == "" {
+			ui.Icon(c, iconUser).Size(size*0.5, size*0.5).TextColor(p.muted)
+			return
+		}
+		ui.Text(c, strings.ToUpper(ch.Region)).FontSize(size * 0.4).FontWeight(700).TextColor(p.muted)
+	})
+}
+
+// regionBadge is the storefront or region of an account, as its code, in a small outline.
+func regionBadge(c *ui.Context, p palette, text string) {
+	ui.Box(c).Height(16).PaddingX(5).Radius(4).Border(1, p.hairline).Center().Shrink(0).Children(func() {
+		ui.Text(c, text).FontSize(10).FontWeight(600).TextColor(p.muted).SingleLine()
 	})
 }
 

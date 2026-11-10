@@ -457,18 +457,18 @@ func TestErrSetupOffersSettings(t *testing.T) {
 		t.Errorf("the page offers no settings: %q", tt.Texts())
 	}
 
-	a.settingsPage = "account"
+	a.settingsPage = "playback"
 	settings := ui.NewTester(a.settingsView, 760, 1400)
 	settings.Frame()
 	// The field, under the title labelled as it is.
-	r, ok := settings.Find("Media User Token")
+	r, ok := settings.Find("Wrapper Address")
 	if !ok {
 		t.Fatal("no field")
 	}
 	settings.ClickAt(r.X+20, r.Y+r.H+18)
-	settings.Type("secret")
+	settings.Type("http://wrapper.example")
 	settings.Key(0, ui.KeyEnter)
-	if got := wait(t, kept, "the setting"); got != "mediaUserToken=secret" {
+	if got := wait(t, kept, "the setting"); got != "wrapper=http://wrapper.example" {
 		t.Fatalf("kept %s", got)
 	}
 	until(t, ch, func() bool { return !a.needsSetup })

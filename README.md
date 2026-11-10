@@ -40,11 +40,12 @@
 
 ## 登录
 
-三种方式，任选其一：
+可以登录多个账户，在侧栏底部的账户菜单或「设置 › 账户」里点一下就切换。添加账户有两种方式：
 
-1. **登录窗口**：点侧栏底部的「登录」，在弹出的 Apple 登录页面里登录。这个窗口不支持通行密钥和安全密钥。
-2. **Media User Token**：在已登录的 [music.apple.com](https://music.apple.com) 打开开发者工具，从 Cookies 里复制 `media-user-token` 的值，粘贴到「设置 › 账户 › Media User Token」。清空即退出登录。
-3. **Wrapper 账户**：已经在 wrapper-manager 里登录了账户的，填好 Wrapper 地址，再在 **Wrapper 账户** 里填这个账户的 Apple ID 或国家或地区代码（如 `jp`）。
+1. **在 Apple 的页面登录**：点侧栏底部的「登录」，或「设置 › 账户 › 添加账户…」，在弹出的 Apple 登录页面里登录。这个页面不支持通行密钥和安全密钥。
+2. **Media User Token**：在已登录的 [music.apple.com](https://music.apple.com) 打开开发者工具，从 Cookies 里复制 `media-user-token` 的值，在「设置 › 账户 › 添加账户… › 用 Media User Token」里粘贴并添加。
+
+填了 Wrapper 地址、而 wrapper-manager 能给出账户令牌时（如 AMDL-Web 的版本），它里面已就绪的账户也会列在账户列表里，不用添加就能切换。这些账户没有退出登录，要离开就切到别的账户。
 
 未登录也能浏览目录、搜索和查看页面；播放、资料库和个人推荐需要登录。
 

@@ -113,3 +113,35 @@ func TestTokenOfAWrapperLite(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+// The accounts offered are the ready ones; whether the wrapper gives tokens
+// is asked once, and a wrapper that doesn't offers none.
+func TestAccountsOffered(t *testing.T) {
+	var asked []string
+	w := fakeManager(t, &asked)
+	for range 2 {
+		got, err := w.offered(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 2 || got[0].Name != "a@example.com" || got[1].ID != instanceID("old@example.com") {
+			t.Fatalf("offered %+v", got)
+		}
+	}
+	if len(asked) != 1 {
+		t.Fatalf("/token asked %d times", len(asked))
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/status" {
+			_, _ = w.Write([]byte(`{"code":0,"msg":"SUCCESS","data":{"regions":["gb"]}}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+	lite, _ := newWrapper(srv.URL, "", &store{})
+	if got, err := lite.offered(t.Context()); err != nil || len(got) != 0 {
+		t.Fatalf("a wrapper without /token offered %+v, %v", got, err)
+	}
+}

@@ -1,11 +1,11 @@
 package amhelper
 
-// The media-user-token of an account the wrapper holds, for the applemusic package to
-// sign in with instead of Apple's sign-in window (AMDL-Web's fork answers
-// GET /token with it, and refreshes it on its own). A wrapper-manager holds
-// up to ten accounts, each with its own library, and answers GET /token for
-// any of them, so the listener names the one they listen as; the first that
-// happens to be ready could be anyone's.
+// The accounts the wrapper holds, and the media-user-token of each, for the
+// applemusic package to offer as accounts to switch to, without Apple's
+// sign-in window (AMDL-Web's fork answers GET /token with it, and refreshes
+// it on its own). A wrapper-manager holds up to ten accounts, each with its
+// own library, and answers GET /token for any of them, so the one asked for
+// is named; the first that happens to be ready could be anyone's.
 
 import (
 	"context"
@@ -51,6 +51,43 @@ func (w *wrapper) accounts(ctx context.Context) ([]instance, error) {
 	return []instance{{Region: s.Regions[0], Name: s.Name, Ready: true}}, nil
 }
 
+// Whether the wrapper gives its accounts' tokens, as far as it's known.
+// Nothing in /status says: AMDL-Web's fork answers /token, and upstream's
+// wrapper answers it with a 404.
+const (
+	tokensUnknown int32 = iota
+	givesTokens
+	givesNoTokens
+)
+
+// offered lists the accounts the applemusic package may switch to: the
+// ready ones, if the wrapper gives their tokens. Whether it does is asked
+// once, of the first ready account, and that token is thrown away: an
+// account's token is asked for only as the listener switches to it. What
+// /token answered is kept for as long as the wrapper is this one, as a new
+// address or key starts amhelper again.
+func (w *wrapper) offered(ctx context.Context) ([]instance, error) {
+	all, err := w.accounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var ready []instance
+	for _, a := range all {
+		if a.Ready {
+			ready = append(ready, a)
+		}
+	}
+	if len(ready) > 0 && w.tokens.Load() == tokensUnknown {
+		if _, err := w.tokenOf(ctx, ready[0]); err != nil && w.tokens.Load() == tokensUnknown {
+			return nil, err
+		}
+	}
+	if w.tokens.Load() != givesTokens {
+		return nil, nil
+	}
+	return ready, nil
+}
+
 // instanceID is the id a wrapper-manager gives the account logged in as
 // username: a UUID v5 of it in the nil namespace (manager/registry.go). It
 // finds an account logged in before the wrapper noted Apple IDs.
@@ -65,8 +102,8 @@ func instanceID(username string) string {
 	return s[:8] + "-" + s[8:12] + "-" + s[12:16] + "-" + s[16:20] + "-" + s[20:]
 }
 
-// pick finds the account the listener named: by its Apple ID or id first,
-// else the first ready one of a region, as a region code names it.
+// pick finds the account named: by its Apple ID or id first, else the
+// first ready one of a region, as a region code names it.
 func pick(accounts []instance, named string) (instance, bool) {
 	named = strings.TrimSpace(named)
 	id := instanceID(named)
@@ -94,6 +131,9 @@ type tokenReply struct {
 	Region  string `json:"region"`
 	Next    int64  `json:"next"`
 	Account string `json:"account"` // the Apple ID, or the region where the wrapper has none
+	// Instance is the wrapper-manager's id of the account, which names it
+	// for good, as a region doesn't; "" for a wrapper-lite's one account.
+	Instance string `json:"instance,omitempty"`
 }
 
 // accountToken asks the wrapper for the media-user-token of the account named.
@@ -109,6 +149,11 @@ func (w *wrapper) accountToken(ctx context.Context, named string) (tokenReply, e
 	if !a.Ready {
 		return tokenReply{}, fmt.Errorf("%w: the wrapper's account %s isn't ready", errAccount, label(a))
 	}
+	return w.tokenOf(ctx, a)
+}
+
+// tokenOf asks the wrapper for a's token, noting whether it gives tokens at all.
+func (w *wrapper) tokenOf(ctx context.Context, a instance) (tokenReply, error) {
 	var query url.Values
 	if a.ID != "" {
 		query = url.Values{"instance": {a.ID}}
@@ -116,6 +161,7 @@ func (w *wrapper) accountToken(ctx context.Context, named string) (tokenReply, e
 	data, err := w.call(ctx, "/token", query)
 	var re *replyError
 	if errors.As(err, &re) && re.status == http.StatusNotFound {
+		w.tokens.Store(givesNoTokens)
 		return tokenReply{}, fmt.Errorf("%w: this wrapper can't give its accounts' tokens; AMDL-Web's can", errWrapper)
 	}
 	if err != nil {
@@ -130,7 +176,8 @@ func (w *wrapper) accountToken(ctx context.Context, named string) (tokenReply, e
 	if json.Unmarshal(data, &t) != nil || t.MusicToken == "" {
 		return tokenReply{}, fmt.Errorf("%w /token: no music token in the answer", errWrapper)
 	}
-	return tokenReply{Token: t.MusicToken, Region: t.Region, Next: t.NextRefreshAt, Account: label(a)}, nil
+	w.tokens.Store(givesTokens)
+	return tokenReply{Token: t.MusicToken, Region: t.Region, Next: t.NextRefreshAt, Account: label(a), Instance: a.ID}, nil
 }
 
 func label(a instance) string {

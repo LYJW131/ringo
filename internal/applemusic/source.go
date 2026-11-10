@@ -79,10 +79,15 @@ type Source struct {
 	devMu    sync.Mutex
 	devToken string
 
-	// settle signs in as the settings say, once, before the first answer.
-	settle        sync.Once
+	// settle signs in as the current account, once, before the first answer.
+	settle sync.Once
+	// migrated turns the one account kept before into the list, once.
+	migrated      sync.Once
 	acctMu        sync.Mutex
 	wrapperFailed *wrapperFailure
+
+	heldMu sync.Mutex
+	held   *heldList
 
 	renewMu  sync.Mutex
 	renewing *renewCall
@@ -157,6 +162,7 @@ var (
 	_ music.Favorer    = (*Source)(nil)
 	_ music.Keeper     = (*Source)(nil)
 	_ music.Autoplayer = (*Source)(nil)
+	_ music.Switcher   = (*Source)(nil)
 )
 
 // New makes the source. It asks nothing and starts nothing until it's first called.
@@ -232,7 +238,7 @@ func (s *Source) Info() music.Info {
 
 // can is what the plugin exported: what the app may call.
 var can = map[string]bool{
-	"account": true, "addToLibrary": true, "addToPlaylist": true, "album": true, "artist": true, "autoplay": true, "browse": true,
+	"account": true, "accounts": true, "addToLibrary": true, "addToPlaylist": true, "album": true, "artist": true, "autoplay": true, "browse": true,
 	"createPlaylist": true, "favorite": true, "home": true, "isLiked": true, "like": true, "liked": true,
 	"lyrics": true, "played": true, "playlist": true, "playlists": true, "recent": true,
 	"saveAlbum": true, "savePlaylist": true, "savedAlbums": true, "search": true,
@@ -244,43 +250,56 @@ func (s *Source) Can(what string) bool { return can[what] }
 
 func (s *Source) Setting(key string) string { return s.settings.getString(key) }
 
-// SetSetting keeps the setting. The app asks who's signed in after. Only
-// the token and the wrapper's account sign anyone in or out; the rest is
-// read as it's used. Naming an account the wrapper doesn't hold is said at
-// once; a wrapper not set yet, or not answering, as the listener signs in.
+// SetSetting keeps the setting. The app asks who's signed in after. None
+// signs anyone in or out, but a new wrapper is listed and asked anew; the
+// rest is read as it's used.
 func (s *Source) SetSetting(key, value string) error {
 	s.settings.set(key, value)
 	defer s.asked(true)()
 	if key == "wrapper" || key == "wrapperKey" {
 		s.retryWrapper()
 	}
-	if key != "mediaUserToken" && key != "wrapperAccount" {
-		return nil
-	}
-	s.stopWarming()
-	if key == "mediaUserToken" {
-		if err := s.useGivenToken(); err != nil {
-			return err
-		}
-	}
-	s.retryWrapper()
-	if err := s.useWrapperAccount(false); err != nil && key == "wrapperAccount" && notHeld(err) {
-		return err
-	}
 	return nil
 }
 
+// SignIn signs in with the window, adding the account and switching to it.
 func (s *Source) SignIn() (*music.Account, error) {
 	defer s.asked(true)()
 	s.stopWarming()
 	return s.signIn()
 }
 
+// SignOut signs out of the current account, forgetting it, and goes on as
+// the one used last of those signed in to here, if there's another.
 func (s *Source) SignOut() error {
 	defer s.asked(true)()
 	s.stopWarming()
-	s.signOut()
-	return nil
+	return s.leave()
+}
+
+func (s *Source) Accounts(fresh bool) ([]music.AccountChoice, error) {
+	defer s.asked(false)()
+	return s.accounts(fresh)
+}
+
+func (s *Source) UseAccount(id string) (*music.Account, error) {
+	defer s.asked(true)()
+	s.stopWarming()
+	return s.useAccount(id)
+}
+
+func (s *Source) AddAccount(token string) (*music.Account, error) {
+	defer s.asked(true)()
+	s.stopWarming()
+	return s.addAccount(tokenIn(token))
+}
+
+func (s *Source) RemoveAccount(id string) error {
+	defer s.asked(true)()
+	if s.current() == id {
+		s.stopWarming()
+	}
+	return s.removeAccount(id)
 }
 
 func (s *Source) Account() (*music.Account, error) {

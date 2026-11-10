@@ -23,12 +23,12 @@ const forever = time.Duration(math.MaxInt64)
 // quiet, and wakes the wrapper for lossless, unless wakes is false: a song
 // to play asks the wrapper itself if it has to.
 func (s *Source) asked(wakes bool) (done func()) {
-	// The first thing asked waits for the account the settings name, a token
-	// given or an account of the wrapper's: answered before it, the app's
-	// first pages would be those of nobody signed in, and it would ask the
-	// listener to sign in while the wrapper was still being asked.
+	// The first thing asked waits for the current account, which may be the
+	// wrapper's, to have its token: answered before it, the app's first pages
+	// would be those of nobody signed in, and it would ask the listener to
+	// sign in while the wrapper was still being asked.
 	s.settle.Do(func() {
-		s.useGivenToken()
+		s.migrate()
 		s.useWrapperAccount(false)
 	})
 	s.warmLibrary(firstWarmAfter)

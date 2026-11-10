@@ -201,8 +201,7 @@ func TestSettingsFrame(t *testing.T) {
 		a.notch = &notch{a: a}
 		src := fake(a)
 		src.info.Name = "Apple Music"
-		// Made up: nothing here is anyone's token.
-		src.vals["mediaUserToken"] = "not-a-real-token-0123456789"
+		// Made up: nothing here is anyone's key.
 		src.vals["wrapperKey"] = "not-a-real-key"
 		if s.lossless {
 			a.settings.Quality = "lossless"

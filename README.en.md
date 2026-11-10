@@ -40,11 +40,12 @@ The screenshots are drawn by the tests, off screen, with blocks of color for cov
 
 ## Signing in
 
-Any one of three ways:
+You can sign in to several accounts and switch between them with a click, in the account menu at the foot of the sidebar or in Settings › Account. An account is added in one of two ways:
 
-1. **The sign-in window**: click Sign In at the foot of the sidebar and sign in on Apple's own page. The window can't use a passkey or a security key.
-2. **A media-user-token**: at [music.apple.com](https://music.apple.com), signed in, open the developer tools and copy the value of the `media-user-token` cookie into Settings › Account › Media User Token. Empty it to sign out.
-3. **An account a wrapper holds**: with a wrapper-manager that has your account logged in, fill in the Wrapper Address, then the account's Apple ID or a country or region code such as `jp` in **Wrapper Account**.
+1. **On Apple's page**: click Sign In at the foot of the sidebar, or Settings › Account › Add Account…, and sign in on Apple's own page. The page can't use a passkey or a security key.
+2. **With a media-user-token**: at [music.apple.com](https://music.apple.com), signed in, open the developer tools, copy the value of the `media-user-token` cookie, and paste it in Settings › Account › Add Account… › Use a Media User Token.
+
+With a Wrapper Address filled in, and a wrapper-manager that gives its accounts' tokens (AMDL-Web's does), the accounts ready in it are in the list too, to switch to without adding them. They have no Sign Out: to leave one, switch to another account.
 
 Signed out, you can browse the catalog, search and open pages. Playing, the library and recommendations need an account.
 

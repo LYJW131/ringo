@@ -32,8 +32,11 @@ const (
 	userTokenKey   = "mediaUserToken"
 	storefrontKey  = "storefront"
 	profileKey     = "profile"
-	givenTokenKey  = "givenToken"
+	givenTokenKey  = "givenToken" // read only to forget it, as it's from before the list
 	wrapperAcctKey = "wrapperAccount"
+	accountsKey    = "accounts"
+	currentKey     = "currentAccount"
+	wrapperUsedKey = "wrapperUsed"
 	resolvedKey    = "resolved"
 	coversKey      = "covers"
 	qualityKey     = "quality"

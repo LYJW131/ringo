@@ -33,6 +33,9 @@ type wrapper struct {
 	templates *lru[*fairplay.Template]
 	inflight  map[string]*templateCall
 
+	// Whether it gives its accounts' tokens (account.go).
+	tokens atomic.Int32
+
 	// When the wrapper was last asked something /status isn't, in Unix ns.
 	asked atomic.Int64
 }

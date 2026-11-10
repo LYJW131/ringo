@@ -169,6 +169,49 @@ type Account struct {
 	// Page is the Browse page of the listener's own, such as their profile,
 	// which the account menu opens as My Page.
 	Page string `json:"page,omitempty"`
+	// Shared says the account is lent by something else, such as a wrapper
+	// that holds it: the listener can switch to another account, but has
+	// nothing to sign out of.
+	Shared bool `json:"shared,omitempty"`
+}
+
+// A Switcher is a source a listener can be signed in to with several
+// accounts at once, and switch between them without signing in again.
+// Switching is the source's own business, done on this computer: Apple, or
+// whoever holds an account, isn't told.
+type Switcher interface {
+	// Accounts lists what can be switched to: the accounts signed in to
+	// here, and those the source can borrow, the current one among them.
+	// Others it borrows are listed as last known for a while unless fresh.
+	// An error says what kept some of them from being listed, such as a
+	// wrapper not answering; the rest are listed all the same.
+	Accounts(fresh bool) ([]AccountChoice, error)
+	// UseAccount switches to the account of that ID, answering it as
+	// Account would. On an error, whoever was signed in stays.
+	UseAccount(id string) (*Account, error)
+	// AddAccount signs in with a media-user-token, or the cookies it was
+	// copied with, and switches to the account. Signing in to one that's
+	// there already gives it the new token.
+	AddAccount(token string) (*Account, error)
+	// RemoveAccount forgets an account signed in to here. Removing the
+	// current one is signing out of it.
+	RemoveAccount(id string) error
+}
+
+// AccountChoice is an account a Switcher can switch to.
+type AccountChoice struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	ImageURL string `json:"imageUrl,omitempty"`
+	// Region is the account's storefront, or the country or region it's
+	// in as whoever lends it says, in lower case; "" when not known.
+	Region string `json:"region,omitempty"`
+	// Shared says it's lent, as Account.Shared: it can't be removed.
+	Shared  bool `json:"shared,omitempty"`
+	Current bool `json:"current,omitempty"`
+	// Used is when it was last switched to, for a menu to keep to the
+	// recent ones; zero if never.
+	Used time.Time `json:"used,omitzero"`
 }
 
 // SearchKind is what a search looks for.

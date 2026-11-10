@@ -15,7 +15,8 @@
 //	GET <base>/upload/<id>.m4a      that song, as it comes in, kept in Config.Uploads
 //	GET <base>/status               the wrapper's {ready, regions}
 //	POST <base>/wake                wakes the wrapper (one on Cloudflare sleeps)
-//	GET <base>/token?account=       an account's {token, region, next, account} (account.go)
+//	GET <base>/accounts             {accounts: [{id, region, name}]}, those to switch to (account.go)
+//	GET <base>/token?account=       an account's {token, region, next, account, instance}
 //	GET <base>/find/<id>            resolves the song only, without its keys
 //	GET <base>/prepare/<id>         resolves the song and fetches its keys
 //	GET <base>/song/<id>.m4a        the song's ALAC, decrypted, as fragmented MP4
@@ -126,6 +127,7 @@ func Start(cfg Config) (*Server, error) {
 	}
 	mux.HandleFunc("GET "+prefix+"/status", needsWrapper(s.status))
 	mux.HandleFunc("POST "+prefix+"/wake", needsWrapper(s.wake))
+	mux.HandleFunc("GET "+prefix+"/accounts", needsWrapper(s.accountList))
 	mux.HandleFunc("GET "+prefix+"/token", needsWrapper(s.token))
 	mux.HandleFunc("GET "+prefix+"/find/{id}", needsWrapper(s.findOnly))
 	mux.HandleFunc("GET "+prefix+"/prepare/{id}", needsWrapper(s.prepare))
@@ -195,6 +197,24 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply(w, http.StatusOK, t)
+}
+
+func (s *server) accountList(w http.ResponseWriter, r *http.Request) {
+	got, err := s.wrapper.offered(r.Context())
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	type account struct {
+		ID     string `json:"id,omitempty"`
+		Region string `json:"region"`
+		Name   string `json:"name,omitempty"`
+	}
+	out := []account{}
+	for _, a := range got {
+		out = append(out, account{a.ID, strings.ToLower(a.Region), a.Name})
+	}
+	reply(w, http.StatusOK, map[string]any{"accounts": out})
 }
 
 func (s *server) wake(w http.ResponseWriter, _ *http.Request) {

@@ -96,6 +96,12 @@ type fakeSource struct {
 	favorite     func(kind, id string, on bool) error
 	addToLibrary func(kind, id string, on bool) error
 	autoplay     func(ids []string) ([]music.Track, error)
+
+	// music.Switcher.
+	accounts      func(fresh bool) ([]music.AccountChoice, error)
+	useAccount    func(id string) (*music.Account, error)
+	addAccount    func(token string) (*music.Account, error)
+	removeAccount func(id string) error
 }
 
 func newFakeSource(id string) *fakeSource {
@@ -308,7 +314,33 @@ func (s *fakeSource) Autoplay(ids []string) ([]music.Track, error) {
 	return s.autoplay(ids)
 }
 
+func (s *fakeSource) Accounts(fresh bool) ([]music.AccountChoice, error) {
+	if s.accounts == nil {
+		return nil, nil
+	}
+	return s.accounts(fresh)
+}
+func (s *fakeSource) UseAccount(id string) (*music.Account, error) {
+	if s.useAccount == nil {
+		return nil, music.ErrUnsupported
+	}
+	return s.useAccount(id)
+}
+func (s *fakeSource) AddAccount(token string) (*music.Account, error) {
+	if s.addAccount == nil {
+		return nil, music.ErrUnsupported
+	}
+	return s.addAccount(token)
+}
+func (s *fakeSource) RemoveAccount(id string) error {
+	if s.removeAccount == nil {
+		return nil
+	}
+	return s.removeAccount(id)
+}
+
 var (
+	_ music.Switcher   = (*fakeSource)(nil)
 	_ music.Source     = (*fakeSource)(nil)
 	_ music.Favorer    = (*fakeSource)(nil)
 	_ music.Keeper     = (*fakeSource)(nil)

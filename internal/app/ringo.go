@@ -6,30 +6,172 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+
+	"mygo-music/internal/music"
 )
 
-// accountGroups are the account page of the settings: who's signed in, and the
-// ways to sign in that the sign-in window can't do.
+// accountGroups are the account page of the settings: who's signed in, and
+// the accounts to switch to, those signed in to here and those the wrapper
+// lends alike, with the ways to add one.
 func (a *app) accountGroups(c *ui.Context, p palette) []settingsGroup {
-	return []settingsGroup{
+	groups := []settingsGroup{
 		{"", func(row settingsRow, block settingsBlock) {
 			block(T("Apple Account")+" "+T("Sign In")+" "+T("Sign Out"), func() { a.accountCard(c, p) })
 		}},
-		{T("Other Ways to Sign In"), func(row settingsRow, block settingsBlock) {
-			a.textSetting(c, p, block, "mediaUserToken", T("Media User Token"),
-				T("For an Apple Account that signs in with a passkey or security key, which the sign-in window can't use: sign in at music.apple.com in your browser, and paste the value of its media-user-token cookie here. Empty it to sign out, or to sign in with the window again."), true)
-			a.textSetting(c, p, block, "wrapperAccount", T("Wrapper Account"),
-				T("To sign in as an Apple Account the wrapper holds, without the sign-in window: its Apple ID as logged in to the wrapper, or a country or region code such as jp for the wrapper's account there. When the wrapper holds several accounts, each listener names their own. Empty to sign in here. It uses the wrapper set under Playback."), false)
-		}},
 	}
+	lib := a.library
+	if lib.switcher() == nil {
+		return groups
+	}
+	return append(groups, settingsGroup{T("Accounts"), func(row settingsRow, block settingsBlock) {
+		if lib.choices == nil && lib.choicesBusy {
+			block(T("Loading…"), func() { a.accountNote(c, p, T("Loading…"), false) })
+		}
+		for _, ch := range lib.choices {
+			text := ch.Name + " " + ch.Region
+			if ch.Shared {
+				text += " " + T("Wrapper")
+			}
+			block(text, func() { a.choiceRow(c, p, lib, ch) })
+		}
+		// The wrapper's accounts are left out while it doesn't answer, said
+		// quietly, as the rest are there all the same.
+		if lib.choicesErr != "" && strings.TrimSpace(lib.src.Setting("wrapper")) != "" {
+			text := T("The wrapper can't be reached, so its accounts aren't listed.")
+			block(text+" "+T("Try Again"), func() { a.accountNote(c, p, text, true) })
+		}
+		if lib.switchErr != "" {
+			block(lib.switchErr, func() {
+				ui.Text(c, lib.switchErr).FontSize(12).TextColor(p.accent).LineHeight(1.4).Padding(10, 16)
+			})
+		}
+		block(T("Add Account…")+" "+T("Sign In on Apple's Page")+" "+T("Use a Media User Token")+" "+T("Media User Token"), func() {
+			a.addAccountRows(c, p, lib)
+		})
+	}})
 }
 
-// accountCard is who is signed in, with the way out of it or into it.
+// accountNote is a line of the account list that says what it waits on, or
+// what kept some of it out, with a way to ask again.
+func (a *app) accountNote(c *ui.Context, p palette, text string, retry bool) {
+	ui.Row(c.Key("account-note")).Padding(10, 16).Gap(12).AlignItems(ui.Center).MinHeight(40).Children(func() {
+		ui.Text(c, text).FontSize(12).TextColor(p.muted).LineHeight(1.4).Grow(1).Shrink(1).MinWidth(0)
+		if retry && ui.Button(c.Key("retry"), T("Try Again")).Shrink(0).Disabled(a.library.choicesBusy).Clicked() {
+			a.loadAccounts(a.library, true)
+		}
+	})
+}
+
+// choiceRow is an account of the list: its picture, name and where it is,
+// whether the wrapper lends it, and a check on the current one. Choosing it
+// switches to it. One signed in to here, other than the current one, can be
+// removed from its menu, out of the way of a click on the row.
+func (a *app) choiceRow(c *ui.Context, p palette, lib *library, ch music.AccountChoice) {
+	ui.Row(c.Key("choice:" + ch.ID)).AlignItems(ui.Center).PaddingEnd(12).Children(func() {
+		b := ui.ButtonBase(c.Key("use")).Grow(1).MinWidth(0).MinHeight(52).Padding(10, 8, 10, 16).Gap(12).
+			AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(ch.Name)
+		b.Children(func() {
+			a.choiceAvatar(c, p, ch, 30, false)
+			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(4).Children(func() {
+				ui.Text(c, ch.Name).FontSize(13.5).FontWeight(500).SingleLine()
+				if ch.Region != "" || ch.Shared {
+					ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+						if ch.Region != "" {
+							regionBadge(c, p, strings.ToUpper(ch.Region))
+						}
+						if ch.Shared {
+							regionBadge(c, p, T("Wrapper"))
+						}
+					})
+				}
+			})
+			switch {
+			case lib.switching == ch.ID:
+				ui.Text(c, T("Switching…")).FontSize(12).TextColor(p.muted).Shrink(0)
+			case ch.Current:
+				ui.Icon(c, iconCheck).Size(15, 15).TextColor(p.accent).Shrink(0)
+			}
+		})
+		if b.Clicked() && !ch.Current {
+			a.useAccount(lib, ch.ID)
+		}
+		if ch.Shared || ch.Current {
+			ui.Box(c).Size(28, 28).Shrink(0)
+			return
+		}
+		m := ui.ButtonBase(c.Key("more")).Size(28, 28).Shrink(0).Radius(14).Center().FocusRing(false).Label(T("More")).TextColor(p.muted)
+		if m.Hovered() {
+			m.Background(p.hover)
+		}
+		m.Children(func() { ui.Icon(c, iconMore).Size(14, 14) })
+		m.Menu(func(menu *ui.Menu) {
+			if menu.Item(T("Remove Account")).Chosen() {
+				a.removeAccount(lib, ch.ID)
+			}
+		})
+	})
+}
+
+// addAccountRows is Add Account…, which opens the two ways to add one:
+// signing in on Apple's page, or pasting a media-user-token, which an
+// account with a passkey needs. Either way it's one more account of the list.
+func (a *app) addAccountRows(c *ui.Context, p palette, lib *library) {
+	add := &a.adding
+	ui.Column(c.Key("add-account")).Children(func() {
+		b := ui.ButtonBase(c.Key("add")).MinHeight(48).Padding(10, 16).Gap(12).AlignItems(ui.Center).Justify(ui.Start).
+			FocusRing(false).Label(T("Add Account…")).Expanded(add.open)
+		b.Children(func() {
+			ui.Box(c).Size(30, 30).Radius(15).Shrink(0).Background(p.press).Center().Children(func() {
+				ui.Icon(c, iconPlus).Size(15, 15).TextColor(p.accent)
+			})
+			ui.Text(c, T("Add Account…")).FontSize(13.5).FontWeight(500).TextColor(p.accent)
+		})
+		if b.Clicked() {
+			*add = addingAccount{open: !add.open, text: add.text}
+		}
+		if !add.open {
+			return
+		}
+		ui.Column(c).Padding(0, 16, 14, 58).Gap(10).AlignItems(ui.Start).Children(func() {
+			if ui.Button(c.Key("web"), T("Sign In on Apple's Page")).Clicked() {
+				add.token = false
+				a.promptSignInInSettings(lib)
+			}
+			if ui.Button(c.Key("token"), T("Use a Media User Token")).Clicked() {
+				add.token = true
+			}
+			if !add.token {
+				return
+			}
+			ui.Row(c).Gap(8).AlignItems(ui.Center).AlignSelf(ui.Stretch).Children(func() {
+				in := ui.TextInput(c.Key("token-value"), &add.text).Label(T("Media User Token")).Placeholder(T("Media User Token")).
+					Password().FontSize(13).Grow(1).MinWidth(0)
+				ready := strings.TrimSpace(add.text) != "" && !add.busy
+				added := ui.PrimaryButton(c.Key("add-token"), T("Add")).Shrink(0).Disabled(!ready).Clicked()
+				if ready && (added || in.Submitted()) {
+					a.addAccount(lib, add.text)
+				}
+			})
+			ui.Text(c, T("For an Apple Account that signs in with a passkey or security key, which the sign-in page can't use: sign in at music.apple.com in your browser, and paste the value of its media-user-token cookie here.")).
+				FontSize(12).TextColor(p.muted).LineHeight(1.4)
+			switch {
+			case add.busy:
+				ui.Text(c, T("Signing in…")).FontSize(12).TextColor(p.muted)
+			case add.err != "":
+				ui.Text(c, add.err).FontSize(12).TextColor(p.accent).LineHeight(1.4)
+			}
+		})
+	})
+}
+
+// accountCard is who is signed in, with the way out of it or into it. An
+// account the wrapper lends has no way out but switching to another.
 func (a *app) accountCard(c *ui.Context, p palette) {
 	lib := a.library
 	if lib.account == nil && lib.accountUnknown() {
 		a.loadAccount(lib)
 	}
+	a.loadAccounts(lib, false)
 	acc := lib.account
 	name, status := T("Apple Account"), T("Sign in to play music and see your library")
 	if acc != nil {
@@ -37,7 +179,7 @@ func (a *app) accountCard(c *ui.Context, p palette) {
 			name = acc.Name
 		}
 		status = T("Signed in to Apple Music")
-		if strings.TrimSpace(lib.src.Setting("wrapperAccount")) != "" {
+		if acc.Shared {
 			status = T("Signed in through the wrapper")
 		}
 	}
@@ -46,7 +188,7 @@ func (a *app) accountCard(c *ui.Context, p palette) {
 		status = lib.setupReason
 	}
 	ui.Row(c.Key("account-card")).Padding(14, 16).Gap(12).AlignItems(ui.Center).MinHeight(68).Children(func() {
-		if acc != nil {
+		if acc != nil && acc.ImageURL != "" {
 			a.avatar(c, acc.ImageURL, 40, p.press)
 		} else {
 			ui.Box(c).Size(40, 40).Radius(20).Shrink(0).Background(p.press).Center().Children(func() {
@@ -58,7 +200,7 @@ func (a *app) accountCard(c *ui.Context, p palette) {
 			ui.Text(c, status).FontSize(12).TextColor(p.muted).LineHeight(1.4)
 		})
 		switch {
-		case acc != nil && lib.can("signOut"):
+		case acc != nil && !acc.Shared && lib.can("signOut"):
 			if ui.Button(c.Key("sign-out"), T("Sign Out")).Shrink(0).Clicked() {
 				a.signOut(lib)
 			}

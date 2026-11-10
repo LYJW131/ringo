@@ -54,51 +54,35 @@ func TestSignedOut(t *testing.T) {
 	}
 }
 
-func TestGivenToken(t *testing.T) {
+// A token is taken as pasted: alone, quoted, or among the cookies copied
+// from a browser, with or without the header's name.
+func TestTokenIn(t *testing.T) {
+	for pasted, want := range map[string]string{
+		"Cookie: geo=US; media-user-token=AbC+/12=; itspod=55": "AbC+/12=",
+		"cookie:media-user-token=Spaceless":                    "Spaceless",
+		` "XyZ" `:                                              "XyZ",
+		"geo=US; itspod=55":                                    "geo=US; itspod=55",
+	} {
+		if got := tokenIn(pasted); got != want {
+			t.Errorf("%q: %q", pasted, got)
+		}
+	}
+}
+
+// What isn't a token is said before Apple is asked, and whoever is signed in stays.
+func TestAddingWhatIsntAToken(t *testing.T) {
 	ts := newTestSource(t, nowhere(t))
-	set := func(v string) error { return ts.SetSetting("mediaUserToken", v) }
-	// As copied from a browser: the cookie header, with others around it.
-	if err := set("Cookie: geo=US; media-user-token=AbC+/12=; itspod=55"); err != nil || ts.userToken() != "AbC+/12=" {
-		t.Errorf("from a cookie header: %q %v", ts.userToken(), err)
-	}
-	// Signing out leaves it signed out, though the setting is still there.
-	ts.SignOut()
-	if a, _ := ts.Account(); a != nil {
-		t.Error("signed in again")
-	}
-	// The header as some tools copy it, without a space.
-	if set("cookie:media-user-token=Spaceless"); ts.userToken() != "Spaceless" {
-		t.Errorf("without a space: %q", ts.userToken())
-	}
-	// Another token, or the token alone, signs in with it.
-	if set(` "XyZ" `); ts.userToken() != "XyZ" {
-		t.Errorf("quoted: %q", ts.userToken())
-	}
-	// Not a token: said, and whoever is signed in stays.
-	if err := set("geo=US; itspod=55"); !errors.Is(err, music.ErrSetup) || ts.userToken() != "XyZ" {
-		t.Errorf("not a token: %v, %q", err, ts.userToken())
-	}
-	// Emptied, it signs out, without asking Apple.
-	if set(""); ts.userToken() != "" {
-		t.Errorf("emptied: %q", ts.userToken())
-	}
-	if a, _ := ts.Account(); a != nil {
-		t.Error("signed in")
+	ts.storage.set(accountsKey, []ownAccount{{ID: "a", Token: "Kept"}})
+	ts.storage.set(currentKey, ownPrefix+"a")
+	ts.storage.set(userTokenKey, "Kept")
+	for _, pasted := range []string{"geo=US; itspod=55", ""} {
+		if _, err := ts.AddAccount(pasted); !errors.Is(err, music.ErrSetup) || ts.userToken() != "Kept" {
+			t.Errorf("%q: %v, %q", pasted, err, ts.userToken())
+		}
 	}
 	// What's kept is the source's own: 0600.
 	if fi, err := os.Stat(filepath.Join(ts.dataDir, "storage.json")); err != nil || fi.Mode().Perm() != 0o600 {
 		t.Errorf("storage.json: %v %v", fi.Mode(), err)
-	}
-}
-
-func TestWindowTokenStaysWhenSettingEmptied(t *testing.T) {
-	ts := newTestSource(t, nowhere(t))
-	ts.setSettings(map[string]string{"mediaUserToken": "Old"})
-	ts.storage.set(givenTokenKey, "Old")
-	ts.storage.set(userTokenKey, "FromTheWindow")
-	ts.SetSetting("mediaUserToken", "")
-	if ts.userToken() != "FromTheWindow" || ts.storage.getString(givenTokenKey) != "" {
-		t.Errorf("token %q, given %q", ts.userToken(), ts.storage.getString(givenTokenKey))
 	}
 }
 
