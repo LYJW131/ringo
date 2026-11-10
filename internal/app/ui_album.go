@@ -91,8 +91,7 @@ func (a *app) albumPage(c *ui.Context) {
 			a.centered(c, d.err, func() { a.loadAlbum(lib, id) })
 			return
 		}
-		s := a.pageShimmer(c)
-		a.trackSkeleton(c, s, false, func(c *ui.Context) { a.playlistHeaderSkeleton(c, s) })
+		a.albumSkeleton(c, a.pageShimmer(c))
 		return
 	}
 	page := d.album
@@ -147,7 +146,9 @@ func (a *app) albumHeader(c *ui.Context, lib *library, page *music.AlbumPage) {
 				}
 			}
 		})
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Margin(4, 0, 0, 0).Children(func() {
+		// Short of room, the badges go under the genre and year rather than
+		// be cut short.
+		ui.Row(c).Wrap().Gap(8).GapY(5).AlignItems(ui.Center).Margin(4, 0, 0, 0).Children(func() {
 			var meta []string
 			if al.Genre != "" {
 				meta = append(meta, al.Genre)
@@ -156,13 +157,13 @@ func (a *app) albumHeader(c *ui.Context, lib *library, page *music.AlbumPage) {
 				meta = append(meta, fmt.Sprintf(TC("%s", "year"), y))
 			}
 			if len(meta) > 0 {
-				ui.Text(c, strings.Join(meta, " · ")).FontSize(11.5).FontWeight(600).TextColor(p.muted).SingleLine()
+				ui.Text(c, strings.Join(meta, " · ")).FontSize(11.5).FontWeight(600).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
 			}
 			a.traitBadges(c, al.Traits, p.muted)
 		})
 	}
-	a.detailHeader(c, al.ImageURL, lines, al.Notes, page.Tracks, func() {
-		a.libraryButton(c, lib, music.ItemAlbum, al.ID, al.Saved)
+	a.detailHeader(c, al.ImageURL, lines, al.Notes, page.Tracks, func(compact bool) {
+		a.libraryButton(c, lib, music.ItemAlbum, al.ID, al.Saved, compact)
 		a.moreButton(c, a.albumItems(lib, *al))
 	})
 }
@@ -244,7 +245,8 @@ func (a *app) albumFoot(c *ui.Context, page *music.AlbumPage) {
 	p := a.pal
 	al := &page.Album
 	ui.Column(c).Margin(24, 20, 0, 20).Gap(3).Children(func() {
-		ui.Box(c).Height(0.5).Margin(0, -12, 18, -12).Background(p.hairline)
+		// As long as the lines between the songs above.
+		ui.Box(c).Height(0.5).Margin(0, 0, 18, 0).Background(p.hairline)
 		if al.Released != "" {
 			ui.Text(c, released(al.Released)).FontSize(12.5).TextColor(p.muted)
 		}

@@ -96,8 +96,9 @@ func luminance(c ui.Color) float64 {
 // detailHeader heads an album's or a playlist's page: its cover, and beside
 // it what lines builds, its title and who made it and the rest, then the
 // editors' words, notes, and the buttons that play it, with what extra adds
-// at their end.
-func (a *app) detailHeader(c *ui.Context, cover string, lines func(), notes string, tracks []music.Track, extra func()) {
+// at their end. extra is told whether the row is short of room for Add to
+// Library in words, which then goes to its icon alone, as Apple Music's does.
+func (a *app) detailHeader(c *ui.Context, cover string, lines func(), notes string, tracks []music.Track, extra func(compact bool)) {
 	p := a.pal
 	ui.Row(c).Gap(30).AlignItems(ui.End).Margin(0, 12, 28, 12).Children(func() {
 		ui.Box(c).Size(detailCover, detailCover).Radius(8).Shrink(0).Shadow(0, 14, 34, -10, p.cardShade).Border(0.5, p.hairline).Children(func() {
@@ -108,18 +109,33 @@ func (a *app) detailHeader(c *ui.Context, cover string, lines func(), notes stri
 			if notes = strings.TrimSpace(notes); notes != "" {
 				a.notes(c, notes)
 			}
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Margin(18, 0, 0, 0).Children(func() {
+			// What the row needs with every button in words: Play, Shuffle,
+			// the spacer, Add to Library and the dots, and the gaps between.
+			need := float32(4*pillGap + roundSize)
+			if len(tracks) > 0 {
+				need += pillWidth(c, T("Play"), true) + pillWidth(c, T("Shuffle"), true)
+			}
+			need += pillWidth(c, T("Add to Library"), true)
+			compact := need > a.shelfMetrics(c).inner-detailCover-30
+			ui.Row(c).Gap(pillGap).AlignItems(ui.Center).Margin(18, 0, 0, 0).Children(func() {
 				if len(tracks) > 0 {
 					a.playButtons(c, tracks)
 				}
 				ui.Spacer(c)
 				if extra != nil {
-					extra()
+					extra(compact)
 				}
 			})
 		})
 	})
 }
+
+// pillGap is the room between the buttons of a page's header.
+const pillGap = 10
+
+// roundSize is the size of the round buttons of a page's header, as its
+// dots.
+const roundSize = 36
 
 // detailTitle is the title of an album or a playlist, with the E of one
 // that's explicit.
@@ -182,7 +198,8 @@ func (a *app) notes(c *ui.Context, text string) {
 
 // libraryButton adds what kind and id name to the listener's library, or
 // says it's there, which a click undoes, for a source that keeps a library.
-func (a *app) libraryButton(c *ui.Context, lib *library, kind, id string, was bool) {
+// compact, it is its icon alone, its words its label and tooltip.
+func (a *app) libraryButton(c *ui.Context, lib *library, kind, id string, was, compact bool) {
 	if !lib.can("addToLibrary") {
 		return
 	}
@@ -192,7 +209,14 @@ func (a *app) libraryButton(c *ui.Context, lib *library, kind, id string, was bo
 	if in {
 		icon, label = iconCheck, T("Added")
 	}
-	if pillButton(c.Key("library"), icon, label, p.hover.Over(p.bg), p.text).Clicked() {
+	var b ui.Element
+	if compact {
+		b = a.roundHeaderButton(c.Key("library"), label)
+		b.Tooltip(label).Children(func() { ui.Icon(c, icon).Size(14, 14) })
+	} else {
+		b = pillButton(c.Key("library"), icon, label, p.hover.Over(p.bg), p.text)
+	}
+	if b.Clicked() {
 		a.setInLibrary(lib, kind, id, !in)
 	}
 }
@@ -202,14 +226,21 @@ func (a *app) moreButton(c *ui.Context, menu func(m *ui.Menu)) {
 	if menu == nil {
 		return
 	}
-	b := ui.ButtonBase(c.Key("more")).Size(36, 36).Radius(999).Center().Label(T("More")).FocusRing(false).TextColor(a.pal.text)
+	b := a.roundHeaderButton(c.Key("more"), T("More"))
+	b.Children(func() { ui.Icon(c, iconMore).Size(16, 16) })
+	b.Menu(menu)
+}
+
+// roundHeaderButton is a round button of a page's header, labeled label,
+// filled as its pills are.
+func (a *app) roundHeaderButton(c *ui.Context, label string) ui.Element {
+	b := ui.ButtonBase(c).Size(roundSize, roundSize).Shrink(0).Radius(999).Center().Label(label).FocusRing(false).TextColor(a.pal.text)
 	fill := a.pal.hover.Over(a.pal.bg)
 	if b.Hovered() {
 		fill = fill.Mix(ui.RGB(255, 255, 255), 0.12)
 	}
 	b.Background(fill)
-	b.Children(func() { ui.Icon(c, iconMore).Size(16, 16) })
-	b.Menu(menu)
+	return b
 }
 
 // The badges of how something sounds at its best (music.Traits), in our own
@@ -258,7 +289,7 @@ func (a *app) traitBadges(c *ui.Context, tr music.Traits, color ui.Color) {
 	if len(labels) == 0 {
 		return
 	}
-	ui.Row(c.Key("traits")).Gap(6).AlignItems(ui.Center).Children(func() {
+	ui.Row(c.Key("traits")).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
 		for _, l := range labels {
 			traitBadge(c, l, color)
 		}

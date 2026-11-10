@@ -131,13 +131,18 @@ func (a *app) browseView(c *ui.Context, id string) {
 	lib := a.library
 	d := lib.browses[id]
 	if d == nil || d.page == nil {
-		if d != nil && !d.loading {
-			a.centered(c, d.err, func() { a.loadBrowse(lib, id, true) })
-			return
-		}
+		failed := d != nil && !d.loading
 		a.scrollPage(c, func() {
+			// Under the page's title, which says what didn't load.
 			ui.Box(c).PaddingX(12).Children(func() { a.browseHeader(c, &music.Browse{}, id) })
-			a.shelfSkeleton(c, a.pageShimmer(c))
+			switch {
+			case failed:
+				a.failure(ui.Column(c).Padding(60, 12, 0, 12), c, d.err, func() { a.loadBrowse(lib, id, true) })
+			case strings.HasPrefix(id, "library:"):
+				a.librarySkeleton(c, a.pageShimmer(c), id)
+			default:
+				a.shelfSkeleton(c, a.pageShimmer(c))
+			}
 		})
 		return
 	}
@@ -205,7 +210,7 @@ func (a *app) browseHeader(c *ui.Context, page *music.Browse, id string) {
 	// none of its own.
 	ui.Row(c).Gap(28).AlignItems(ui.End).Margin(0, 0, 34, 0).Children(func() {
 		ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
-			a.coverFill(c, page.ImageURL, 600, artistPhotoSize/2)
+			a.coverFillWith(c, page.ImageURL, 600, artistPhotoSize/2, iconUser)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 			if page.Subtitle != "" {
@@ -292,9 +297,18 @@ func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, heade
 			ui.Column(c).PaddingX(12).Children(func() {
 				a.startMark(c)
 				header(c)
-				if len(page.Sections) == 0 && page.Next == "" {
-					a.empty(c, T("No items"))
+				if page.Next != "" || len(layout) > 0 {
+					return
 				}
+				if strings.HasPrefix(pageID, music.PageSearch) {
+					// A search that found nothing says so, as Apple Music's.
+					ui.Column(c).Gap(6).Padding(60, 0, 0, 0).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, T("No Results")).FontSize(20).FontWeight(700).LetterSpacing(-0.3)
+						ui.Text(c, T("Try a new search.")).FontSize(13).TextColor(a.pal.muted)
+					})
+					return
+				}
+				a.empty(c, T("No items"))
 			})
 			return
 		}

@@ -90,7 +90,13 @@ type libraryList struct {
 	params params
 	title  func() string
 	style  string
+	// empty is what the page says with nothing in it.
+	empty func() string
 }
+
+// What the library's pages say with nothing in them, in Apple Music's words.
+func emptyLibrary() string { return i18n.T("There are no items in your library.") }
+func emptyMixes() string   { return i18n.T("Personal mixes you add will appear here.") }
 
 var albumFields = "artistName,artistUrl,artwork,contentRating,editorialArtwork,name,playParams,releaseDate,url,trackCount"
 
@@ -98,22 +104,22 @@ var libraryLists = map[string]libraryList{
 	music.PageRecentlyAdded: {"/library/recently-added", params{
 		"limit": "25", "includeOnly": "catalog,artists", "include[library-albums]": "artists", "include[library-artists]": "catalog",
 		"fields[artists]": "name,url", "fields[albums]": albumFields, "omit[resource]": "autos",
-	}, func() string { return i18n.T("Recently Added") }, music.ShelfGrid},
+	}, func() string { return i18n.T("Recently Added") }, music.ShelfGrid, emptyLibrary},
 	music.PageLibraryAlbums: {"/library/albums", params{
 		"limit": "100", "includeOnly": "catalog,artists", "include[library-albums]": "artists", "include[albums]": "artists",
 		"fields[artists]": "name,url", "fields[albums]": albumFields,
-	}, func() string { return i18n.T("Albums") }, music.ShelfGrid},
+	}, func() string { return i18n.T("Albums") }, music.ShelfGrid, emptyLibrary},
 	music.PageLibraryArtist: {"/library/artists", params{"limit": "100", "include": "catalog"},
-		func() string { return i18n.TC("Artists", "Apple Music") }, music.ShelfGrid},
+		func() string { return i18n.TC("Artists", "Apple Music") }, music.ShelfGrid, emptyLibrary},
 	music.PageLibrarySongs: {"/library/songs", params{"limit": "100", "include[library-songs]": "catalog"},
-		func() string { return i18n.T("Songs") }, music.ShelfList},
+		func() string { return i18n.T("Songs") }, music.ShelfList, emptyLibrary},
 	music.PageMadeForYou: {"/library/playlists", params{
 		"limit": "100", "filter[featured]": "made-for-you", "include[library-playlists]": "catalog",
 		"fields[library-playlists]": "artwork,dateAdded,name,playParams",
-	}, func() string { return i18n.T("Made for You") }, music.ShelfGrid},
+	}, func() string { return i18n.T("Made for You") }, music.ShelfGrid, emptyMixes},
 	music.PageAllPlaylists: {"/library/playlist-folders/p.playlistsroot/children", params{
 		"limit": "100", "include": "catalog", "extend": "hasCollaboration", "fields[playlists]": "curatorName", "omit[resource]": "autos",
-	}, func() string { return i18n.T("Playlists") }, music.ShelfGrid},
+	}, func() string { return i18n.T("Playlists") }, music.ShelfGrid, emptyLibrary},
 }
 
 // libraryPage is the first part of a library page, or, with next, the part
@@ -124,7 +130,7 @@ func (s *Source) libraryPage(page, next string) (*music.Browse, error) {
 	}
 	list, ok := libraryLists[page]
 	if folder, isFolder := strings.CutPrefix(page, "library-folder:"); isFolder {
-		list, ok = libraryList{"/library/playlist-folders/" + folder + "/children", params{"limit": "100"}, func() string { return "" }, music.ShelfGrid}, true
+		list, ok = libraryList{"/library/playlist-folders/" + folder + "/children", params{"limit": "100"}, func() string { return "" }, music.ShelfGrid, func() string { return "" }}, true
 	}
 	if !ok {
 		return nil, fail("unavailable", i18n.T("No such page"))
@@ -144,6 +150,7 @@ func (s *Source) libraryPage(page, next string) (*music.Browse, error) {
 	out := &music.Browse{Sections: []music.Section{{Style: list.style, Items: items}}}
 	if next == "" {
 		out.Title = list.title()
+		out.Sections[0].Empty = list.empty()
 	}
 	if b.Next != "" {
 		out.Next = page + "|" + b.Next

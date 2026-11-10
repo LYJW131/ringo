@@ -158,12 +158,7 @@ func (a *app) coverCardWith(c *ui.Context, name, cover string, icon *ui.SVG, sub
 		}
 		art.AnimatePose(lift, ui.Snappy)
 		art.Children(func() {
-			a.coverFill(c, cover, 400, 10)
-			if cover == "" {
-				ui.Row(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Justify(ui.Center).AlignItems(ui.Center).Children(func() {
-					ui.Icon(c, icon).Size(40, 40).TextColor(p.faint)
-				})
-			}
+			a.coverFillWith(c, cover, 400, 10, icon)
 			if play != nil {
 				a.coverPlayButton(c, hovered, play)
 			}
@@ -180,13 +175,32 @@ func (a *app) coverCardWith(c *ui.Context, name, cover string, icon *ui.SVG, sub
 // The cover rounds itself rather than its parent clipping it: a clip moved
 // by a transform, as a card lifting under the pointer, is drawn on the CPU.
 func (a *app) coverFill(c *ui.Context, url string, px int, radius float32) {
+	a.coverFillWith(c, url, px, radius, iconNote)
+}
+
+// coverFillWith is coverFill showing icon in the cover's place until it
+// comes, or for good where there's none.
+func (a *app) coverFillWith(c *ui.Context, url string, px int, radius float32, icon *ui.SVG) {
 	bmp := bitmap(a.art.get(sized(url, px), false))
 	box := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(radius)
 	in := artIn(box, bmp)
 	if in < 1 {
-		box.Background(a.pal.hover)
+		box.Background(a.pal.blank)
 	}
-	box.Children(func() { artImage(c, bmp, radius, in) })
+	box.Children(func() {
+		if in < 1 {
+			a.blankIcon(c, icon, 1-in)
+		}
+		artImage(c, bmp, radius, in)
+	})
+}
+
+// blankIcon is icon in the middle of a picture's place, a third as wide, as
+// far shown as shown.
+func (a *app) blankIcon(c *ui.Context, icon *ui.SVG, shown float32) {
+	ui.Row(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Justify(ui.Center).AlignItems(ui.Center).IgnoreInput(true).Children(func() {
+		ui.Icon(c, icon).WidthPercent(30).AspectRatio(1).TextColor(a.pal.faint).Opacity(shown)
+	})
 }
 
 // coverPlayButton plays a playlist or a show from its card, without
@@ -260,16 +274,16 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 				}
 			})
 		}
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Margin(4, 0, 0, 0).Children(func() {
+		ui.Row(c).Wrap().Gap(8).GapY(5).AlignItems(ui.Center).Margin(4, 0, 0, 0).Children(func() {
 			if u := updated(pl.Modified, time.Now()); u != "" {
 				ui.Text(c, u).FontSize(11.5).FontWeight(600).TextColor(p.muted).SingleLine()
 			}
 			a.traitBadges(c, pl.Traits, p.muted)
 		})
 	}
-	a.detailHeader(c, pl.ImageURL, lines, pl.Description, pl.Tracks, func() {
+	a.detailHeader(c, pl.ImageURL, lines, pl.Description, pl.Tracks, func(compact bool) {
 		if !pl.Mine && !pl.Fixed && !a.ownList(pl.ID) {
-			a.libraryButton(c, lib, music.ItemPlaylist, pl.ID, pl.Saved || a.isSaved(pl))
+			a.libraryButton(c, lib, music.ItemPlaylist, pl.ID, pl.Saved || a.isSaved(pl), compact)
 		}
 		a.moreButton(c, a.playlistItemsOf(lib, *pl))
 	})
@@ -397,7 +411,8 @@ func (a *app) likedPage(c *ui.Context) {
 	lib := a.library
 	header := func(c *ui.Context) {
 		p := a.pal
-		ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
+		// In from the page's edge as a playlist's header is.
+		ui.Row(c).Gap(28).AlignItems(ui.End).Margin(0, 12, 26, 12).Children(func() {
 			ui.Box(c).Size(212, 212).Radius(14).Center().Shadow(0, 18, 40, -10, p.cardShade).TextColor(white).
 				LinearGradient(ui.LinearGradient{Angle: 135, Oklab: true, From: ui.Oklch(0.72, 0.17, 10), To: ui.Oklch(0.58, 0.22, 350)}).
 				Children(func() { ui.Icon(c, iconStarFill).Size(84, 84) })
@@ -577,7 +592,12 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 			if playing {
 				name = p.accent
 			}
-			ui.Text(c, tr.Name).FontSize(14).FontWeight(500).TextColor(name).SingleLine()
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, tr.Name).FontSize(14).FontWeight(500).TextColor(name).SingleLine().Shrink(1).MinWidth(0)
+				if tr.Explicit {
+					a.explicitMark(c)
+				}
+			})
 			a.artistLinks(c, tr, p.muted, p.text).FontSize(12.5).SingleLine().Shrink(1).MinWidth(0)
 		})
 		if wide {

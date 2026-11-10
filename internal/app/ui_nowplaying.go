@@ -338,8 +338,14 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 			var coverTop float32
 			ui.Column(c).Width(side).Justify(ui.Center).Gap(0).Children(func() {
 				coverTop = ui.Box(c.Key("cover-top")).Height(0).LayoutBounds().Y
-				// The cover flies out of the bar's as Now Playing opens.
-				a.npMorph(c, ui.Box(c.Key("cover-morph")).Size(coverSize, coverSize).AlignSelf(ui.Start)).Children(func() {
+				// The cover flies out of the bar's as Now Playing opens. Kept
+				// smaller than the column by a short window, it centers on
+				// what's under it.
+				coverAlign := ui.Start
+				if coverSize < side {
+					coverAlign = ui.Center
+				}
+				a.npMorph(c, ui.Box(c.Key("cover-morph")).Size(coverSize, coverSize).AlignSelf(coverAlign)).Children(func() {
 					a.npCover(c, tr, art, coverSize)
 				})
 

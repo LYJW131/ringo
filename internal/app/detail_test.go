@@ -3,7 +3,9 @@ package app
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,6 +147,66 @@ func TestAlbumAddToLibrary(t *testing.T) {
 	tt.Frame()
 	if _, ok := tt.Find("Added"); !ok {
 		t.Error("a delete the source refused stayed")
+	}
+}
+
+// In a narrow window, the header's buttons all stay in it, Add to Library
+// down to its icon: they ran past the window's edge, which hid the page's
+// menu.
+func TestNarrowHeaderKeepsItsButtons(t *testing.T) {
+	a := albumApp()
+	added := make(chan bool, 1)
+	fake(a).addToLibrary = func(kind, id string, on bool) error { added <- on; return nil }
+	const w = 880
+	tt := ui.NewTester(a.view, w, 580)
+	tt.Frame()
+	for _, label := range []string{"Play", "Shuffle", "Add to Library", "More"} {
+		r, ok := tt.Find(label)
+		if !ok || r.X+r.W > w-pagePad+1 {
+			t.Fatalf("%s at %+v, past the page's edge at %d", label, r, w-pagePad)
+		}
+	}
+	if err := tt.Click("Add to Library"); err != nil {
+		t.Fatal(err)
+	}
+	if !wait(t, added, "the adding") {
+		t.Fatal("deleted, not added")
+	}
+	if err := tt.Click("More"); err != nil {
+		t.Fatal(err)
+	}
+	if len(tt.Menu()) == 0 {
+		t.Error("the page's menu didn't open")
+	}
+}
+
+// A toast shows above the player, which it covered at the foot of the
+// window.
+func TestToastClearsThePlayer(t *testing.T) {
+	a := albumApp()
+	const h = 580
+	tt := ui.NewTester(a.view, 880, h)
+	tt.Frame()
+	a.toast = "Link Copied"
+	tt.Frame()
+	tt.Advance(400 * time.Millisecond)
+	tt.Frame()
+	r, ok := tt.Find("Link Copied")
+	if !ok {
+		t.Fatal("no toast")
+	}
+	if r.Y+r.H > h-playerBarHeight {
+		t.Errorf("toast at %+v, over the player from %d", r, h-playerBarHeight)
+	}
+}
+
+// A page that failed for want of an answer says why without the address it
+// asked, which ran across the page.
+func TestProblemLeavesOutTheAddress(t *testing.T) {
+	a := newTestApp()
+	err := fmt.Errorf("browse: %w", &url.Error{Op: "Get", URL: "https://amp-api.music.apple.com/v1/editorial/cn/groupings?platform=web", Err: errors.New("no such host")})
+	if msg := a.problem(a.library, err, "Couldn't load this page"); strings.Contains(msg, "https://") || !strings.Contains(msg, "no such host") {
+		t.Errorf("says %q", msg)
 	}
 }
 

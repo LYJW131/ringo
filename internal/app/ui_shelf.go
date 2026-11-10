@@ -112,9 +112,7 @@ func (a *app) shelfLayout(c *ui.Context, secs []music.Section, wrap bool) []brow
 				rows = append(rows, browseRow{kind: rowSong, section: s, from: i, to: i})
 			}
 		case music.ShelfLinks:
-			for i := range sec.Items {
-				rows = append(rows, browseRow{kind: rowLink, section: s, from: i, to: i})
-			}
+			cards(rowLink, len(sec.Items), m.linkColumns())
 		case music.ShelfFeatured:
 			if len(sec.Items) > 0 {
 				rows = append(rows, browseRow{kind: rowFeatured, section: s})
@@ -169,7 +167,17 @@ func (a *app) shelfRow(c *ui.Context, secs []music.Section, r browseRow) {
 		tracks := a.sectionTracks(secs, r.section)
 		ui.Box(c).Margin(top, 0, 0, 0).Children(func() { a.trackRow(c, tracks.tracks, r.from, true, "") })
 	case rowLink:
-		a.linkRow(c.Key(r.from), secs, r.section, r.from)
+		cols := m.linkColumns()
+		ui.Row(c).Gap(shelfGap).Margin(0, 12).Children(func() {
+			for i := r.from; i < r.from+cols; i++ {
+				if i < r.to {
+					a.linkRow(c.Key(i), secs, r.section, i).Grow(1).Basis(0).MinWidth(0)
+				} else {
+					// The last row's links keep the columns of those above.
+					ui.Box(c.Key(i)).Grow(1).Basis(0)
+				}
+			}
+		})
 	case rowFeatured:
 		a.featured(c, secs, r.section, top)
 	case rowText:
@@ -242,7 +250,14 @@ func (a *app) shelf(c *ui.Context, secs []music.Section, s int, m shelfMetrics, 
 		_, w = m.fit(heroMin)
 		artTop, artH = heroHead, w*9/16
 	case music.ShelfLive:
-		_, w = m.fit(heroMin)
+		var n int
+		n, w = m.fit(heroMin)
+		if n == 1 {
+			// One to a page would be half the window, and hide that there
+			// are more: as narrow as bricks, a corner of the next showing.
+			n, _ = m.fit(brickMin)
+			w = (m.inner - shelfGap*float32(n)) / (float32(n) + 0.25)
+		}
 		artH = w * 9 / 16
 	case music.ShelfBrick:
 		_, w = m.fit(brickMin)
@@ -545,11 +560,19 @@ func itemColor(it *music.Item, fallback ui.Color) ui.Color {
 
 // hexColor is a color as Apple Music gives it, rrggbb, or fallback.
 func hexColor(s string, fallback ui.Color) ui.Color {
+	if c, ok := hexColorOK(s); ok {
+		return c
+	}
+	return fallback
+}
+
+// hexColorOK is the color s gives, and whether it gives one.
+func hexColorOK(s string) (ui.Color, bool) {
 	v, err := strconv.ParseUint(s, 16, 32)
 	if len(s) != 6 || err != nil {
-		return fallback
+		return ui.Transparent, false
 	}
-	return ui.RGB(uint8(v>>16), uint8(v>>8), uint8(v))
+	return ui.RGB(uint8(v>>16), uint8(v>>8), uint8(v)), true
 }
 
 // wideArt is the size wide pictures are asked for at, the widest shown.
@@ -565,10 +588,22 @@ func (a *app) itemPicture(c *ui.Context, it *music.Item, wide bool, px int, radi
 	bmp := bitmap(a.art.get(sized(url, px), false))
 	box := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(radius)
 	in := artIn(box, bmp)
+	// The picture's own color while it comes; without one, the blank and
+	// what kind of thing goes there.
+	_, colored := hexColorOK(it.Colors.BG)
 	if in < 1 {
-		box.Background(itemColor(it, a.pal.hover))
+		box.Background(itemColor(it, a.pal.blank))
 	}
-	box.Children(func() { artImage(c, bmp, radius, in) })
+	box.Children(func() {
+		if in < 1 && !colored {
+			icon := iconNote
+			if it.Kind == music.ItemArtist {
+				icon = iconUser
+			}
+			a.blankIcon(c, icon, 1-in)
+		}
+		artImage(c, bmp, radius, in)
+	})
 }
 
 // itemButton is the button of an item's card: it opens or plays the item as
@@ -618,8 +653,6 @@ func (a *app) cardLines(c *ui.Context, it *music.Item, center bool) {
 		t := ui.Text(c, it.Title).FontSize(12.5).FontWeight(500).MaxLines(2).LineHeight(1.3).Shrink(1).MinWidth(0)
 		if center {
 			t.TextAlign(ui.Center).MaxLines(1)
-		} else {
-			t.Grow(1)
 		}
 		if it.Explicit {
 			ui.Box(c).Margin(2, 0, 0, 0).Children(func() { a.explicitMark(c) })
@@ -820,12 +853,24 @@ func (a *app) trackCell(c *ui.Context, secs []music.Section, s, i int) {
 	})
 }
 
-// linkRow is a link of a section of links, a line each, with an arrow to
-// where it goes.
-func (a *app) linkRow(c *ui.Context, secs []music.Section, s, i int) {
+// linkColumns is how many columns a section of links takes: a line each
+// would stretch a wide window's links across it.
+func (m shelfMetrics) linkColumns() int {
+	switch {
+	case m.inner < 700:
+		return 1
+	case m.inner < 1100:
+		return 2
+	}
+	return 3
+}
+
+// linkRow is a link of a section of links, a line each in its column, with
+// an arrow to where it goes.
+func (a *app) linkRow(c *ui.Context, secs []music.Section, s, i int) ui.Element {
 	p := a.pal
 	it := &secs[s].Items[i]
-	b := a.itemButton(c, secs, s, i).Row().Height(44).Margin(0, 12).AlignItems(ui.Center).Gap(10).
+	b := a.itemButton(c, secs, s, i).Row().Height(44).AlignItems(ui.Center).Gap(10).
 		BorderWidth(0, 0, 0.5, 0).BorderColor(p.hairline)
 	color := p.text
 	if b.Hovered() {
@@ -842,6 +887,7 @@ func (a *app) linkRow(c *ui.Context, secs []music.Section, s, i int) {
 		}
 		ui.Icon(c, icon).Size(14, 14).TextColor(p.muted)
 	})
+	return b
 }
 
 // featured is one item shown large: its picture, and beside it what it is,

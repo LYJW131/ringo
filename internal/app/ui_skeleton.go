@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"mygo-music/internal/music"
 )
 
 // Skeletons stand in for what is loading: gray blocks in its shape, which
@@ -127,6 +129,49 @@ func (a *app) shelfSkeleton(c *ui.Context, s shimmer) {
 	})
 }
 
+// librarySkeleton is a page of the listener's library, id, while it loads:
+// its songs in rows, or its cards in a grid, without a title over them, as
+// the page has none.
+func (a *app) librarySkeleton(c *ui.Context, s shimmer, id string) {
+	if id == music.PageLibrarySongs {
+		_, h := c.Size()
+		for i := range max(8, int(h/54)) {
+			a.trackRowSkeleton(c.Key(i), s, i, true)
+		}
+		return
+	}
+	// As shelfGrid lays out the cards, squareCard and circleCard their
+	// pictures and cardLines their words: an artist's name alone, under
+	// their round picture.
+	artists := id == music.PageLibraryArtist
+	min, gap, align := float32(squareMin), float32(7), ui.Start
+	if artists {
+		min, gap, align = circleMin, 8, ui.Center
+	}
+	n, w := a.shelfMetrics(c).fit(min)
+	round := float32(artRadius)
+	if artists {
+		round = w / 2
+	}
+	ui.Column(c.Key("library-skeleton")).Children(func() {
+		for row := range 2 {
+			ui.Row(c.Key(row)).Gap(shelfGap).AlignItems(ui.Start).Margin(0, 12, 24, 12).Children(func() {
+				for i := range n {
+					ui.Column(c.Key(i)).Width(w).Gap(gap).AlignItems(align).Children(func() {
+						s.bone(c, round).Size(w, w)
+						ui.Column(c).Gap(1).Width(w).AlignItems(align).Children(func() {
+							s.text(c, 12.5, 1.3).WidthPercent(boneWidth(i + row))
+							if !artists {
+								s.text(c, 12, 1.3).WidthPercent(boneWidth(i+row+4) * 0.7)
+							}
+						})
+					})
+				}
+			})
+		}
+	})
+}
+
 // playlistCardsSkeleton is n of playlistCard's cards, in columns at least
 // min DIPs wide, with a line for how often they update if freq.
 func (a *app) playlistCardsSkeleton(c *ui.Context, s shimmer, n int, min float32, freq bool) {
@@ -149,30 +194,64 @@ func (a *app) playlistCardsSkeleton(c *ui.Context, s shimmer, n int, min float32
 // trackSkeleton is trackRows while its tracks load: rows of blocks under
 // the header, which may hold blocks of its own.
 func (a *app) trackSkeleton(c *ui.Context, s shimmer, covers bool, header func(c *ui.Context)) {
-	w, h := c.Size()
-	wide := w-sidebarWidth > 820
+	_, h := c.Size()
+	a.rowsSkeleton(c, header, func() {
+		for i := range max(8, int(h/54)) {
+			a.trackRowSkeleton(c.Key(i), s, i, covers)
+		}
+	})
+}
+
+// rowsSkeleton is a page of rows while they load, rows under header.
+func (a *app) rowsSkeleton(c *ui.Context, header func(c *ui.Context), rows func()) {
 	top, bottom := a.insets(c)
 	a.underTop, a.underBottom = false, true
 	ui.Column(c.Key("skeleton")).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).Children(func() {
 		a.startMark(c)
 		header(c)
-		for i := range max(8, int(h/54)) {
-			ui.Row(c.Key(i)).Height(54).Shrink(0).PaddingX(12).Gap(14).AlignItems(ui.Center).Children(func() {
-				ui.Box(c).Width(26).Center().Children(func() { s.text(c, 13, 1.3).Width(12) })
-				if covers {
-					s.bone(c, 6).Size(38, 38)
-				}
-				ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
-					s.text(c, 14, 1.3).WidthPercent(boneWidth(i) * 0.8)
-					s.text(c, 12.5, 1.3).WidthPercent(boneWidth(i+5) * 0.55)
+		rows()
+	})
+}
+
+// trackRowSkeleton is trackRow's row i while it loads.
+func (a *app) trackRowSkeleton(c *ui.Context, s shimmer, i int, covers bool) {
+	w, _ := c.Size()
+	wide := w-sidebarWidth > 820
+	ui.Row(c).Height(54).Shrink(0).PaddingX(12).Gap(14).AlignItems(ui.Center).Children(func() {
+		ui.Box(c).Width(26).Center().Children(func() { s.text(c, 13, 1.3).Width(12) })
+		if covers {
+			s.bone(c, 6).Size(38, 38)
+		}
+		ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
+			s.text(c, 14, 1.3).WidthPercent(boneWidth(i) * 0.8)
+			s.text(c, 12.5, 1.3).WidthPercent(boneWidth(i+5) * 0.55)
+		})
+		if wide {
+			ui.Box(c).Grow(2).Basis(0).MinWidth(0).Children(func() {
+				s.text(c, 12.5, 1.3).WidthPercent(boneWidth(i+3) * 0.8)
+			})
+		}
+		ui.Box(c).Size(32, 32)
+		ui.Row(c).Width(44).Justify(ui.End).Children(func() { s.text(c, 12.5, 1.3).Width(30) })
+	})
+}
+
+// albumSkeleton is an album's page while it loads: its header, and its songs
+// in albumTrackRow's rows of a line each. Most albums are of one disc, whose
+// songs have no title over them.
+func (a *app) albumSkeleton(c *ui.Context, s shimmer) {
+	_, h := c.Size()
+	a.rowsSkeleton(c, func(c *ui.Context) { a.playlistHeaderSkeleton(c, s) }, func() {
+		for i := range max(10, int(h/44)) {
+			ui.Row(c.Key(i)).Height(44).Shrink(0).Margin(0, 12).PaddingX(8).Gap(10).AlignItems(ui.Center).Children(func() {
+				ui.Box(c).Width(12)
+				ui.Box(c).Width(24).Center().Children(func() { s.text(c, 13, 1.3).Width(10) })
+				ui.Box(c).Grow(3).Basis(0).MinWidth(0).Children(func() {
+					s.text(c, 13.5, 1.3).WidthPercent(boneWidth(i) * 0.6)
 				})
-				if wide {
-					ui.Box(c).Grow(2).Basis(0).MinWidth(0).Children(func() {
-						s.text(c, 12.5, 1.3).WidthPercent(boneWidth(i+3) * 0.8)
-					})
-				}
-				ui.Box(c).Size(32, 32)
-				ui.Row(c).Width(44).Justify(ui.End).Children(func() { s.text(c, 12.5, 1.3).Width(30) })
+				ui.Box(c).Size(30, 30)
+				ui.Row(c).Width(44).Justify(ui.End).Children(func() { s.text(c, 13, 1.3).Width(30) })
+				ui.Box(c).Width(24)
 			})
 		}
 	})

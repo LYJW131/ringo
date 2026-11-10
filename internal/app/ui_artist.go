@@ -128,8 +128,12 @@ func (a *app) artistPage(c *ui.Context) {
 			a.centered(c, d.err, func() { a.loadArtist(lib, id) })
 			return
 		}
+		// Most artists' pages are of shelves.
 		s := a.pageShimmer(c)
-		a.trackSkeleton(c, s, true, func(c *ui.Context) { a.artistHeaderSkeleton(c, s) })
+		a.scrollPage(c, func() {
+			a.artistHeaderSkeleton(c, s)
+			a.shelfSkeleton(c, s)
+		})
 		return
 	}
 	if len(d.secs) == 0 {
@@ -245,7 +249,7 @@ func (a *app) artistHeader(c *ui.Context, lib *library, d *artistData) {
 		ui.Column(c).AlignItems(ui.Center).Gap(14).Margin(8, 12, 30, 12).Children(func() {
 			ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).
 				ContextMenu(a.artistItems(lib, *ar)).Children(func() {
-				a.coverFill(c, ar.ImageURL, 600, artistPhotoSize/2)
+				a.coverFillWith(c, ar.ImageURL, 600, artistPhotoSize/2, iconUser)
 			})
 			ui.Text(c, ar.Name).FontSize(34).FontWeight(800).LetterSpacing(-0.8).MaxLines(2).TextAlign(ui.Center)
 			ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() { a.artistButtons(c, lib, d, p.muted) })
@@ -424,7 +428,7 @@ func (a *app) artistListsHeader(c *ui.Context, d *artistData) {
 	ar := &d.page.Artist
 	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 8, 0).Children(func() {
 		ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
-			a.coverFill(c, ar.ImageURL, 600, artistPhotoSize/2)
+			a.coverFillWith(c, ar.ImageURL, 600, artistPhotoSize/2, iconUser)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 			ui.Text(c, ar.Name).FontSize(30).FontWeight(800).LetterSpacing(-0.6).MaxLines(2).LineHeight(1.2)
@@ -460,7 +464,7 @@ func (a *app) artistListsHeader(c *ui.Context, d *artistData) {
 }
 
 func (a *app) artistHeaderSkeleton(c *ui.Context, s shimmer) {
-	ui.Column(c).AlignItems(ui.Center).Gap(14).Margin(8, 12, 12, 12).Children(func() {
+	ui.Column(c).AlignItems(ui.Center).Gap(14).Margin(8, 12, 30, 12).Children(func() {
 		s.bone(c, artistPhotoSize/2).Size(artistPhotoSize, artistPhotoSize)
 		s.text(c, 34, 1.2).Width(220)
 		s.bone(c, 22).Size(44, 44)

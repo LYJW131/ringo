@@ -79,8 +79,71 @@ func (a *app) view(c *ui.Context) {
 		c.Toast(a.toast)
 		a.toast = ""
 	}
+	a.toasts(c, !npOpen)
 	a.askLikes()
 	a.syncWindows()
+}
+
+// toastWidth is how wide a toast goes at most, its words taking two lines
+// beyond.
+const toastWidth = 480
+
+// toastFade is how long a toast takes to fade in and out, as MyGo's own.
+const toastFade = 200 * time.Millisecond
+
+// toasts shows the window's toasts as MyGo would, but above the player,
+// which they'd cover, and over the pages if the sidebar shows, not across
+// it.
+func (a *app) toasts(c *ui.Context, sidebar bool) {
+	t := c.Theme()
+	fill, text := t.Inverse, t.InverseText
+	if fill == ui.Transparent {
+		fill = t.Text
+	}
+	if text == ui.Transparent {
+		text = t.Background
+	}
+	ui.ToastViewportBase(c, func(viewport ui.Element, toasts []ui.Toast) {
+		left := float32(0)
+		if sidebar {
+			left = sidebarWidth
+		}
+		viewport.Padding(0, 16, playerBarHeight+12, left+16).AlignItems(ui.Center).Gap(t.Space(2))
+		held := viewport.Hovered()
+		for _, ts := range toasts {
+			p := ui.ToastBase(c, ts)
+			box := p.Root.Row().AlignItems(ui.Center).Gap(t.Space(4)).Padding(t.Space(2.5), t.Space(4)).Radius(t.Space(2)).
+				MaxWidth(toastWidth).Background(fill).TextColor(text).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.25))
+			// It fades in, and out at the end, as MyGo's does; its age is
+			// what its time leaves of the four seconds of a plain one.
+			life := ts.Timeout
+			if life == 0 {
+				life = 4 * time.Second
+			}
+			left, age := p.Left(), time.Duration(0)
+			if left > 0 {
+				age = life - left
+			} else {
+				age = toastFade
+			}
+			opacity := float32(1)
+			switch {
+			case held:
+			case age < toastFade:
+				opacity = float32(age) / float32(toastFade)
+				c.AnimationFrame()
+			case left > 0 && left < toastFade:
+				opacity = float32(left) / float32(toastFade)
+				c.AnimationFrame()
+			case left > 0:
+				c.After(left - toastFade)
+			}
+			box.Opacity(opacity)
+			box.Children(func() {
+				ui.Text(c, ts.Title).MaxLines(2).Shrink(1).MinWidth(0)
+			})
+		}
+	})
 }
 
 func (a *app) shortcuts(c *ui.Context) {
@@ -340,9 +403,15 @@ func (a *app) content(c *ui.Context) {
 // listener to sign in or set it up, it offers that.
 func (a *app) centered(c *ui.Context, err string, retry func()) {
 	top, bottom := a.insets(c)
-	ui.Column(c).Grow(1).Padding(top, 0, bottom, 0).Center().Gap(12).Children(func() {
+	a.failure(ui.Column(c).Grow(1).Padding(top, 0, bottom, 0).Center(), c, err, retry)
+}
+
+// failure fills col with what centered shows: the message, and the buttons
+// that may put it right.
+func (a *app) failure(col ui.Element, c *ui.Context, err string, retry func()) {
+	col.Gap(12).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, err).TextColor(a.pal.muted).FontSize(13).TextAlign(ui.Center).MaxWidth(520)
-		ui.Row(c).Gap(10).Children(func() {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			a.remedy(c)
 			if retry != nil && ui.Button(c.Key("retry"), T("Try Again")).Clicked() {
 				retry()
@@ -355,9 +424,11 @@ func (a *app) centered(c *ui.Context, err string, retry func()) {
 // fixed, if it said one.
 func (a *app) remedy(c *ui.Context) {
 	lib := a.library
+	p := a.pal
 	switch {
 	case lib.needsSignIn && lib.signedOut():
-		if ui.PrimaryButton(c.Key("sign-in"), T("Sign In")).Clicked() {
+		// As Home's own, which says the same.
+		if pillButton(c.Key("sign-in"), iconUser, T("Sign In"), p.accent, p.onAccent).Clicked() {
 			a.promptSignIn(lib)
 		}
 	case lib.needsSetup:

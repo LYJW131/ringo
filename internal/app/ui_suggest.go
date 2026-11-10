@@ -74,14 +74,16 @@ func (a *app) searchField(c *ui.Context) {
 		clearable := a.query != "" || a.searched.query != "" && a.searched.src == a.id
 		end := float32(10)
 		if clearable {
-			end = 28
+			end = 2
 		}
 		cb := ui.ComboboxBase(c.Key("search"), &a.query)
 		in := cb.Input.Bind(&a.searchBox).Grow(1).MinWidth(0).PaddingStart(31).PaddingEnd(end).
 			Placeholder(T("Search")).FontSize(13).Label(T("Search"))
 		ui.Icon(c, iconSearch).Size(14, 14).TextColor(p.muted).Absolute().Left(10).Top(8).IgnoreInput(true)
 		if clearable {
-			x := ui.ButtonBase(c.Key("clear-search")).Size(22, 22).Center().Absolute().Right(4).Top(4).
+			// Beside the input rather than over it: a long query, out of
+			// focus, runs to the input's edge whatever its padding.
+			x := ui.ButtonBase(c.Key("clear-search")).Size(22, 22).Shrink(0).Center().AlignSelf(ui.Center).Margin(0, 4, 0, 0).
 				KeepFocus().FocusRing(false).Label(T("Clear"))
 			fill := p.faint
 			if x.Hovered() {

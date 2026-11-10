@@ -67,7 +67,9 @@ func (a *app) sidebar(c *ui.Context) {
 			a.searchField(c)
 		}
 
-		ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(2).Children(func() {
+		nav := ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(2)
+		a.navFade(nav)
+		nav.Children(func() {
 			for _, n := range a.storeItems() {
 				a.navItem(c, n.icon, n.label, n.route)
 			}
@@ -87,6 +89,32 @@ func (a *app) sidebar(c *ui.Context) {
 
 		a.accountRow(c)
 	})
+}
+
+// navFadeHeight is how far the sidebar's list fades out at an edge it is
+// scrolled away from.
+const navFadeHeight = 12
+
+// navFade fades nav, the sidebar's list, out at its edges where there is
+// more of it beyond, rather than cut a row in half there.
+func (a *app) navFade(nav ui.Element) {
+	st := &a.navScroll
+	h := nav.Bounds().H
+	if h <= 2*navFadeHeight || st.MaxY <= 0.5 {
+		return
+	}
+	black := ui.RGB(0, 0, 0)
+	edge := navFadeHeight / h
+	top, bottom := black, black
+	if st.Y > 0.5 {
+		top = ui.Transparent
+	}
+	if st.Y < st.MaxY-0.5 {
+		bottom = ui.Transparent
+	}
+	nav.MaskLinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
+		{Color: top, At: 0}, {Color: black, At: edge}, {Color: black, At: 1 - edge}, {Color: bottom, At: 1},
+	}})
 }
 
 func (a *app) navItem(c *ui.Context, icon *ui.SVG, label string, r route) {
@@ -179,7 +207,9 @@ func (a *app) playlistRows(c *ui.Context, lists []music.Playlist, mine bool) {
 			continue
 		}
 		selected := a.route.page == pagePlaylist && a.route.id == pl.ID && !a.nowPlaying
-		b := ui.ButtonBase(c.Key(pl.ID)).Height(32).PaddingX(8).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(pl.Name)
+		// Its name starts where the pages' names above do: 8+22+7 is
+		// navItem's 10+17+10.
+		b := ui.ButtonBase(c.Key(pl.ID)).Height(32).PaddingX(8).Gap(7).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(pl.Name)
 		switch {
 		case selected:
 			b.Background(p.press)

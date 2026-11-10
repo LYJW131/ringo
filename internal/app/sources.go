@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"log"
+	"net/url"
 	"time"
 
 	"mygo-music/internal/i18n"
@@ -232,6 +233,12 @@ func (a *app) problem(lib *library, err error, msg string) string {
 		return Tf("%s needs setting up first", lib.name())
 	case errors.Is(err, music.ErrUnsupported):
 		return msg
+	}
+	// A request that never got an answer says the whole address it went
+	// to, which the log above keeps: the listener reads why alone.
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		err = ue.Err
 	}
 	return msg + ": " + err.Error()
 }

@@ -20,6 +20,7 @@ type palette struct {
 	hairline  ui.Color
 	hover     ui.Color
 	press     ui.Color
+	blank     ui.Color // where a picture hasn't come or there is none
 	accent    ui.Color
 	onAccent  ui.Color
 	cardShade ui.Color
@@ -49,6 +50,7 @@ func paletteFor(t *ui.Theme) palette {
 			hairline:  ui.RGBA(255, 255, 255, 0.07),
 			hover:     ui.RGBA(255, 255, 255, 0.06),
 			press:     ui.RGBA(255, 255, 255, 0.1),
+			blank:     ui.RGBA(255, 255, 255, 0.1),
 			accent:    ui.Oklch(0.66, 0.2, 14),
 			onAccent:  ui.Hex("#ffffff"),
 			cardShade: ui.RGBA(0, 0, 0, 0.45),
@@ -63,6 +65,7 @@ func paletteFor(t *ui.Theme) palette {
 		hairline:  ui.RGBA(0, 0, 0, 0.07),
 		hover:     ui.RGBA(0, 0, 0, 0.04),
 		press:     ui.RGBA(0, 0, 0, 0.08),
+		blank:     ui.RGBA(0, 0, 0, 0.075),
 		accent:    ui.Oklch(0.57, 0.215, 14),
 		onAccent:  ui.Hex("#ffffff"),
 		cardShade: ui.RGBA(0, 0, 0, 0.16),
@@ -146,6 +149,16 @@ func pillButton(c *ui.Context, icon *ui.SVG, label string, bg, fg ui.Color) ui.E
 	return b
 }
 
+// pillWidth is how wide pillButton draws label, with an icon if icon.
+func pillWidth(c *ui.Context, label string, icon bool) float32 {
+	w, _ := c.MeasureText(0, ui.Span{Text: label, Size: 14, Weight: 600})
+	w += 2 * 18
+	if icon {
+		w += 14 + 8
+	}
+	return w
+}
+
 // cover shows an artwork, or a placeholder of the same size while it loads.
 func (a *app) cover(c *ui.Context, url string, px int, size, radius float32) ui.Element {
 	p := a.pal
@@ -176,7 +189,7 @@ func bitmap(art *artwork) *ui.Bitmap {
 var artFade = ui.Animation{Duration: 320 * time.Millisecond}
 
 // artIn returns how far bmp has faded in on el, the element that shows it
-// or its placeholder: over a moment once it loads while el shows, and at
+// or its blank: over a moment once it loads while el shows, and at
 // once if it was ready as el first showed.
 func artIn(el ui.Element, bmp *ui.Bitmap) float32 {
 	if bmp == nil {

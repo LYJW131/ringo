@@ -20,10 +20,12 @@ var appleMusicChinese = map[string]string{
 	"New|Apple Music":                                  "新发现",
 	"No such page":                                     "没有这个页面",
 	"Only songs in the Apple Music catalog play":       "只能播放 Apple Music 曲库里的歌曲",
+	"Personal mixes you add will appear here.":         "你添加的个人精选将显示在此处。",
 	"Radio|Apple Music":                                "广播",
 	"Recently Added":                                   "最近添加",
 	"Set the Wrapper Address too, to sign in with an account the wrapper holds":     "要用 wrapper 里的账户登录，还需要设置 Wrapper 地址",
 	"That isn't a media-user-token: paste the value of the media-user-token cookie": "这不是 media-user-token：请粘贴 Cookie 中 media-user-token 的值",
+	"There are no items in your library.":                                           "你的资料库中没有任何项目。",
 	"This song isn't available in your country or region":                           "你所在的国家或地区不提供这首歌",
 	"Your Station": "你的电台",
 }
