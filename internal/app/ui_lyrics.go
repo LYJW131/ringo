@@ -291,7 +291,7 @@ func (a *app) lyricLine(c *ui.Context, lines []lyrics.Line, i int, pos time.Dura
 				// light crossing it word for word; its translation is to read,
 				// and stays as it is.
 				if said := ty.said[i]; said != nil {
-					a.sungText(c.Key("said"), said, on, false).Opacity(0.72).Margin(2, 0, 0, 0)
+					a.sungText(c.Key("said"), said, on, false)
 				} else if under := a.under(l); under != "" && ty.extra == extraTranslation {
 					ui.Text(c.Key("under"), under).FontSize(17).FontWeight(600).TextColor(white.Alpha(0.7)).TextAlign(side).Margin(2, 0, 0, 0)
 				}

@@ -96,9 +96,10 @@ func (ty *lyricType) set(lines []lyrics.Line, width float32, st linesStyle, extr
 	}
 	main := ui.Font{Size: st.size, Weight: st.weight, Lang: ty.lang, LineHeight: st.lineHeight}
 	small := ui.Font{Size: float32(math.Round(float64(st.size) * 0.6)), Weight: 700, Lang: ty.lang, LineHeight: 1.3}
-	// How a line is said is in the app's own font, as its translation is,
-	// and as large: Latin letters, whatever the lyrics are written in.
-	under := ui.Font{Size: float32(math.Round(float64(st.size) * 0.57)), Weight: 600, LineHeight: 1.3}
+	// How a line is said is set as Music sets it: half the line's size,
+	// bold and as white as the line, close under it, as a part of it. In
+	// the app's own font: Latin letters, whatever the lyrics are written in.
+	under := ui.Font{Size: float32(math.Round(float64(st.size) * 0.5)), Weight: 700, LineHeight: 1.25}
 	ty.lines, ty.behind, ty.said = make([]*lyricText, len(lines)), make([]*lyricText, len(lines)), make([]*lyricText, len(lines))
 	for i := range lines {
 		l := &lines[i]
