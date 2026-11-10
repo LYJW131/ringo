@@ -84,6 +84,7 @@ var ringoChinese = map[string]string{
 	"Popular Track":                     "热门曲目",
 	"Previous Page":                     "上一页",
 	"Profile":                           "个人资料",
+	"Record Label":                      "唱片公司",
 	"Recently Searched":                 "最近搜索",
 	"Removed from Favorites":            "已取消收藏",
 	"Saturday":                          "周六",

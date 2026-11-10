@@ -265,7 +265,33 @@ func (a *app) albumFoot(c *ui.Context, page *music.AlbumPage) {
 		if al.Copyright != "" {
 			ui.Text(c, al.Copyright).FontSize(12.5).TextColor(p.muted)
 		}
+		if al.Label != "" {
+			a.albumLabel(c, al)
+		}
 	})
+}
+
+// albumLabel is who released an album, under its copyright as in Music:
+// a heading, and the label's name, which opens its page if it has one.
+func (a *app) albumLabel(c *ui.Context, al *music.Album) {
+	p := a.pal
+	ui.Text(c, T("Record Label")).FontSize(11.5).FontWeight(600).TextColor(p.muted).Margin(14, 0, 0, 0)
+	if al.LabelPage == "" {
+		ui.Text(c, al.Label).FontSize(12.5).TextColor(p.text)
+		return
+	}
+	b := ui.ButtonBase(c.Key("label")).AlignSelf(ui.Start).Gap(2).AlignItems(ui.Center).FocusRing(false).Label(al.Label)
+	color := p.accent
+	if b.Hovered() {
+		color = p.accent.Mix(p.text, 0.3)
+	}
+	b.Children(func() {
+		ui.Text(c, al.Label).FontSize(12.5).TextColor(color)
+		ui.Icon(c, iconForward).Size(11, 11).TextColor(color)
+	})
+	if b.Clicked() {
+		a.open(route{page: pageBrowse, id: al.LabelPage})
+	}
 }
 
 // albumComplete is the bar under an album of the listener's library that

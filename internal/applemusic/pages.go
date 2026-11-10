@@ -176,8 +176,11 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 	s.prefetch(songs, nil)
 	a := s.toAlbum(item)
 	a.Saved, a.Favorite = own != nil, favorite
-	if labels := b.all(item.related("record-labels").Data); a.Label == "" && len(labels) > 0 {
-		a.Label = labels[0].attrs().Name
+	// Music names the label as the label's page does, not as the album's
+	// line of who released it may: of Fantasy, in China, that line says
+	// JVR MUSIC INTERNATIONAL LTD., and Music the label's Chinese name.
+	if labels := b.all(item.related("record-labels").Data); len(labels) > 0 {
+		a.Label, a.LabelPage = cmp.Or(labels[0].attrs().Name, a.Label), "label:"+labels[0].ID
 	}
 	return &music.AlbumPage{Album: a, Tracks: songs, Sections: s.albumSections(b, item)}, nil
 }
@@ -233,6 +236,41 @@ func (s *Source) viewPage(typ, id, view, next string) (*music.Browse, error) {
 		out.Next = prefix + "|" + v.Next
 	}
 	s.listed(songItems(items), nil)
+	return out, nil
+}
+
+// The shelves of a record label's page, in the order Music's has them.
+var labelViews = []struct{ name, style string }{
+	{"top-releases", music.ShelfSquare},
+	{"latest-releases", music.ShelfSquare},
+}
+
+// recordLabel is a record label's page: its banner, its name and what it
+// says of itself, and its releases.
+func (s *Source) recordLabel(id string) (*music.Browse, error) {
+	var views []string
+	for _, v := range labelViews {
+		views = append(views, v.name)
+	}
+	b, err := s.catalog("/record-labels/"+id, s.mapped(params{"views": strings.Join(views, ","), "extend": "editorialArtwork", "art[url]": "f"}))
+	if err != nil {
+		return nil, err
+	}
+	item, err := first(b)
+	if err != nil {
+		return nil, err
+	}
+	if item = b.get(item); item == nil {
+		return nil, fail("unavailable", i18n.T("Apple Music doesn't have this"))
+	}
+	a := item.attrs()
+	out := &music.Browse{Title: a.Name, Description: plain(a.Description.long())}
+	if u, w := wide(a, "bannerUber"); u != "" {
+		out.WideURL, out.Colors = u, colors(w)
+	} else {
+		out.ImageURL = art(a.Artwork)
+	}
+	out.Sections = s.pageSections(b, "record-labels", item, labelViews)
 	return out, nil
 }
 

@@ -20,6 +20,7 @@ func speakNow() *music.AlbumPage {
 	ts := music.Artist{ID: "159260351", Name: "Taylor Swift", URL: "https://music.apple.com/cn/artist/159260351"}
 	al := music.Album{ID: "1440755169", Name: "Speak Now", Artists: []music.Artist{ts}, ImageURL: "cover:1",
 		Released: "2010-01-01", Genre: "Pop", Copyright: "℗ 2010 Taylor Swift", TrackCount: 6,
+		Label: "Big Machine Records", LabelPage: "label:1",
 		Traits: music.Traits{Lossless: true, DigitalMaster: true}, Colors: music.Colors{BG: "2b1a14", Text1: "f7e9e1"},
 		Notes: "Taylor Swift's third album is named for its songs' theme: things she should have said, and now says.\nIt was going to be called Enchanted.",
 		URL:   "https://music.apple.com/cn/album/1440755169"}
@@ -126,6 +127,21 @@ func TestAlbumRowsByDisc(t *testing.T) {
 	}
 }
 
+// The label under an album's copyright opens the label's page.
+func TestAlbumLabelOpensItsPage(t *testing.T) {
+	a := albumApp()
+	fake(a).browse = func(string) (*music.Browse, error) { return nil, errors.New("not now") }
+	tt := ui.NewTester(a.view, 1180, 900)
+	tt.Frame()
+	if err := tt.Click("Big Machine Records"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.route.page != pageBrowse || a.route.id != "label:1" {
+		t.Fatalf("opened %+v", a.route)
+	}
+}
+
 // An album of the library with some of its songs has Show Complete Album
 // after them, which opens the whole album; one with all of them hasn't.
 func TestShowCompleteAlbum(t *testing.T) {
@@ -136,7 +152,7 @@ func TestShowCompleteAlbum(t *testing.T) {
 	delete(a.albums, "1440755169")
 	a.route = route{page: pageAlbum, src: "fake", id: "l.part"}
 	fake(a).album = func(string) (*music.AlbumPage, error) { return nil, errors.New("not now") }
-	tt := ui.NewTester(a.view, 1180, 900)
+	tt := ui.NewTester(a.view, 1180, 1200)
 	tt.Frame()
 	if err := tt.Click(T("Show Complete Album")); err != nil {
 		t.Fatal(err)
@@ -607,7 +623,11 @@ func TestDetailFrames(t *testing.T) {
 			a := c.app()
 			shelfArt(a)
 			h := 1000
-			if c.name != "playlist" && !strings.HasPrefix(c.name, "album") {
+			switch {
+			case strings.HasPrefix(c.name, "album"):
+				// Down to the shelves, past the foot.
+				h = 1200
+			case c.name != "playlist":
 				// Down to the artist's biography.
 				h = 1700
 			}

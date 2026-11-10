@@ -59,7 +59,9 @@ type Album struct {
 	Genre   string `json:"genre,omitempty"`
 	// Label and Copyright are as the album's page ends: who released it,
 	// and the line that starts with ℗.
-	Label      string `json:"label,omitempty"`
+	Label string `json:"label,omitempty"`
+	// LabelPage is the Browse page of the record label, if it has one.
+	LabelPage  string `json:"labelPage,omitempty"`
 	Copyright  string `json:"copyright,omitempty"`
 	TrackCount int    `json:"trackCount,omitempty"`
 	Single     bool   `json:"single,omitempty"`
