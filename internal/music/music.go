@@ -1,6 +1,6 @@
 // Package music is what the player and its views know of music: tracks,
-// albums and the like, whichever source they came from, and what a source
-// has to do. Sources are plugins: see internal/plugin.
+// albums and the like, and what the source of them has to do. The one source
+// is internal/applemusic.
 package music
 
 import (

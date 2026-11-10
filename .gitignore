@@ -3,5 +3,3 @@
 mygo_windows_*.syso
 /ringo
 /node_modules/
-# The Apple Music plugin, fetched by go run ./scripts/plugin
-/resources/*/apple-music.zip

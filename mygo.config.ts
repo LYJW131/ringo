@@ -1,6 +1,5 @@
 // The configuration of the app, which `mygo dev` and `mygo build` evaluate with
-// Bun. The Apple Music plugin the apps ship with is in resources/<platform>,
-// where `go run ./scripts/plugin` puts it.
+// Bun.
 export default () => ({
   name: "Ringo",
   identifier: "io.github.lyjw131.ringo",

@@ -15,7 +15,7 @@ import (
 )
 
 // Agent is who the app says it is when fetching what it plays and shows.
-const Agent = "MyGoMusic/1.0"
+const Agent = "Ringo/1.0"
 
 // fetchClient gets covers: they're small, and a slow one shouldn't hold a
 // slot for long.
