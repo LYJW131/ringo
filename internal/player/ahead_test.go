@@ -53,11 +53,11 @@ func servedQueue(t *testing.T, ids ...string) (*Player, chan func(), *served, []
 	ch := make(chan func(), 64)
 	p := New(func(fn func()) { ch <- fn })
 	p.SetVolume(0)
-	p.Source = func(string) music.Source { return src }
+	p.Source = src
 	t.Cleanup(p.stop)
 	var q []music.Track
 	for _, id := range ids {
-		q = append(q, music.Track{ID: id, Source: "s"})
+		q = append(q, music.Track{ID: id})
 	}
 	return p, ch, src, q
 }

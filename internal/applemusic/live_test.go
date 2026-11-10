@@ -33,6 +33,28 @@ func sections(b *music.Browse) string {
 	return strings.Join(out, ", ")
 }
 
+// searchFor is what of kind Apple Music's search finds for term, as its
+// page lists it, and fails the test if it finds none.
+func searchFor(t *testing.T, s *Source, term, kind string) []music.Item {
+	t.Helper()
+	b, err := s.Browse(music.PageSearch + term)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []music.Item
+	for _, sec := range b.Sections {
+		for _, it := range sec.Items {
+			if it.Kind == kind {
+				out = append(out, it)
+			}
+		}
+	}
+	if len(out) == 0 {
+		t.Fatalf("no %s found for %q", kind, term)
+	}
+	return out
+}
+
 func TestLiveSignedOut(t *testing.T) {
 	if os.Getenv("LIVE") != "1" {
 		t.Skip("LIVE=1 asks the real Apple Music")
@@ -46,51 +68,30 @@ func TestLiveSignedOut(t *testing.T) {
 		}
 	}
 
-	songs, err := s.Search("MyGO!!!!! 迷星叫", music.SearchTracks, 0)
-	must(err)
-	if len(songs.Tracks) == 0 {
-		t.Fatal("no songs")
-	}
-	song := songs.Tracks[0]
+	songs := searchFor(t, s, "MyGO!!!!! 迷星叫", music.ItemSong)
+	song := *songs[0].Track
 	t.Logf("song: %s %s / %s / %s %s", song.ID, song.Name, song.Artists[0].Name, song.Album.Name, song.Album.ImageURL)
-	next, err := s.Search("MyGO!!!!!", music.SearchTracks, 25)
-	must(err)
-	t.Logf("page 2: %d more %v", len(next.Tracks), next.More)
 
-	albums, err := s.Search("MyGO!!!!!", music.SearchAlbums, 0)
-	must(err)
-	album, err := s.Album(albums.Albums[0].ID)
+	albums := searchFor(t, s, "MyGO!!!!!", music.ItemAlbum)
+	album, err := s.Album(albums[0].ID)
 	must(err)
 	t.Logf("album: %s, %d tracks", album.Album.Name, len(album.Tracks))
 	if len(album.Tracks) == 0 {
 		t.Error("an album without tracks")
 	}
 
-	artists, err := s.Search("MyGO!!!!!", music.SearchArtists, 0)
-	must(err)
-	artist, err := s.Artist(artists.Artists[0].ID)
+	artists := searchFor(t, s, "MyGO!!!!!", music.ItemArtist)
+	artist, err := s.Artist(artists[0].ID)
 	must(err)
 	t.Logf("artist: %s, %d top songs, %d albums", artist.Artist.Name, len(artist.Tracks), len(artist.Albums))
 	byName, err := s.Artist(song.Album.Artists[0].ID)
 	must(err)
 	t.Logf("artist by name: %s", byName.Artist.Name)
 
-	lists, err := s.Search("anime", music.SearchPlaylists, 0)
-	must(err)
-	list, err := s.Playlist(lists.Playlists[0].ID)
+	lists := searchFor(t, s, "anime", music.ItemPlaylist)
+	list, err := s.Playlist(lists[0].ID)
 	must(err)
 	t.Logf("playlist: %s, %d tracks", list.Name, len(list.Tracks))
-
-	fromLink, err := s.Search("https://music.apple.com/jp/album/x/1783644603?i=1783644604", music.SearchTracks, 0)
-	must(err)
-	var names []string
-	for _, tr := range fromLink.Tracks {
-		names = append(names, tr.Name)
-	}
-	t.Logf("link: %q", names)
-	if len(names) != 1 {
-		t.Error("the link isn't one song")
-	}
 
 	suggest, err := s.Suggest("mygo")
 	must(err)
@@ -185,13 +186,6 @@ func TestLiveSignedIn(t *testing.T) {
 		return fmt.Sprintf("%d tracks, more %v", len(r.Tracks), r.More), nil
 	})
 	step("isLiked", func() (string, error) { r, err := s.IsLiked([]string{id}); return fmt.Sprint(r), err })
-	step("savedAlbums", func() (string, error) {
-		r, err := s.SavedAlbums(0)
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprint(len(r.Albums), " albums"), nil
-	})
 	step("playlists", func() (string, error) {
 		p, err := s.Playlists()
 		if err != nil {
@@ -207,17 +201,8 @@ func TestLiveSignedIn(t *testing.T) {
 		}
 		return out, nil
 	})
-	step("stations", func() (string, error) {
-		st, err := s.Stations()
-		if err != nil || len(st) == 0 {
-			return "no station", err
-		}
-		// A station's next songs are asked for with a POST, which this test,
-		// run with an account it only reads, doesn't send: TestLiveWrites does.
-		return fmt.Sprint(len(st), " stations"), nil
-	})
 	step("home", func() (string, error) { h, err := s.Home(); return sectionsOr(h), err })
-	step("recentlyAdded", func() (string, error) { h, err := s.Browse("recentlyAdded"); return sectionsOr(h), err })
+	step("recentlyAdded", func() (string, error) { h, err := s.Browse(music.PageRecentlyAdded); return sectionsOr(h), err })
 	// Nothing is reported as played: the test leaves the account's listening
 	// history as it found it.
 }
@@ -251,12 +236,10 @@ func TestLiveInLibrary(t *testing.T) {
 			ids = append(ids, id)
 		}
 	}
-	found, err := s.Search("lullaby music box", music.SearchTracks, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
 	var out []string
-	for _, tr := range found.Tracks {
+	found := searchFor(t, s, "lullaby music box", music.ItemSong)
+	for _, it := range found {
+		tr := it.Track
 		if len(out) == 5 {
 			break
 		}
@@ -269,7 +252,7 @@ func TestLiveInLibrary(t *testing.T) {
 		out = append(out, tr.ID)
 	}
 	if len(ids) < 5 || len(out) < 5 {
-		t.Fatalf("%d songs of the library and %d not in it to ask about, of %d found", len(ids), len(out), len(found.Tracks))
+		t.Fatalf("%d songs of the library and %d not in it to ask about, of %d found", len(ids), len(out), len(found))
 	}
 	start := time.Now()
 	got, err := s.InLibrary(music.ItemSong, append(slices.Clone(ids), out...))

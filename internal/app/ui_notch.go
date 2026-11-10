@@ -527,7 +527,7 @@ func (a *app) syncWindows() {
 	pl := a.pl
 	var id string
 	if tr := pl.Current(); tr != nil {
-		id = tr.Source + "\x00" + tr.ID
+		id = tr.ID
 	}
 	sig := playerSig{id, pl.Playing(), pl.Loading(), pl.Shuffle(), pl.Repeat(), a.volume, a.nowPlaying, pl.Err()}
 	if sig != a.sig {

@@ -25,7 +25,7 @@ func editTestApp() *app {
 		song("1", "一张相片", "林宥嘉"),
 		song("2", "宝船", "DOUDOU"),
 	}}
-	a.route = route{page: pagePlaylist, src: "fake", id: "10"}
+	a.route = route{page: pagePlaylist, id: "10"}
 	return a
 }
 
@@ -86,7 +86,7 @@ func TestRemoveSongFromPlaylist(t *testing.T) {
 func TestNoRemovingFromSavedPlaylist(t *testing.T) {
 	a := editTestApp()
 	a.playlists["20"] = &music.Playlist{ID: "20", Name: "飙升榜", Tracks: a.playlists["10"].Tracks}
-	a.route = route{page: pagePlaylist, src: "fake", id: "20"}
+	a.route = route{page: pagePlaylist, id: "20"}
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if err := tt.RightClick("宝船"); err != nil {
@@ -127,7 +127,6 @@ func TestCreatePlaylistForSong(t *testing.T) {
 	added := make(chan string, 1)
 	a := editTestApp()
 	ch := posts(a)
-	without(a, "isLiked")
 	fake(a).create = func(name string) (*music.Playlist, error) { return &music.Playlist{ID: "12", Name: name}, nil }
 	fake(a).addTo = func(pid string, songs []string) error { added <- pid + ":" + songs[0]; return nil }
 	tt := ui.NewTester(a.view, 1200, 800)
@@ -146,7 +145,7 @@ func TestCreatePlaylistForSong(t *testing.T) {
 	tt.Type("周末")
 	tt.Key(0, ui.KeyEnter)
 	runPost(t, ch)
-	if a.route != (route{page: pagePlaylist, src: "fake", id: "12"}) || a.naming.open || a.editable("12") == nil {
+	if a.route != (route{page: pagePlaylist, id: "12"}) || a.naming.open || a.editable("12") == nil {
 		t.Fatalf("on %+v, dialog open %v, listed %+v", a.route, a.naming.open, a.mine)
 	}
 	if got := wait(t, added, "the adding"); got != "12:2" {
@@ -161,7 +160,7 @@ func TestRenamePlaylist(t *testing.T) {
 	calls := make(chan rename, 1)
 	a := editTestApp()
 	fake(a).rename = func(id, name string) error { calls <- rename{id, name}; return nil }
-	a.route = route{page: pageHome, src: "fake"}
+	a.route = route{page: pageHome}
 	a.homeLoading = true
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -197,7 +196,7 @@ func TestDeletePlaylist(t *testing.T) {
 	a := editTestApp()
 	fake(a).remove = func(id string) error { ids <- id; return nil }
 	a.homeLoading = true
-	a.route = route{page: pageHome, src: "fake"}
+	a.route = route{page: pageHome}
 	a.open(route{page: pagePlaylist, id: "10"})
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -233,7 +232,7 @@ func TestDeletePlaylist(t *testing.T) {
 func TestCancelDeletingPlaylist(t *testing.T) {
 	a := editTestApp()
 	fake(a).remove = func(string) error { t.Error("deleted the playlist"); return nil }
-	a.route = route{page: pageHome, src: "fake"}
+	a.route = route{page: pageHome}
 	a.homeLoading = true
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -307,7 +306,6 @@ func TestMoveSongInPlaylist(t *testing.T) {
 func TestMoveSongGoesBack(t *testing.T) {
 	a := editTestApp()
 	ch := posts(a)
-	without(a, "isLiked")
 	fake(a).move = func(string, int, int) error { return errors.New("offline") }
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -381,7 +379,7 @@ func TestPlaylistCardsFollowEdits(t *testing.T) {
 		{Kind: music.ItemPlaylist, ID: "10", Title: "通勤", Playlist: &music.Playlist{ID: "10", Name: "通勤", Mine: true}},
 		{Kind: music.ItemPlaylist, ID: "11", Title: "睡前", Playlist: &music.Playlist{ID: "11", Name: "睡前", Mine: true}},
 	}}}}}
-	a.route = route{page: pageBrowse, src: "fake", id: music.PageAllPlaylists}
+	a.route = route{page: pageBrowse, id: music.PageAllPlaylists}
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	cards := func() []string {
@@ -535,7 +533,7 @@ func TestFixedPlaylist(t *testing.T) {
 		t.Error("the sidebar offered to delete the fixed playlist")
 	}
 	tt.Frame()
-	a.route = route{page: pagePlaylist, src: "fake", id: "5"}
+	a.route = route{page: pagePlaylist, id: "5"}
 	tt.Frame()
 	if _, ok := tt.Find("Add to Library"); ok {
 		t.Error("offered to add the listener's own playlist to their library")

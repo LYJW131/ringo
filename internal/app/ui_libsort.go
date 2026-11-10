@@ -83,7 +83,7 @@ func (a *app) showLibrary(base string, v music.LibraryView) {
 		delete(a.settings.LibraryViews, base)
 	}
 	a.settings.save()
-	a.show(route{page: pageBrowse, src: a.route.src, id: music.LibraryPage(base, v)})
+	a.show(route{page: pageBrowse, id: music.LibraryPage(base, v)})
 }
 
 // libraryHeader heads a list that sorts: its title, then its button and its

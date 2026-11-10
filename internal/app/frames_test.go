@@ -47,7 +47,7 @@ func framesTracks(a *app) []music.Track {
 		url := fmt.Sprintf("cover:%d", i%len(covers))
 		giveCover(a, url, coverImage(covers[i%len(covers)].from, covers[i%len(covers)].to))
 		tracks = append(tracks, music.Track{
-			ID: fmt.Sprint(i + 1), Source: "fake", Name: name, Artists: []music.Artist{band},
+			ID: fmt.Sprint(i + 1), Name: name, Artists: []music.Artist{band},
 			Album:    music.Album{ID: fmt.Sprint(10 + i%len(covers)), Name: "Polar Night", ImageURL: url},
 			Duration: int64(180000 + 21000*i),
 		})
@@ -67,7 +67,7 @@ func TestPlaylistFrame(t *testing.T) {
 	}
 	a.saved = []music.Playlist{{ID: "20", Name: "Staff Picks", ImageURL: "cover:2", Saved: true}}
 	a.playlists["10"] = &music.Playlist{ID: "10", Name: "Evening Walks", Owner: "Alex", Description: "For the long way home.", ImageURL: "cover:0", Mine: true, Tracks: tracks}
-	a.route = route{page: pagePlaylist, src: "fake", id: "10"}
+	a.route = route{page: pagePlaylist, id: "10"}
 	tt := ui.NewTester(a.view, 1180, 780)
 	settled(tt)
 	saveFrame(t, dir, "playlist.png", tt.Image())
@@ -207,7 +207,6 @@ func TestSettingsFrame(t *testing.T) {
 		a.updates = true
 		a.notch = &notch{a: a}
 		src := fake(a)
-		src.info.Name = "Apple Music"
 		// Made up: nothing here is anyone's key.
 		src.vals["wrapperKey"] = "not-a-real-key"
 		if s.lossless {

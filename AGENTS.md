@@ -68,7 +68,7 @@ Only write a test for behaviour that can actually break. If the code under test 
 **How:**
 
 - Build views with `ui.NewTester` and set up the app with `newTestApp` (in `internal/app/helpers_test.go`). Find elements by their accessibility label, then `Click`, `RightClick`, `Press`/`Move`/`Release` or `Key`, and check the app's state afterwards.
-- Stand in for Apple Music with `fakeSource` (in `internal/app/helpers_test.go`), setting the methods the test needs and deleting from `caps` what it should hide. In `internal/applemusic`, answer the source's requests from `harness_test.go`.
+- Stand in for Apple Music with `fakeSource` (in `internal/app/helpers_test.go`), setting the methods the test needs. In `internal/applemusic`, answer the source's requests from `harness_test.go`.
 - Swap the clipboard and dialogs through package variables such as `copyText`, and restore the real one with `defer`.
 - See what comes back from the source's goroutine with `posts` and `runPost`.
 - Look at visuals instead of asserting on them. The `MM_FRAMES` tests save PNGs into that directory and skip when it isn't set. Check pixels only for coverage, such as whether a layer still covers the window.
@@ -80,5 +80,4 @@ Only write a test for behaviour that can actually break. If the code under test 
 | Rule | Enforced by |
 | --- | --- |
 | Every text has its Chinese, with the same verbs; no Chinese outside `internal/i18n` | `internal/i18n/catalog_test.go` |
-| What the source says it can do | The test that pins `Can` in `internal/applemusic` |
 | Commits are signed | lyjw's git configuration and hooks |

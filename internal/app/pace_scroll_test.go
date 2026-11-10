@@ -58,7 +58,7 @@ func TestLibraryScrollWaitsForNothing(t *testing.T) {
 	p.songsOf(1000, 3)
 	p.a.startLibrary(p.a.library)
 	p.idle(2 * time.Second)
-	p.a.open(route{page: pageBrowse, src: "fake", id: music.PageLibrarySongs})
+	p.a.open(route{page: pageBrowse, id: music.PageLibrarySongs})
 	p.idle(time.Second)
 	before := p.requests
 	took, waits := p.scrolling(speed)

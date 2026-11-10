@@ -59,7 +59,7 @@ func (a *app) isSaved(pl *music.Playlist) bool {
 // is signed in: signed out, there are none to ask for, and asking would only
 // be told to sign in, which the listener didn't ask to.
 func (a *app) loadMine(lib *library) {
-	if !lib.can("playlists") || lib.can("account") && lib.account == nil {
+	if lib.account == nil {
 		return
 	}
 	lib.mineAt = time.Now()
@@ -96,7 +96,7 @@ func (a *app) loadMine(lib *library) {
 // changed: loaded anew if shown, and the sidebar's covers with it.
 func (a *app) playlistChanged(lib *library, id string) {
 	delete(lib.playlists, id)
-	if a.route.page == pagePlaylist && a.route.src == lib.id && a.route.id == id {
+	if a.route.page == pagePlaylist && a.route.id == id {
 		a.loadPlaylist(lib, id, false)
 	}
 	a.loadMine(lib)
@@ -107,9 +107,6 @@ func (a *app) playlistChanged(lib *library, id string) {
 func (a *app) newPlaylist(tr *music.Track) {
 	if a.library.signedOut() {
 		a.promptSignIn(a.library)
-		return
-	}
-	if !a.can("createPlaylist") {
 		return
 	}
 	a.naming = nameDialog{open: true, add: tr}
@@ -168,7 +165,7 @@ func (a *app) submitName() {
 			lib.mine = slices.Insert(slices.Clone(lib.mine), 0, *pl)
 			pl.Tracks = nil
 			lib.playlists[pl.ID] = pl
-			a.open(route{page: pagePlaylist, src: lib.id, id: pl.ID})
+			a.open(route{page: pagePlaylist, id: pl.ID})
 			if add != nil {
 				a.addTo(lib, pl.ID, add)
 			}
@@ -196,11 +193,11 @@ func (a *app) deleteChosen() {
 	lib.mine = slices.Delete(slices.Clone(lib.mine), i, i+1)
 	undoCards := lib.dropPlaylistCards(id)
 	// Leave no way back to its page, and leave it for the page before.
-	gone := func(r route) bool { return r.page == pagePlaylist && r.src == lib.id && r.id == id }
+	gone := func(r route) bool { return r.page == pagePlaylist && r.id == id }
 	a.history = slices.DeleteFunc(a.history, gone)
 	a.forward = slices.DeleteFunc(a.forward, gone)
 	if gone(a.route) {
-		r := route{page: pageHome, src: lib.id}
+		r := route{page: pageHome}
 		if n := len(a.history); n > 0 {
 			r, a.history = a.history[n-1], a.history[:n-1]
 		}
@@ -373,40 +370,38 @@ func (a *app) playlistRefused(lib *library, pid string) {
 // listener's playlists, or take it out of pid or move it there, the one it is
 // listed in, if set. It reports whether it added any.
 func (a *app) playlistItems(m *ui.Menu, tr *music.Track, pid string) bool {
-	lib := a.trackLib(tr)
-	if lib.signedOut() || !lib.can("addToPlaylist") && pid == "" {
+	lib := a.library
+	if lib.signedOut() {
 		return false
 	}
 	mine := lib.playlists[pid]
 	editing := pid != "" && lib == a.library && a.editable(pid) != nil
-	if lib.can("addToPlaylist") {
-		m.Submenu(T("Add to Playlist"), func(m *ui.Menu) {
-			if lib.can("createPlaylist") && lib == a.library && m.Item(T("New Playlist…")).Chosen() {
-				a.newPlaylist(tr)
+	m.Submenu(T("Add to Playlist"), func(m *ui.Menu) {
+		if lib == a.library && m.Item(T("New Playlist…")).Chosen() {
+			a.newPlaylist(tr)
+		}
+		var to []*music.Playlist
+		for i := range lib.mine {
+			if pl := &lib.mine[i]; pl.ID != pid && !pl.Fixed {
+				to = append(to, pl)
 			}
-			var to []*music.Playlist
-			for i := range lib.mine {
-				if pl := &lib.mine[i]; pl.ID != pid && !pl.Fixed {
-					to = append(to, pl)
-				}
+		}
+		if len(to) > 0 {
+			m.Separator()
+		}
+		for _, pl := range to {
+			if m.Item(pl.Name).Chosen() {
+				a.addTo(lib, pl.ID, tr)
 			}
-			if len(to) > 0 {
-				m.Separator()
-			}
-			for _, pl := range to {
-				if m.Item(pl.Name).Chosen() {
-					a.addTo(lib, pl.ID, tr)
-				}
-			}
-		})
-	}
+		}
+	})
 	if !editing {
-		return lib.can("addToPlaylist")
+		return true
 	}
-	if lib.can("removeFromPlaylist") && m.Item(T("Remove from Playlist")).Chosen() {
+	if m.Item(T("Remove from Playlist")).Chosen() {
 		a.removeFrom(lib, pid, tr)
 	}
-	if lib.can("movePlaylistTrack") && mine != nil {
+	if mine != nil {
 		at := slices.IndexFunc(mine.Tracks, func(t music.Track) bool { return t.ID == tr.ID })
 		if at > 0 && m.Item(T("Move Up")).Chosen() {
 			a.moveTrack(lib, pid, tr, -1)

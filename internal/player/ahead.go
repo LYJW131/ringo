@@ -8,15 +8,15 @@ import "mygo-music/internal/music"
 
 // ahead is a track's audio asked for before its turn.
 type ahead struct {
-	source, id, quality string
-	done                chan struct{} // closed once info, dl and err are in
-	info                *music.Stream
-	dl                  *download
-	err                 error
+	id, quality string
+	done        chan struct{} // closed once info, dl and err are in
+	info        *music.Stream
+	dl          *download
+	err         error
 }
 
 func (a *ahead) is(t music.Track, quality string) bool {
-	return a.source == t.Source && a.id == t.ID && a.quality == quality
+	return a.id == t.ID && a.quality == quality
 }
 
 // upNext is the track that plays when the current one ends, if one does by
@@ -52,11 +52,11 @@ func (p *Player) getAhead(quality string) {
 	if !ok {
 		return
 	}
-	src := p.sourceOf(&t)
-	if src == nil || p.Cache.has(t.Source, t.ID, quality) {
+	src := p.Source
+	if src == nil || p.Cache.has(t.ID, quality) {
 		return
 	}
-	a := &ahead{source: t.Source, id: t.ID, quality: quality, done: make(chan struct{})}
+	a := &ahead{id: t.ID, quality: quality, done: make(chan struct{})}
 	p.ahead = a
 	go func() {
 		defer close(a.done)
@@ -69,7 +69,7 @@ func (p *Player) getAhead(quality string) {
 			return
 		}
 		a.info = info
-		a.dl = p.Cache.download(t.Source, t.ID, quality, info)
+		a.dl = p.Cache.download(t.ID, quality, info)
 	}()
 }
 

@@ -113,7 +113,7 @@ func (a *app) stage(c *ui.Context, tr *music.Track, accent ui.Color) {
 	if lyrics.Still(lines) {
 		// Lyrics without times have no line to set on the stage as it's
 		// sung: they're there to read, in a column in its middle.
-		if key := tr.Source + "\x00" + tr.ID; a.lyricTrack != key {
+		if key := tr.ID; a.lyricTrack != key {
 			a.lyricTrack, a.lyricAt = key, -2
 			a.lyricScroll, a.lyricGlide = ui.ScrollState{}, lyricGlide{}
 		}

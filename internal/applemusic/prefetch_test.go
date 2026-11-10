@@ -131,7 +131,7 @@ func TestPrefetchLossless(t *testing.T) {
 	}
 
 	// Browsing, the wrapper is woken ahead of the first song.
-	ts.Stations()
+	ts.asked(true)()
 	ts.clk.settle(t)
 	if got := wrapperURLs(); !reflect.DeepEqual(got, []string{helperBaseURL + "/wake"}) {
 		t.Errorf("browsing: %q", got)
@@ -148,7 +148,7 @@ func TestPrefetchLossless(t *testing.T) {
 		}
 		for range 6 {
 			ts.clk.minutes(t, 0.5)
-			ts.Stations()
+			ts.asked(true)() // browsing
 			ts.clk.settle(t)
 		}
 	}
@@ -158,7 +158,7 @@ func TestPrefetchLossless(t *testing.T) {
 
 	// Songs stopped for a while, browsing wakes it again.
 	ts.clk.minutes(t, 11)
-	ts.Stations()
+	ts.asked(true)()
 	ts.clk.settle(t)
 	if got := wrapperURLs(); !reflect.DeepEqual(got, []string{helperBaseURL + "/wake"}) {
 		t.Errorf("after a while: %q", got)

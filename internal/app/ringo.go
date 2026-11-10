@@ -198,11 +198,11 @@ func (a *app) accountCard(c *ui.Context, p palette) {
 			ui.Text(c, status).FontSize(12).TextColor(p.muted).LineHeight(1.4)
 		})
 		switch {
-		case acc != nil && !acc.Shared && lib.can("signOut"):
+		case acc != nil && !acc.Shared:
 			if ui.Button(c.Key("sign-out"), T("Sign Out")).Shrink(0).Clicked() {
 				a.signOut(lib)
 			}
-		case acc == nil && lib.can("signIn"):
+		case acc == nil:
 			if ui.PrimaryButton(c.Key("sign-in"), T("Sign In")).Shrink(0).Clicked() {
 				a.promptSignInInSettings(lib)
 			}

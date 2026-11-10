@@ -15,8 +15,8 @@ import (
 )
 
 // Cache keeps the songs played on disk, so that they play again at once,
-// and without the network: each named for its source, its ID at the source
-// and its quality, as <key>-<quality>.<type>, with what its stream was
+// and without the network: each named for its ID at the source and its
+// quality, as <key>-<quality>.<type>, with what its stream was
 // beside it in the same name's .json. Once they take more than the limit,
 // those played longest ago go first.
 type Cache struct {
@@ -41,8 +41,8 @@ func (c *Cache) SetLimit(limit int64) {
 
 // cacheKey names a song's files, whatever the source's IDs look like: they
 // are the source's, and may hold anything.
-func cacheKey(source, id, quality string) string {
-	sum := sha256.Sum256([]byte(source + "\x00" + id))
+func cacheKey(id, quality string) string {
+	sum := sha256.Sum256([]byte(id))
 	return hex.EncodeToString(sum[:16]) + "-" + quality
 }
 
@@ -71,8 +71,8 @@ func keepable(quality, ext string) bool {
 //   - A Dolby Atmos version serves no level: it's AAC, and another mix.
 
 // lookup returns a song kept as ask wants it, open to read, with its stream.
-func (c *Cache) lookup(source, id, ask string) (*download, *music.Stream, bool) {
-	f, st, ok := c.find(source, id, ask)
+func (c *Cache) lookup(id, ask string) (*download, *music.Stream, bool) {
+	f, st, ok := c.find(id, ask)
 	if !ok {
 		return nil, nil, false
 	}
@@ -83,8 +83,8 @@ func (c *Cache) lookup(source, id, ask string) (*download, *music.Stream, bool) 
 }
 
 // has reports whether a song is kept as ask wants it.
-func (c *Cache) has(source, id, ask string) bool {
-	f, _, ok := c.find(source, id, ask)
+func (c *Cache) has(id, ask string) bool {
+	f, _, ok := c.find(id, ask)
 	if ok {
 		f.Close()
 	}
@@ -92,19 +92,19 @@ func (c *Cache) has(source, id, ask string) bool {
 }
 
 // find opens a song kept as ask wants it, all of it there, with its stream.
-func (c *Cache) find(source, id, ask string) (*os.File, *music.Stream, bool) {
+func (c *Cache) find(id, ask string) (*os.File, *music.Stream, bool) {
 	if c == nil {
 		return nil, nil, false
 	}
 	level, atmos := music.SplitAsk(ask)
 	if atmos != music.AtmosOff {
-		if f, st, ok := c.open(source, id, music.AtmosQualities[atmos]); ok {
+		if f, st, ok := c.open(id, music.AtmosQualities[atmos]); ok {
 			return f, st, true
 		}
 	}
 	at := max(slices.Index(music.Qualities, level), 0)
 	for _, q := range music.Qualities[at:] {
-		f, st, ok := c.open(source, id, q)
+		f, st, ok := c.open(id, q)
 		if !ok {
 			continue
 		}
@@ -118,8 +118,8 @@ func (c *Cache) find(source, id, ask string) (*os.File, *music.Stream, bool) {
 }
 
 // open opens the song kept under quality, all of it there, with its stream.
-func (c *Cache) open(source, id, quality string) (*os.File, *music.Stream, bool) {
-	key := cacheKey(source, id, quality)
+func (c *Cache) open(id, quality string) (*os.File, *music.Stream, bool) {
+	key := cacheKey(id, quality)
 	meta, err := os.ReadFile(filepath.Join(c.dir, key+".json"))
 	if err != nil {
 		return nil, nil, false
@@ -142,13 +142,13 @@ func (c *Cache) open(source, id, quality string) (*os.File, *music.Stream, bool)
 // download fetches the song of the stream st, asked for as ask, into a
 // file, to keep once it has all come in; or into memory, if the cache would
 // not keep it.
-func (c *Cache) download(source, id, ask string, st *music.Stream) *download {
+func (c *Cache) download(id, ask string, st *music.Stream) *download {
 	part := c.part(st)
 	if part == nil {
 		return startDownload(st.URL, st.Size, nil, nil)
 	}
 	return startDownload(st.URL, st.Size, part, func(path string, n int64) (string, bool) {
-		return c.keep(source, id, ask, st, path, n)
+		return c.keep(id, ask, st, path, n)
 	})
 }
 
@@ -180,7 +180,7 @@ func (c *Cache) part(st *music.Stream) *os.File {
 // is closed, and drops what is over the limit then. It's kept under the
 // quality the source says it is, or else the level asked for. It returns
 // where the song is: kept, or still at part.
-func (c *Cache) keep(source, id, ask string, st *music.Stream, part string, n int64) (string, bool) {
+func (c *Cache) keep(id, ask string, st *music.Stream, part string, n int64) (string, bool) {
 	c.mu.Lock()
 	limit := c.limit
 	c.mu.Unlock()
@@ -201,7 +201,7 @@ func (c *Cache) keep(source, id, ask string, st *music.Stream, part string, n in
 	if !keepable(quality, kept.Type) {
 		return part, false
 	}
-	key := cacheKey(source, id, quality)
+	key := cacheKey(id, quality)
 	meta, _ := json.Marshal(kept)
 	path := filepath.Join(c.dir, key+"."+kept.Type)
 	if os.Rename(part, path) != nil {

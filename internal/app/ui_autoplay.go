@@ -9,10 +9,9 @@ import (
 )
 
 // AutoPlay goes on with music like what played once the queue ends, as Apple
-// Music's does, for a source that has some (music.Autoplayer). The player
-// asks for it as its queue nears its end (player.More), but not under
-// repeat, which goes round the queue instead, or while a station plays,
-// which goes on with its own songs.
+// Music's does. The player asks for it as its queue nears its end
+// (player.More), but not under repeat, which goes round the queue instead,
+// or while a station plays, which goes on with its own songs.
 
 // autoplayFrom is how many of the last songs queued autoplay goes on from.
 const autoplayFrom = 5
@@ -20,40 +19,28 @@ const autoplayFrom = 5
 // station is the name of the station playing, as the player knows it, or "".
 func (a *app) station() string { return a.pl.Radio() }
 
-// autoplay gives the player songs like the last ones of its queue, from the
-// source of the song playing, if AutoPlay is on and the source has it.
+// autoplay gives the player songs like the last ones of its queue, if
+// AutoPlay is on.
 func (a *app) autoplay(got func([]music.Track)) bool {
 	tr := a.pl.Current()
 	if tr == nil || !a.settings.Autoplay {
-		return false
-	}
-	lib := a.trackLib(tr)
-	auto, ok := lib.src.(music.Autoplayer)
-	if !ok || !lib.can("autoplay") {
 		return false
 	}
 	var ids []string
 	order, _ := a.pl.PlayOrder()
 	queue := a.pl.Queue()
 	for i := len(order) - 1; i >= 0 && len(ids) < autoplayFrom; i-- {
-		if tr := &queue[order[i]]; tr.Source == "" || tr.Source == lib.id {
-			ids = append([]string{tr.ID}, ids...)
-		}
+		ids = append([]string{queue[order[i]].ID}, ids...)
 	}
 	go func() {
-		tracks, err := auto.Autoplay(ids)
+		tracks, err := a.src.Autoplay(ids)
 		a.post(func() {
 			if err != nil {
-				log.Printf("source %s: autoplay: %v", lib.id, err)
+				log.Printf("autoplay: %v", err)
 			}
 			if !a.settings.Autoplay {
 				// Switched off meanwhile.
 				tracks = nil
-			}
-			for i := range tracks {
-				if tracks[i].Source == "" {
-					tracks[i].Source = lib.id
-				}
 			}
 			got(playable(tracks))
 		})
@@ -61,11 +48,10 @@ func (a *app) autoplay(got func([]music.Track)) bool {
 	return true
 }
 
-// autoplaySwitch ends Up Next with the switch of AutoPlay, for a source
-// that has it.
+// autoplaySwitch ends Up Next with the switch of AutoPlay.
 func (a *app) autoplaySwitch(c *ui.Context) {
 	tr := a.pl.Current()
-	if tr == nil || !a.trackLib(tr).can("autoplay") {
+	if tr == nil {
 		return
 	}
 	ui.Row(c.Key("autoplay")).Padding(18, 10, 0, 10).Gap(14).AlignItems(ui.Center).Children(func() {

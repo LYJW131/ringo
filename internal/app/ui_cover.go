@@ -104,14 +104,14 @@ func (a *app) npCover(c *ui.Context, tr *music.Track, art *artwork, size float32
 	// Another song, not flung to, comes in from the side it is on in the
 	// play order, and the cover before goes off the other way.
 	var enter *ui.Motion
-	if order, at := pl.PlayOrder(); cs.track != tr.Source+"\x00"+tr.ID {
+	if order, at := pl.PlayOrder(); cs.track != tr.ID {
 		if cs.exit != nil && !entering {
 			dir := float32(stepDir(cs.at, at, len(order)))
 			// Its copy leaves from this frame on, which first knows the way.
 			cs.exit.X = -dir * size * 0.5
 			enter = &ui.Motion{X: dir * size * 0.5, Scale: 0.92}
 		}
-		cs.track, cs.at, cs.exit = tr.Source+"\x00"+tr.ID, at, &ui.Motion{Scale: 0.92}
+		cs.track, cs.at, cs.exit = tr.ID, at, &ui.Motion{Scale: 0.92}
 	}
 	exit := cs.exit
 	if cs.flung != 0 {

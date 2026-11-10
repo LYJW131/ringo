@@ -99,7 +99,7 @@ func TestKeptPagesComeBackAtTheNextStart(t *testing.T) {
 func TestKeptPagesHoldNoAccount(t *testing.T) {
 	dir := t.TempDir()
 	loadKept(t, keepingApp(dir, "the-listener-1234"))
-	data, err := os.ReadFile(pagesPath(dir, "fake"))
+	data, err := os.ReadFile(pagesPath(dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestKeptPagesAreNotAnotherListeners(t *testing.T) {
 		if lib.home != nil || len(lib.browses) > 0 || len(lib.playlists) > 0 || len(lib.mine) > 0 || len(lib.likedList) > 0 {
 			t.Errorf("as %q: the last listener's pages stayed: %+v", who, lib.home)
 		}
-		if _, err := os.Stat(pagesPath(dir, "fake")); err == nil {
+		if _, err := os.Stat(pagesPath(dir)); err == nil {
 			t.Errorf("as %q: the file stayed", who)
 		}
 	}
@@ -147,10 +147,10 @@ func TestKeptPagesGoWithTheAccount(t *testing.T) {
 
 	lib.account = &music.Account{ID: "another"}
 	a.afterAccount(lib)
-	if _, err := os.Stat(pagesPath(dir, "fake")); err == nil {
+	if _, err := os.Stat(pagesPath(dir)); err == nil {
 		t.Fatal("the last account's file stayed")
 	}
-	if lib.pages.account != accountKey(lib, lib.account) {
+	if lib.pages.account != accountKey(lib.account) {
 		t.Error("what's loaded next is kept for the last account")
 	}
 
@@ -223,7 +223,7 @@ func TestWarmQueueRules(t *testing.T) {
 	}
 
 	// The page the listener is on is being asked for.
-	a.route = route{page: pageBrowse, src: "fake", id: "waited"}
+	a.route = route{page: pageBrowse, id: "waited"}
 	lib.browses["waited"] = &browseData{loading: true}
 	before := started
 	done[2]()

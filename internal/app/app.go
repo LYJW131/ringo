@@ -30,9 +30,6 @@ const (
 
 type route struct {
 	page pageKind
-	// src is the ID of the source the page is of. Opened without one, a page
-	// is of the active source's.
-	src string
 	// id is the playlist, artist, album or browse page shown.
 	id string
 	// query is what a search page searched for: none for what Search shows
@@ -50,10 +47,8 @@ type app struct {
 	pl    *player.Player
 	pal   palette
 
-	// libs are the sources, of which the app has one, Apple Music, and what
-	// it has of each. The active one's is embedded: a.mine is what it lists.
-	// What comes back from a goroutine goes to the library it asked.
-	libs []*library
+	// library is what the app has of its one source, Apple Music, embedded:
+	// a.mine is what it lists.
 	*library
 
 	wasBehind bool // the window wasn't at the front as last built
@@ -256,47 +251,28 @@ func userDataDir(sub string) string {
 	return filepath.Join(dir, sub)
 }
 
-// makeSources makes the app's source, not started yet.
-func (a *app) makeSources() {
+// makeSource makes the app's source, not started yet.
+func (a *app) makeSource() {
 	a.library = newLibrary(a.newSource())
-	a.libs = []*library{a.library}
-	a.route = route{page: pageHome, src: a.library.id}
+	a.route = route{page: pageHome}
 }
 
-// sourceByID finds the source a track says it's of, for the player.
-func (a *app) sourceByID(id string) music.Source {
-	if lib := a.libOf(id); lib != nil {
-		return lib.src
-	}
-	// A track that names no source is of the app's one source, which
-	// doesn't sign what it answers.
-	if id == "" && a.library != nil {
-		return a.library.src
-	}
-	return nil
-}
-
-// sendAtQuit is how long the app waits as it quits for what its sources
-// were told of what plays to be sent.
+// sendAtQuit is how long the app waits as it quits for what its source
+// was told of what plays to be sent.
 const sendAtQuit = 2 * time.Second
 
-// flushSources waits, up to d in all, for the sources to send what they were
-// told, which for Apple is the end of the song that plays.
-func (a *app) flushSources(d time.Duration) {
-	until := time.Now().Add(d)
-	for _, lib := range a.libs {
-		if f, ok := lib.src.(music.Flusher); ok {
-			f.Flush(time.Until(until))
-		}
+// flushSource waits, up to d, for the source to send what it was told,
+// which for Apple is the end of the song that plays.
+func (a *app) flushSource(d time.Duration) {
+	if f, ok := a.src.(music.Flusher); ok {
+		f.Flush(d)
 	}
 }
 
-// closeSources stops what the source has running, which ends with the app.
-func (a *app) closeSources() {
-	for _, lib := range a.libs {
-		if closer, ok := lib.src.(interface{ Close() }); ok {
-			closer.Close()
-		}
+// closeSource stops what the source has running, which ends with the app.
+func (a *app) closeSource() {
+	if closer, ok := a.src.(interface{ Close() }); ok {
+		closer.Close()
 	}
 }
 
@@ -321,13 +297,13 @@ func Run() error {
 		a.settings.applyAppearance()
 		i18n.SetLanguage(i18n.Resolve(a.settings.Language, systemLanguages()))
 		a.npPane = a.lyricsPaneChosen()
-		a.makeSources()
+		a.makeSource()
 		// Before the window: on Windows it lays out its content as it is
 		// made, and the view asks the player what plays.
 		a.art = newArtCache(a.post)
 		a.pl = player.New(a.post)
 		a.pl.Quiet = func(fn func()) { mygo.RunOnMain(fn) }
-		a.pl.Source = a.sourceByID
+		a.pl.Source = a.src
 		a.pl.Failed = a.sourceFailed
 		a.pl.Quality = func() string { return a.settings.quality() }
 		a.pl.Normalize = func() bool { return a.settings.Normalize }
@@ -401,7 +377,7 @@ func Run() error {
 		a.flushPages()
 		// The end of what plays is sent before the app is, if Apple is quick.
 		a.pl.Exit()
-		a.flushSources(sendAtQuit)
+		a.flushSource(sendAtQuit)
 	})
 	// Windows leaves an icon in the notification area after its app until
 	// the pointer passes over it.
@@ -409,7 +385,7 @@ func Run() error {
 		if a.tray != nil {
 			a.tray.Destroy()
 		}
-		a.closeSources()
+		a.closeSource()
 	})
 	mygo.App.OnWindowAllClosed(func() {})
 	mygo.App.OnActivate(func(bool) { a.showMain() })

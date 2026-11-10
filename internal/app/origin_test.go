@@ -55,7 +55,7 @@ func TestPlayedFrom(t *testing.T) {
 	// A playlist's, with what Apple asks of it that its page came with.
 	a = newTestApp()
 	a.playlists["pl.1"] = &music.Playlist{ID: "pl.1", Name: "Today's Hits", Version: "v1", Tracks: []music.Track{song("1", "Hong Kong")}}
-	a.route = route{page: pagePlaylist, src: "fake", id: "pl.1"}
+	a.route = route{page: pagePlaylist, id: "pl.1"}
 	tt = ui.NewTester(a.view, 1180, 900)
 	tt.Frame()
 	if err := tt.Click("Play"); err != nil {
@@ -78,7 +78,7 @@ func TestPlayedFrom(t *testing.T) {
 
 	// Anywhere else, a song is played from nothing.
 	a = newTestApp()
-	a.route = route{page: pageHome, src: "fake"}
+	a.route = route{page: pageHome}
 	a.playRow([]music.Track{song("1", "Hong Kong")}, 0)
 	if got := a.pl.Current().Origin; got != (music.Origin{}) {
 		t.Errorf("a song of Home plays from %+v", got)

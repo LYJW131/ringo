@@ -30,7 +30,7 @@ func speakNow() *music.AlbumPage {
 		if i >= 4 {
 			disc, n = 2, i-3
 		}
-		tracks = append(tracks, music.Track{ID: fmt.Sprint("t", i), Source: "fake", Name: name, Artists: []music.Artist{ts},
+		tracks = append(tracks, music.Track{ID: fmt.Sprint("t", i), Name: name, Artists: []music.Artist{ts},
 			Album: al, Duration: int64(200000 + 30000*i), Number: n, Disc: disc, Popular: i == 1 || i == 2, Video: i == 5})
 	}
 	more := []music.Item{}
@@ -46,10 +46,9 @@ func speakNow() *music.AlbumPage {
 func albumApp() *app {
 	a := newTestApp()
 	a.account = &music.Account{ID: "1", Name: "Alex"}
-	without(a, "isLiked")
 	page := speakNow()
 	a.albums[page.Album.ID] = &albumData{album: page}
-	a.route = route{page: pageAlbum, src: "fake", id: page.Album.ID}
+	a.route = route{page: pageAlbum, id: page.Album.ID}
 	return a
 }
 
@@ -65,7 +64,7 @@ func TestAlbumArtistOpensTheirPage(t *testing.T) {
 	}
 	tt.ClickAt(r.X+4, r.Y+r.H/2)
 	tt.Frame()
-	if a.route != (route{page: pageArtist, src: "fake", id: "159260351"}) {
+	if a.route != (route{page: pageArtist, id: "159260351"}) {
 		t.Fatalf("opened %+v", a.route)
 	}
 }
@@ -150,7 +149,7 @@ func TestShowCompleteAlbum(t *testing.T) {
 	page.Album.ID, page.Complete = "l.part", "1440755169"
 	a.albums["l.part"] = a.albums["1440755169"]
 	delete(a.albums, "1440755169")
-	a.route = route{page: pageAlbum, src: "fake", id: "l.part"}
+	a.route = route{page: pageAlbum, id: "l.part"}
 	fake(a).album = func(string) (*music.AlbumPage, error) { return nil, errors.New("not now") }
 	tt := ui.NewTester(a.view, 1180, 1200)
 	tt.Frame()
@@ -158,7 +157,7 @@ func TestShowCompleteAlbum(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.route != (route{page: pageAlbum, src: "fake", id: "1440755169"}) {
+	if a.route != (route{page: pageAlbum, id: "1440755169"}) {
 		t.Fatalf("opened %+v", a.route)
 	}
 
@@ -366,9 +365,6 @@ func TestArtistFavorite(t *testing.T) {
 func TestPlayNextAndLast(t *testing.T) {
 	a := albumApp()
 	queue := []music.Track{song("q1", "一"), song("q2", "二"), song("q3", "三")}
-	for i := range queue {
-		queue[i].Source = "fake"
-	}
 	a.pl.Cue(queue)
 	tt := ui.NewTester(a.view, 1180, 900)
 	tt.Frame()
@@ -403,16 +399,12 @@ func TestAutoplay(t *testing.T) {
 	asked := make(chan []string, 4)
 	a := newTestApp()
 	ch := posts(a)
-	fake(a).caps["autoplay"] = true
-	a.libs[0].caps = probeCaps(fake(a))
+	a.settings.Autoplay = true
 	fake(a).autoplay = func(ids []string) ([]music.Track, error) {
 		asked <- ids
 		return []music.Track{song("a1", "像这样"), song("q2", "二"), song("a2", "也像")}, nil
 	}
 	queue := []music.Track{song("q1", "一"), song("q2", "二")}
-	for i := range queue {
-		queue[i].Source = "fake"
-	}
 	tt := ui.NewTester(a.view, 1180, 900)
 	tt.Frame()
 	a.pl.PlayQueue(queue, 0, music.Origin{})
@@ -452,7 +444,6 @@ func TestAutoplay(t *testing.T) {
 func artistApp(wide bool) *app {
 	a := newTestApp()
 	a.account = &music.Account{ID: "1", Name: "Alex"}
-	without(a, "isLiked")
 	page := speakNow()
 	ar := page.Album.Artists[0]
 	ar.ImageURL, ar.Genre, ar.Origin, ar.Born = "cover:3", "Pop", "West Reading, PA", "December 13, 1989"
@@ -489,7 +480,7 @@ func artistApp(wide bool) *app {
 	}
 	d := a.artists[ar.ID]
 	d.secs = artistSections(d.page)
-	a.route = route{page: pageArtist, src: "fake", id: ar.ID}
+	a.route = route{page: pageArtist, id: ar.ID}
 	return a
 }
 
@@ -516,7 +507,7 @@ func TestPlaylistOwnerOpensTheirPage(t *testing.T) {
 	fake(a).browse = func(string) (*music.Browse, error) { return &music.Browse{}, nil }
 	a.playlists["pl.1"] = &music.Playlist{ID: "pl.1", Name: "Today's Hits", Owner: "Apple Music Hits", OwnerPage: "curator:976439548",
 		Tracks: []music.Track{song("1", "Hong Kong")}}
-	a.route = route{page: pagePlaylist, src: "fake", id: "pl.1"}
+	a.route = route{page: pagePlaylist, id: "pl.1"}
 	tt := ui.NewTester(a.view, 1180, 900)
 	tt.Frame()
 	r, ok := tt.Find("Apple Music Hits")
@@ -525,7 +516,7 @@ func TestPlaylistOwnerOpensTheirPage(t *testing.T) {
 	}
 	tt.ClickAt(r.X+4, r.Y+r.H/2)
 	tt.Frame()
-	if a.route != (route{page: pageBrowse, src: "fake", id: "curator:976439548"}) {
+	if a.route != (route{page: pageBrowse, id: "curator:976439548"}) {
 		t.Fatalf("opened %+v", a.route)
 	}
 }
@@ -541,7 +532,7 @@ func TestPagedPageStays(t *testing.T) {
 		asked <- page
 		return &music.Browse{Sections: []music.Section{{Title: page}}, Next: "songs:2"}, nil
 	}
-	songs := route{page: pageBrowse, src: "fake", id: music.PageLibrarySongs}
+	songs := route{page: pageBrowse, id: music.PageLibrarySongs}
 	a.open(songs)
 	wait(t, asked, "the first part")
 	runPost(t, ch)
@@ -554,14 +545,14 @@ func TestPagedPageStays(t *testing.T) {
 	}
 	d.at = time.Now().Add(-time.Hour)
 
-	a.open(route{page: pageAlbum, src: "fake", id: "8"})
+	a.open(route{page: pageAlbum, id: "8"})
 	a.back()
 	select {
 	case page := <-asked:
 		t.Fatalf("asked for %q anew, going back", page)
 	default:
 	}
-	a.open(route{page: pageHome, src: "fake"})
+	a.open(route{page: pageHome})
 	a.open(songs)
 	if page := wait(t, asked, "the page anew"); page != music.PageLibrarySongs {
 		t.Errorf("asked for %q", page)
@@ -583,7 +574,7 @@ func todaysHits() *music.Playlist {
 		{"Moonride", "Hearts2Hearts", "Moonride - Single"},
 		{"FALLEN ANGEL", "JENNIE", "Fallen Angel - EP"},
 	} {
-		tracks = append(tracks, music.Track{ID: fmt.Sprint("h", i), Source: "fake", Name: s.name, Artists: []music.Artist{{ID: fmt.Sprint("ar", i), Name: s.artist}},
+		tracks = append(tracks, music.Track{ID: fmt.Sprint("h", i), Name: s.name, Artists: []music.Artist{{ID: fmt.Sprint("ar", i), Name: s.artist}},
 			Album: music.Album{ID: fmt.Sprint("al", i), Name: s.album, ImageURL: fmt.Sprintf("cover:%d", i%5)}, Duration: int64(150000 + 13000*i), Explicit: i == 6})
 	}
 	return &music.Playlist{ID: "pl.f4d106fed2bd41149aaacabb233eb5eb", Name: "Today's Hits", Owner: "Apple Music Hits", OwnerPage: "curator:1",
@@ -612,10 +603,9 @@ func TestDetailFrames(t *testing.T) {
 		{"playlist", func() *app {
 			a := newTestApp()
 			a.account = &music.Account{ID: "1", Name: "Alex"}
-			without(a, "isLiked")
 			pl := todaysHits()
 			a.playlists[pl.ID] = pl
-			a.route = route{page: pagePlaylist, src: "fake", id: pl.ID}
+			a.route = route{page: pagePlaylist, id: pl.ID}
 			return a
 		}},
 	} {

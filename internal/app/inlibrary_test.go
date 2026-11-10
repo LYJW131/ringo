@@ -19,10 +19,6 @@ func keepApp(t *testing.T, tr music.Track, in map[string]bool) (*app, *ui.Tester
 	a := newTestApp()
 	ch := posts(a)
 	f := fake(a)
-	f.caps["inLibrary"] = true
-	// Hearts asked about would post their answers among these.
-	delete(f.caps, "isLiked")
-	a.libs[0].caps = probeCaps(f)
 	f.inLibrary = func(kind string, ids []string) (map[string]bool, error) { return in, nil }
 	a.account, a.accountAsked = &music.Account{ID: "1"}, true
 	a.pl.Cue([]music.Track{tr})

@@ -487,10 +487,7 @@ func (a *app) playerBar(c *ui.Context) {
 						// The title comes first: how it sounds shows beside it
 						// only where that leaves the title whole, or a good part
 						// of a long one. Now Playing always says it.
-						room := left - 48 - 12
-						if a.trackLib(tr).canLike(tr) {
-							room -= barLikeWidth
-						}
+						room := left - 48 - 12 - barLikeWidth
 						titleW, _ := c.MeasureText(0, ui.Span{Text: tr.Name, Size: 13.5, Weight: 600})
 						if label := qualityLabel(pl.Stream()); label != "" && room-traitBadgeWidth(c, label)-barBadgeGap >= min(titleW, barTitleKept) {
 							qualityBadge(c, pl.Stream(), p.muted)

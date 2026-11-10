@@ -3,13 +3,12 @@ package applemusic
 import (
 	"encoding/json"
 	"net/url"
-	"reflect"
 	"slices"
 	"testing"
 )
 
-// What the source reads without asking Apple: TTML lyrics, pasted links,
-// cover templates and Apple's resources.
+// What the source reads without asking Apple: TTML lyrics, cover templates
+// and Apple's resources.
 
 func TestTTML(t *testing.T) {
 	ttml := `<tt xmlns="http://www.w3.org/ns/ttml" itunes:timing="Word"><head><metadata><iTunesMetadata><translations><translation type="subtitle" xml:lang="zh-Hans"><text for="L1">你好 世界</text></translation></translations></iTunesMetadata></metadata></head><body><div><p begin="1.5" end="3.000" itunes:key="L1"><span begin="1.5" end="2.0">Hello</span> <span begin="2.0" end="3.0">world</span><span ttm:role="x-bg"><span begin="2.5" end="2.9">(yeah)</span></span></p><p begin="1:02.25" end="1:04">Line &amp; two</p></div></body></tt>`
@@ -36,18 +35,6 @@ func TestTTML(t *testing.T) {
 	}
 	if parseTTML("<tt><body></body></tt>", "en") != nil {
 		t.Error("lyrics from nothing")
-	}
-}
-
-func TestAppleLinks(t *testing.T) {
-	if got := parseAppleURL("https://music.apple.com/jp/album/x/1783644603?i=1783644604"); !reflect.DeepEqual(got, &appleLink{"album", "1783644603", "1783644604"}) {
-		t.Errorf("album link: %+v", got)
-	}
-	if got := parseAppleURL(" https://music.apple.com/us/playlist/pl.u-abc "); !reflect.DeepEqual(got, &appleLink{"playlist", "pl.u-abc", ""}) {
-		t.Errorf("playlist link: %+v", got)
-	}
-	if parseAppleURL("MyGO!!!!!") != nil {
-		t.Error("a link from a name")
 	}
 }
 
@@ -116,29 +103,6 @@ func TestArtistMotion(t *testing.T) {
 			"motionArtistSquare1x1": {"video": "https://example.test/hls/square/master.m3u8"}}}}`))
 	if a.VideoURL != "https://example.test/hls/full/master.m3u8" || a.WideURL != "https://example.test/img/fullframe/{w}x{h}{c}.{f}" {
 		t.Errorf("video %q over %q", a.VideoURL, a.WideURL)
-	}
-}
-
-// Can names what the plugin exported, and nothing else.
-func TestCan(t *testing.T) {
-	want := []string{
-		"account", "accounts", "addToLibrary", "addToPlaylist", "album", "artist", "autoplay", "browse", "createPlaylist", "deletePlaylist", "favorite", "home", "inLibrary", "isLiked", "like",
-		"liked", "lyrics", "movePlaylistTrack", "played", "playlist", "playlists", "recent", "removeFromPlaylist", "renamePlaylist", "saveAlbum", "savePlaylist",
-		"savedAlbums", "search", "setSetting", "signIn", "signOut", "stationNext", "stations", "stream", "suggest",
-	}
-	var got []string
-	for name := range can {
-		got = append(got, name)
-	}
-	slices.Sort(got)
-	if !slices.Equal(got, want) {
-		t.Errorf("Can: %q", got)
-	}
-	s := New(Options{DataDir: t.TempDir()})
-	for _, name := range append(want, "followArtist") {
-		if s.Can(name) != slices.Contains(want, name) {
-			t.Errorf("Can(%q) = %v", name, s.Can(name))
-		}
 	}
 }
 

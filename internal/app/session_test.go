@@ -65,20 +65,17 @@ func keptSession(t *testing.T, s player.Session) {
 }
 
 // Started again, the app picks up the station it played, paused where it was,
-// and the station's source goes on feeding it.
+// and the source goes on feeding it.
 func TestRestoreSessionReattachesRadio(t *testing.T) {
 	asked := make(chan string, 4)
 	a := newTestApp()
 	ch := posts(a)
 	fake(a).stationNext = func(id string) ([]music.Track, error) {
 		asked <- id
-		tr := song("3", "三")
-		tr.Source = "fake"
-		return []music.Track{tr}, nil
+		return []music.Track{song("3", "三")}, nil
 	}
-	name := radioName("fake", &music.Station{ID: "st", Name: "Night Drive"})
+	name := radioName(&music.Station{ID: "st", Name: "Night Drive"})
 	tr := song("1", "一")
-	tr.Source = "fake"
 	keptSession(t, player.Session{Queue: []music.Track{tr}, Order: []int{0}, At: 0, Position: 5000, Radio: name})
 
 	a.restoreSession()
@@ -91,19 +88,5 @@ func TestRestoreSessionReattachesRadio(t *testing.T) {
 	until(t, ch, func() bool { return len(a.pl.Queue()) == 2 })
 	if radioLabel(a.pl.Radio()) != "Night Drive" {
 		t.Errorf("the radio is called %q", radioLabel(a.pl.Radio()))
-	}
-}
-
-// A session whose radio's source went away picks up its songs without a crash,
-// the radio adding nothing more.
-func TestRestoreSessionOfGoneSource(t *testing.T) {
-	a := newTestApp()
-	tr := song("1", "一")
-	tr.Source = "gone"
-	keptSession(t, player.Session{Queue: []music.Track{tr}, Order: []int{0}, At: 0, Radio: radioName("gone", &music.Station{ID: "st", Name: "Night Drive"})})
-
-	a.restoreSession()
-	if cur := a.pl.Current(); cur == nil || cur.ID != "1" || len(a.pl.Queue()) != 1 {
-		t.Errorf("playing %+v of %d", cur, len(a.pl.Queue()))
 	}
 }

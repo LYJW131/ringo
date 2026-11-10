@@ -11,17 +11,16 @@ import (
 
 // artistLinks shows a track's artists as its credits read, each a link to
 // their page in color, brightening to hover under the pointer, and then,
-// with album, a link to its album, as far as the source has these pages. An
-// artist credited by name alone is plain text.
+// with album, a link to its album. An artist credited by name alone is
+// plain text.
 func (a *app) artistLinks(c *ui.Context, tr *music.Track, color, hover ui.Color, album ...bool) ui.Element {
-	lib := a.trackLib(tr)
 	return ui.RichText(c).TextColor(color).Children(func() {
 		for i, ar := range tr.Artists {
 			if i > 0 {
 				ui.Text(c, ", ")
 			}
-			if ar.ID != "" && lib.can("artist") {
-				a.link(c.Key(i), ar.Name, color, hover, route{page: pageArtist, src: lib.id, id: ar.ID})
+			if ar.ID != "" {
+				a.link(c.Key(i), ar.Name, color, hover, route{page: pageArtist, id: ar.ID})
 			} else {
 				ui.Text(c, ar.Name)
 			}
@@ -30,8 +29,8 @@ func (a *app) artistLinks(c *ui.Context, tr *music.Track, color, hover ui.Color,
 			if len(tr.Artists) > 0 {
 				ui.Text(c, " — ")
 			}
-			if tr.Album.ID != "" && lib.can("album") {
-				a.link(c.Key("album"), tr.Album.Name, color, hover, route{page: pageAlbum, src: lib.id, id: tr.Album.ID})
+			if tr.Album.ID != "" {
+				a.link(c.Key("album"), tr.Album.Name, color, hover, route{page: pageAlbum, id: tr.Album.ID})
 			} else {
 				ui.Text(c, tr.Album.Name)
 			}
@@ -58,7 +57,7 @@ func (a *app) openPage(r route) {
 }
 
 // openArtist opens an artist's page in the main window.
-func (a *app) openArtist(src, id string) { a.openPage(route{page: pageArtist, src: src, id: id}) }
+func (a *app) openArtist(id string) { a.openPage(route{page: pageArtist, id: id}) }
 
 // artistData is what the app has of an artist: who they are, with their songs
 // and albums, and their page's sections.

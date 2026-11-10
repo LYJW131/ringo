@@ -17,11 +17,11 @@ var skeletonScenes = []struct {
 }{
 	{"home", func(a *app) {}},
 	{"playlist", func(a *app) {
-		a.route = route{page: pagePlaylist, src: "fake", id: "7"}
+		a.route = route{page: pagePlaylist, id: "7"}
 		a.loadingPl["7"] = true
 	}},
 	{"browse", func(a *app) {
-		a.route = route{page: pageBrowse, src: "fake", id: music.PageNew}
+		a.route = route{page: pageBrowse, id: music.PageNew}
 		a.browses[music.PageNew] = &browseData{loading: true}
 	}},
 	{"lyrics", func(a *app) { a.nowPlaying, a.npPane = true, paneLyrics }},

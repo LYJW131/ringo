@@ -200,13 +200,10 @@ func (a *app) notes(c *ui.Context, text string) {
 }
 
 // libraryButton adds what kind and id name to the listener's library, or
-// says it's there, which a click undoes, for a source that keeps a library.
-// compact, it is its icon alone, its words its label and tooltip. What
-// stays in the library, as an album with uploads, says why instead.
+// says it's there, which a click undoes. compact, it is its icon alone, its
+// words its label and tooltip. What stays in the library, as an album with
+// uploads, says why instead.
 func (a *app) libraryButton(c *ui.Context, lib *library, kind, id string, was, stays, compact bool) {
-	if !lib.can("addToLibrary") {
-		return
-	}
 	p := a.pal
 	icon, label := iconPlus, T("Add to Library")
 	in := lib.inLibrary(kind, id, was)

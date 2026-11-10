@@ -19,38 +19,31 @@ type sidebarItem struct {
 	route route
 }
 
-// browseItem is an entry opening a page of the source's, if it makes up any.
-func (a *app) browseItems(items ...sidebarItem) []sidebarItem {
-	if !a.can("browse") {
-		return nil
-	}
-	return items
-}
-
 // storeItems are the pages of Apple Music the sidebar opens.
 func (a *app) storeItems() []sidebarItem {
-	return append([]sidebarItem{{iconHome, T("Home"), route{page: pageHome}}}, a.browseItems(
-		sidebarItem{iconNew, T("New"), route{page: pageBrowse, id: music.PageNew}},
-		sidebarItem{iconRadio, T("Radio"), route{page: pageBrowse, id: music.PageRadio}},
-	)...)
+	return []sidebarItem{
+		{iconHome, T("Home"), route{page: pageHome}},
+		{iconNew, T("New"), route{page: pageBrowse, id: music.PageNew}},
+		{iconRadio, T("Radio"), route{page: pageBrowse, id: music.PageRadio}},
+	}
 }
 
 // libraryItems are the pages of the listener's library.
 func (a *app) libraryItems() []sidebarItem {
-	return a.browseItems(
-		sidebarItem{iconClock, T("Recently Added"), route{page: pageBrowse, id: music.PageRecentlyAdded}},
-		sidebarItem{iconMic, T("Artists"), route{page: pageBrowse, id: music.PageLibraryArtist}},
-		sidebarItem{iconAlbumStack, T("Albums"), route{page: pageBrowse, id: a.libraryPage(music.PageLibraryAlbums)}},
-		sidebarItem{iconNote, T("Songs"), route{page: pageBrowse, id: a.libraryPage(music.PageLibrarySongs)}},
-		sidebarItem{iconForYou, T("Made for You"), route{page: pageBrowse, id: music.PageMadeForYou}},
-	)
+	return []sidebarItem{
+		{iconClock, T("Recently Added"), route{page: pageBrowse, id: music.PageRecentlyAdded}},
+		{iconMic, T("Artists"), route{page: pageBrowse, id: music.PageLibraryArtist}},
+		{iconAlbumStack, T("Albums"), route{page: pageBrowse, id: a.libraryPage(music.PageLibraryAlbums)}},
+		{iconNote, T("Songs"), route{page: pageBrowse, id: a.libraryPage(music.PageLibrarySongs)}},
+		{iconForYou, T("Made for You"), route{page: pageBrowse, id: music.PageMadeForYou}},
+	}
 }
 
 // hasLibrary reports whether the listener has a library to show: once they
-// are signed in, to a source that has them sign in.
+// are signed in.
 func (a *app) hasLibrary() bool {
 	lib := a.library
-	return lib.account != nil || !lib.can("signIn") && !lib.accountUnknown()
+	return lib.account != nil
 }
 
 func (a *app) sidebar(c *ui.Context) {
@@ -63,9 +56,7 @@ func (a *app) sidebar(c *ui.Context) {
 	// Where nothing in it takes the press, the sidebar moves the window, as
 	// the title bar it reaches up into would.
 	ui.Column(c).Fill().Padding(top, 14, 14, 14).Gap(4).DragWindow().Children(func() {
-		if a.can("search") {
-			a.searchField(c)
-		}
+		a.searchField(c)
 
 		nav := ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(2)
 		a.bars.quiet(c, nav, "nav", barPlace{y: a.navScroll.Y, last: -1})
@@ -181,20 +172,12 @@ func (a *app) sidebarGroup(c *ui.Context, title string, collapsed *bool, add fun
 // to make one and a menu to rename them, and those they saved, with a menu
 // to unsave them.
 func (a *app) sidebarPlaylists(c *ui.Context) {
-	var add func()
-	if a.can("createPlaylist") {
-		add = func() { a.newPlaylist(nil) }
-	}
-	a.sidebarGroup(c.Key("playlists"), T("Playlists"), &a.mineCollapsed, add)
+	a.sidebarGroup(c.Key("playlists"), T("Playlists"), &a.mineCollapsed, func() { a.newPlaylist(nil) })
 	if a.mineCollapsed {
 		return
 	}
-	for _, n := range a.browseItems(sidebarItem{iconGrid, T("All Playlists"), route{page: pageBrowse, id: music.PageAllPlaylists}}) {
-		a.navItem(c, n.icon, n.label, n.route)
-	}
-	if a.can("liked") {
-		a.navItem(c, iconStar, T("Favorite Songs"), route{page: pageLiked})
-	}
+	a.navItem(c, iconGrid, T("All Playlists"), route{page: pageBrowse, id: music.PageAllPlaylists})
+	a.navItem(c, iconStar, T("Favorite Songs"), route{page: pageLiked})
 	a.playlistRows(c.Key("mine"), a.mine, true)
 	a.playlistRows(c.Key("saved"), a.saved, false)
 }
@@ -227,9 +210,9 @@ func (a *app) playlistRows(c *ui.Context, lists []music.Playlist, mine bool) {
 		})
 		switch {
 		case mine && pl.Fixed:
-		case mine && (a.can("renamePlaylist") || a.can("deletePlaylist")):
+		case mine:
 			b.ContextMenu(func(m *ui.Menu) { a.playlistMenu(m, pl) })
-		case !mine && a.can("addToLibrary"):
+		case !mine:
 			b.ContextMenu(func(m *ui.Menu) {
 				if m.Item(T("Delete From Library")).Chosen() {
 					a.setInLibrary(a.library, music.ItemPlaylist, pl.ID, false)

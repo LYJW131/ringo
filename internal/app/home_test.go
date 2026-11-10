@@ -31,7 +31,7 @@ func TestHomeShowsTheSourcesSections(t *testing.T) {
 	if err := tt.Click("迷跡波"); err != nil {
 		t.Fatal(err)
 	}
-	if a.route != (route{page: pageAlbum, src: "fake", id: "8"}) {
+	if a.route != (route{page: pageAlbum, id: "8"}) {
 		t.Fatalf("the album's card opened %+v", a.route)
 	}
 	tt.Key(0, ui.KeyBack)
@@ -39,7 +39,7 @@ func TestHomeShowsTheSourcesSections(t *testing.T) {
 	if err := tt.Click("飙升榜"); err != nil {
 		t.Fatal(err)
 	}
-	if a.route != (route{page: pagePlaylist, src: "fake", id: "42"}) {
+	if a.route != (route{page: pagePlaylist, id: "42"}) {
 		t.Fatalf("the playlist's card opened %+v", a.route)
 	}
 }
@@ -58,7 +58,7 @@ func TestPortraitCardsOpenWhatTheyAre(t *testing.T) {
 	if err := tt.Click("Slow Tide"); err != nil {
 		t.Fatal(err)
 	}
-	if a.route != (route{page: pageAlbum, src: "fake", id: "8"}) {
+	if a.route != (route{page: pageAlbum, id: "8"}) {
 		t.Fatalf("the album's card opened %+v", a.route)
 	}
 	tt.Key(0, ui.KeyBack)
@@ -66,7 +66,7 @@ func TestPortraitCardsOpenWhatTheyAre(t *testing.T) {
 	if err := tt.Click("Favorites Mix"); err != nil {
 		t.Fatal(err)
 	}
-	if a.route != (route{page: pagePlaylist, src: "fake", id: "42"}) {
+	if a.route != (route{page: pagePlaylist, id: "42"}) {
 		t.Fatalf("the playlist's card opened %+v", a.route)
 	}
 }
@@ -76,7 +76,6 @@ func TestPortraitCardsOpenWhatTheyAre(t *testing.T) {
 func browseApp() (*app, chan func(), chan string) {
 	a := newTestApp()
 	ch := posts(a)
-	without(a, "isLiked")
 	asked := make(chan string, 8)
 	fake(a).browse = func(page string) (*music.Browse, error) {
 		asked <- page
@@ -95,7 +94,7 @@ func TestSeeAllOpensBrowsePage(t *testing.T) {
 	if err := tt.Click("New Albums"); err != nil {
 		t.Fatal(err)
 	}
-	browse := route{page: pageBrowse, src: "fake", id: "albums"}
+	browse := route{page: pageBrowse, id: "albums"}
 	if a.route != browse {
 		t.Fatalf("opened %+v", a.route)
 	}
@@ -110,7 +109,7 @@ func TestSeeAllOpensBrowsePage(t *testing.T) {
 
 	tt.Key(0, ui.KeyBack)
 	tt.Frame()
-	if a.route != (route{page: pageHome, src: "fake"}) {
+	if a.route != (route{page: pageHome}) {
 		t.Fatalf("back went to %+v", a.route)
 	}
 	tt.Key(0, ui.KeyForward)
@@ -160,7 +159,7 @@ func TestLinkOpensBrowsePage(t *testing.T) {
 	if err := tt.Click("Calm"); err != nil {
 		t.Fatal(err)
 	}
-	if a.route != (route{page: pageBrowse, src: "fake", id: "calm"}) {
+	if a.route != (route{page: pageBrowse, id: "calm"}) {
 		t.Fatalf("opened %+v", a.route)
 	}
 	wait(t, asked, "the page")
@@ -174,12 +173,11 @@ func TestLinkOpensBrowsePage(t *testing.T) {
 	}
 }
 
-// With no Home of its own, a source's shows what it played lately, which plays,
-// and its playlists, which open.
+// With nothing on Apple's Home, Home shows what was played lately, which
+// plays, and the listener's playlists, which open.
 func TestHomeFallsBackToRecentAndPlaylists(t *testing.T) {
 	a := newTestApp()
 	ch := posts(a)
-	without(a, "home", "isLiked")
 	a.account = &music.Account{ID: "1", Name: "Alex"}
 	fake(a).recent = func() ([]music.Track, error) { return []music.Track{song("1", "一")}, nil }
 	fake(a).playlists = func() ([]music.Playlist, error) { return []music.Playlist{{ID: "10", Name: "通勤", Mine: true}}, nil }
@@ -198,7 +196,7 @@ func TestHomeFallsBackToRecentAndPlaylists(t *testing.T) {
 	if err := tt.Click("通勤"); err != nil {
 		t.Fatal(err)
 	}
-	if a.route != (route{page: pagePlaylist, src: "fake", id: "10"}) {
+	if a.route != (route{page: pagePlaylist, id: "10"}) {
 		t.Errorf("opened %+v", a.route)
 	}
 }
@@ -209,7 +207,6 @@ func TestHomeFallsBackToRecentAndPlaylists(t *testing.T) {
 func TestHomeWaitsForTheSourcesOwn(t *testing.T) {
 	a := newTestApp()
 	ch := posts(a)
-	without(a, "isLiked")
 	answer := make(chan struct{})
 	a.account = &music.Account{ID: "1", Name: "Alex"}
 	fake(a).home = func() (*music.Browse, error) {
@@ -247,11 +244,11 @@ func TestHomeWithoutSectionsFallsBack(t *testing.T) {
 	}
 }
 
-// With nothing at all to show, Home says so rather than loading on: and a
-// source to sign in to offers that.
+// With nothing at all to show, Home says so rather than loading on: and,
+// signed out, it offers to sign in.
 func TestHomeEmptyState(t *testing.T) {
 	a := newTestApp()
-	without(a, "signIn")
+	a.account = &music.Account{ID: "1", Name: "Alex"}
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if _, ok := tt.Find("Nothing here yet"); !ok {
@@ -292,7 +289,7 @@ func TestLibraryChangedReloadsWhatShows(t *testing.T) {
 	a.browses["top"] = &browseData{page: &music.Browse{Title: "Old"}}
 	a.browses["other"] = &browseData{page: &music.Browse{Title: "Other"}}
 	a.home = &music.Browse{Sections: []music.Section{{Title: "Old Home"}}}
-	a.route = route{page: pageBrowse, src: "fake", id: "top"}
+	a.route = route{page: pageBrowse, id: "top"}
 
 	a.libraryChanged(a.library)
 	if a.home == nil || a.browses["top"].page == nil || a.browses["top"].page.Title != "Old" {

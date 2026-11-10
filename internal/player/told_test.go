@@ -51,11 +51,11 @@ func listenedQueue(t *testing.T, ids ...string) (*Player, chan func(), *listener
 	ch := make(chan func(), 64)
 	p := New(func(fn func()) { ch <- fn })
 	p.SetVolume(0)
-	p.Source = func(string) music.Source { return src }
+	p.Source = src
 	t.Cleanup(p.stop)
 	var q []music.Track
 	for _, id := range ids {
-		q = append(q, music.Track{ID: id, Source: "s", Duration: 5000})
+		q = append(q, music.Track{ID: id, Duration: 5000})
 	}
 	return p, ch, src, q
 }
@@ -171,7 +171,7 @@ func TestSourceToldWhatHappens(t *testing.T) {
 		t.Errorf("the playlist's song is played from %+v", got[1].Track.Origin)
 	}
 	// What is queued next keeps where it's from.
-	p.PlayLast([]music.Track{{ID: "z", Source: "s"}}, album)
+	p.PlayLast([]music.Track{{ID: "z"}}, album)
 	if o := p.Queue()[len(p.Queue())-1].Origin; o != album {
 		t.Errorf("a song queued last is from %+v", o)
 	}

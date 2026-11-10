@@ -172,30 +172,27 @@ func TestCache(t *testing.T) {
 		f := c.part(st)
 		f.Write(make([]byte, n))
 		f.Close()
-		c.keep("src", id, st.Quality, st, f.Name(), int64(n))
+		c.keep(id, st.Quality, st, f.Name(), int64(n))
 	}
 	store("1", &music.Stream{Quality: "lossless", Type: "m4a", Gain: -3}, 100)
-	dl, st, ok := c.lookup("src", "1", "high")
+	dl, st, ok := c.lookup("1", "high")
 	if !ok || dl.size != 100 || st.Type != "m4a" || st.Gain != -3 {
 		t.Fatalf("lookup: %v %+v", ok, st)
 	}
 	dl.Close()
-	if _, _, ok := c.lookup("other", "1", "high"); ok {
-		t.Error("found another source's song of the same ID")
-	}
 	old := time.Now().Add(-time.Hour)
-	os.Chtimes(filepath.Join(dir, cacheKey("src", "1", "lossless")+".m4a"), old, old)
+	os.Chtimes(filepath.Join(dir, cacheKey("1", "lossless")+".m4a"), old, old)
 	store("2", &music.Stream{Quality: "high", Type: "m4a"}, 100)
 	store("3", &music.Stream{Quality: "high", Type: "m4a"}, 100)
 	store("4", &music.Stream{Quality: "high", Type: "m4a"}, 100)
 	store("5", &music.Stream{Quality: "high", Type: "m4a"}, 100)
-	if _, _, ok := c.lookup("src", "1", "high"); ok {
+	if _, _, ok := c.lookup("1", "high"); ok {
 		t.Error("kept the song played longest ago")
 	}
-	if _, _, ok := c.lookup("src", "2", "lossless"); ok {
+	if _, _, ok := c.lookup("2", "lossless"); ok {
 		t.Error("found a high quality song for lossless")
 	}
-	if dl, _, ok := c.lookup("src", "5", "high"); !ok {
+	if dl, _, ok := c.lookup("5", "high"); !ok {
 		t.Error("dropped the song just kept")
 	} else {
 		dl.Close()
@@ -219,7 +216,7 @@ func TestCacheServesTheLevelsBelow(t *testing.T) {
 		f := c.part(st)
 		f.Write(make([]byte, 100))
 		f.Close()
-		c.keep("src", id, quality, st, f.Name(), 100)
+		c.keep(id, quality, st, f.Name(), 100)
 	}
 	keep("hi", "hires")
 	keep("lo", "lossless")
@@ -230,7 +227,7 @@ func TestCacheServesTheLevelsBelow(t *testing.T) {
 		{"hi", "high", true}, {"hi", "lossless", true}, {"hi", "hires", true},
 		{"lo", "high", true}, {"lo", "lossless", true}, {"lo", "hires", false},
 	} {
-		if got := c.has("src", want.id, want.quality); got != want.found {
+		if got := c.has(want.id, want.quality); got != want.found {
 			t.Errorf("song kept as %s, asked for at %s: found %v", map[string]string{"hi": "hires", "lo": "lossless"}[want.id], want.quality, got)
 		}
 	}
@@ -248,7 +245,7 @@ func TestCacheKeepsDolbyAtmosApart(t *testing.T) {
 		f := c.part(&st)
 		f.Write(make([]byte, 100))
 		f.Close()
-		c.keep("src", id, ask, &st, f.Name(), 100)
+		c.keep(id, ask, &st, f.Name(), 100)
 	}
 	headphones, speakers := music.Ask("hires", music.AtmosHeadphones), music.Ask("hires", music.AtmosSpeakers)
 	keep("atmos", headphones, music.Stream{Quality: "atmos-binaural"})
@@ -271,7 +268,7 @@ func TestCacheKeepsDolbyAtmosApart(t *testing.T) {
 		{"efficient", "efficient", "efficient"},
 		{"efficient", "high", ""},
 	} {
-		f, st, ok := c.find("src", want.id, want.ask)
+		f, st, ok := c.find(want.id, want.ask)
 		got := ""
 		if ok {
 			got = st.Quality
@@ -332,8 +329,8 @@ func pickyQueue(t *testing.T) (*Player, chan func(), []music.Track) {
 	p := New(func(fn func()) { ch <- fn })
 	p.SetVolume(0)
 	src := picky{ok: map[string]bool{"a": true, "c": true}, url: srv.URL}
-	p.Source = func(string) music.Source { return src }
-	return p, ch, []music.Track{{ID: "a", Source: "s"}, {ID: "b", Source: "s"}, {ID: "c", Source: "s"}}
+	p.Source = src
+	return p, ch, []music.Track{{ID: "a"}, {ID: "b"}, {ID: "c"}}
 }
 
 // settle runs what the player posts until it loaded what it went on to.
@@ -413,8 +410,6 @@ func TestShuffleOrderHead(t *testing.T) {
 // nothing is a source that does nothing: tests embed it and add what they need.
 type nothing struct{}
 
-func (nothing) Info() music.Info                               { return music.Info{} }
-func (nothing) Can(string) bool                                { return false }
 func (nothing) Setting(string) string                          { return "" }
 func (nothing) SetSetting(string, string) error                { return nil }
 func (nothing) SignIn() (*music.Account, error)                { return nil, music.ErrUnsupported }
@@ -437,15 +432,13 @@ func (nothing) DeletePlaylist(string) error                    { return music.Er
 func (nothing) AddToPlaylist(string, []string) error           { return music.ErrUnsupported }
 func (nothing) RemoveFromPlaylist(string, []string) error      { return music.ErrUnsupported }
 func (nothing) MovePlaylistTrack(string, int, int) error       { return music.ErrUnsupported }
-func (nothing) SavePlaylist(string, bool) error                { return music.ErrUnsupported }
-func (nothing) FollowArtist(string, bool) error                { return music.ErrUnsupported }
-func (nothing) SaveAlbum(string, bool) error                   { return music.ErrUnsupported }
-func (nothing) SavedAlbums(int) (*music.AlbumList, error)      { return nil, music.ErrUnsupported }
-func (nothing) Stations() ([]music.Station, error)             { return nil, music.ErrUnsupported }
-func (nothing) StationNext(string) ([]music.Track, error)      { return nil, music.ErrUnsupported }
-func (nothing) Search(string, music.SearchKind, int) (*music.SearchResult, error) {
+func (nothing) Favorite(string, string, bool) error            { return music.ErrUnsupported }
+func (nothing) AddToLibrary(string, string, bool) error        { return music.ErrUnsupported }
+func (nothing) InLibrary(string, []string) (map[string]bool, error) {
 	return nil, music.ErrUnsupported
 }
+func (nothing) StationNext(string) ([]music.Track, error)    { return nil, music.ErrUnsupported }
+func (nothing) Autoplay([]string) ([]music.Track, error)     { return nil, music.ErrUnsupported }
 func (nothing) Lyrics(string) (*music.Lyrics, error)         { return nil, music.ErrUnsupported }
 func (nothing) Stream(string, string) (*music.Stream, error) { return nil, music.ErrUnsupported }
 
@@ -468,8 +461,8 @@ func TestPlayNextAndLast(t *testing.T) {
 	p.PlayQueue([]music.Track{q[0], q[2]}, 0, music.Origin{})
 	settle(t, ch, p)
 	gen, out := p.gen, p.out
-	p.PlayNext([]music.Track{{ID: "x", Source: "s"}, {ID: "y", Source: "s"}}, music.Origin{})
-	p.PlayLast([]music.Track{{ID: "z", Source: "s"}}, music.Origin{})
+	p.PlayNext([]music.Track{{ID: "x"}, {ID: "y"}}, music.Origin{})
+	p.PlayLast([]music.Track{{ID: "z"}}, music.Origin{})
 	if got := strings.Join(ids(p), " "); got != "a x y c z" {
 		t.Errorf("the queue plays %s", got)
 	}
@@ -565,10 +558,10 @@ func (signedOut) Stream(string, string) (*music.Stream, error) { return nil, mus
 func TestSignInFailureOnlyWhenAsked(t *testing.T) {
 	ch := make(chan func(), 16)
 	p := New(func(fn func()) { ch <- fn })
-	p.Source = func(string) music.Source { return signedOut{} }
+	p.Source = signedOut{}
 	failed := 0
-	p.Failed = func(string, error) { failed++ }
-	q := []music.Track{{ID: "a", Source: "s"}}
+	p.Failed = func(error) { failed++ }
+	q := []music.Track{{ID: "a"}}
 	p.Restore(Session{Queue: q, Order: []int{0}})
 	settle(t, ch, p)
 	if failed != 0 || p.Err() == "" {

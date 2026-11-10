@@ -62,8 +62,8 @@ type settings struct {
 	// Normalize evens out the loudness of tracks, by what their source
 	// measured of each.
 	Normalize bool `json:"normalize"`
-	// Autoplay goes on with music like what played once the queue ends, for
-	// a source that has some (music.Autoplayer), as Apple Music's AutoPlay.
+	// Autoplay goes on with music like what played once the queue ends, as
+	// Apple Music's AutoPlay.
 	Autoplay bool `json:"autoplay"`
 	// Fog fills Now Playing's backdrop with fog of the cover's color,
 	// rising and swelling with the bass: an experiment the listener turns
@@ -141,7 +141,7 @@ func (s settings) applyAppearance() {
 	}
 }
 
-// qualityLevels are what can be asked of sources, by Apple Music's names.
+// qualityLevels are what can be asked of the source, by Apple Music's names.
 var qualityLevels = []struct{ level, label string }{
 	{"efficient", N("High Efficiency")},
 	{"high", N("High Quality")},

@@ -125,7 +125,6 @@ func TestLikeRefusedAfterSignOut(t *testing.T) {
 func TestLikeGoesBack(t *testing.T) {
 	a := newTestApp()
 	ch := posts(a)
-	without(a, "isLiked")
 	fake(a).like = func(string, bool) error { return errors.New("offline") }
 	a.account = &music.Account{ID: "1"}
 	a.pl.Cue([]music.Track{song("7", "宝船")})

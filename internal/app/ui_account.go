@@ -34,7 +34,7 @@ const signInSettle = 250 * time.Millisecond
 
 // loadAccount asks a source who is signed in.
 func (a *app) loadAccount(lib *library) {
-	if !lib.can("account") || lib.accountBusy {
+	if lib.accountBusy {
 		return
 	}
 	lib.accountBusy = true
@@ -79,19 +79,12 @@ func (a *app) afterAccount(lib *library) {
 	a.loadAccounts(lib, false)
 	a.loadMine(lib)
 	a.loadHome(lib)
-	if a.route.src == lib.id {
-		a.reload(a.route)
-	}
+	a.reload(a.route)
 	a.warmPages(lib)
 }
 
-// promptSignIn asks the listener to sign in to a source, showing the window it
-// asks in. A source that has no accounts has nothing to ask.
+// promptSignIn asks the listener to sign in, showing the window it asks in.
 func (a *app) promptSignIn(lib *library) {
-	if !lib.can("signIn") {
-		a.toast = Tf("%s isn't available right now", lib.name())
-		return
-	}
 	a.showMain()
 	a.signIn = signInDialog{open: true, lib: lib, gen: a.signIn.gen + 1}
 }
@@ -140,11 +133,6 @@ func (a *app) startSignIn() {
 			}
 			lib.account = acc
 			a.afterAccount(lib)
-			// Signed in to another source from the settings: that's the one they're
-			// after. One finishing after they closed the dialog doesn't move them.
-			if current && a.library != lib {
-				a.switchSource(lib.id)
-			}
 		})
 	}()
 }
@@ -169,9 +157,6 @@ func (a *app) signOut(lib *library) {
 // switcher is the source as a music.Switcher, if it lets the listener switch accounts.
 func (l *library) switcher() music.Switcher {
 	sw, _ := l.src.(music.Switcher)
-	if !l.can("accounts") {
-		return nil
-	}
 	return sw
 }
 
@@ -390,8 +375,7 @@ func (a *app) signInDialog(c *ui.Context, p palette, settings bool) {
 }
 
 // accountRow sits at the foot of the sidebar: who is signed in to the source,
-// with a dropdown of the settings and signing out; or a way to sign in, if it
-// has accounts; or else the way to the settings.
+// with a dropdown of the settings and signing out; or a way to sign in.
 func (a *app) accountRow(c *ui.Context) {
 	p := a.pal
 	lib := a.library
@@ -410,27 +394,15 @@ func (a *app) accountRow(c *ui.Context) {
 	}
 	if lib.account == nil {
 		a.accountOpen = false
-		if lib.can("signIn") {
-			label := Tf("Sign in to %s", lib.name())
-			b.Label(label).Children(func() {
-				ui.Box(c).Size(26, 26).Radius(13).Background(p.press).Center().Children(func() {
-					ui.Icon(c, iconUser).Size(14, 14).TextColor(p.muted)
-				})
-				ui.Text(c, label).FontSize(13).FontWeight(500).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
+		label := Tf("Sign in to %s", lib.name())
+		b.Label(label).Children(func() {
+			ui.Box(c).Size(26, 26).Radius(13).Background(p.press).Center().Children(func() {
+				ui.Icon(c, iconUser).Size(14, 14).TextColor(p.muted)
 			})
-			if b.Clicked() {
-				a.promptSignIn(lib)
-			}
-			return
-		}
-		b.Label(T("Settings")).Children(func() {
-			ui.Box(c).Size(26, 26).Center().Children(func() {
-				ui.Icon(c, iconSettings).Size(15, 15).TextColor(p.muted)
-			})
-			ui.Text(c, T("Settings")).FontSize(13).FontWeight(500).TextColor(p.muted)
+			ui.Text(c, label).FontSize(13).FontWeight(500).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
 		})
 		if b.Clicked() {
-			a.openSettings()
+			a.promptSignIn(lib)
 		}
 		return
 	}
@@ -560,7 +532,7 @@ func regionBadge(c *ui.Context, p palette, text string) {
 // openMyPage opens the listener's own page at lib, loaded anew each time: they
 // follow and save on other pages, and it keeps up. What it had shows meanwhile.
 func (a *app) openMyPage(lib *library) {
-	r := route{page: pageBrowse, id: lib.account.Page, src: lib.id}
+	r := route{page: pageBrowse, id: lib.account.Page}
 	a.open(r)
 	a.loadBrowse(lib, r.id, true)
 }
@@ -599,15 +571,11 @@ func (a *app) avatar(c *ui.Context, url string, size float32, empty ui.Color) {
 // as the source can, in Apple Music's words: Edit, for its name, and Delete
 // From Library, which deletes it.
 func (a *app) playlistMenu(m *ui.Menu, pl *music.Playlist) {
-	if a.can("renamePlaylist") && m.Item(T("Edit…")).Chosen() {
+	if m.Item(T("Edit…")).Chosen() {
 		a.startRename(pl)
 	}
-	if a.can("deletePlaylist") {
-		if a.can("renamePlaylist") {
-			m.Separator()
-		}
-		if m.Item(T("Delete From Library…")).Chosen() {
-			a.confirmDelete(pl)
-		}
+	m.Separator()
+	if m.Item(T("Delete From Library…")).Chosen() {
+		a.confirmDelete(pl)
 	}
 }

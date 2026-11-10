@@ -146,7 +146,7 @@ func (a *app) albumHeader(c *ui.Context, lib *library, page *music.AlbumPage) {
 				if i > 0 {
 					ui.Text(c, ", ")
 				}
-				if ar.ID != "" && lib.can("artist") {
+				if ar.ID != "" {
 					a.link(c.Key(i), ar.Name, p.accent, p.accent.Mix(p.text, 0.3), route{page: pageArtist, id: ar.ID})
 				} else {
 					ui.Text(c, ar.Name)
@@ -311,7 +311,7 @@ func (a *app) albumComplete(c *ui.Context, id string) {
 		ui.Text(c, label).FontSize(13).FontWeight(600).TextColor(p.accent)
 	})
 	if bar.Clicked() {
-		a.open(route{page: pageAlbum, src: a.route.src, id: id})
+		a.open(route{page: pageAlbum, id: id})
 	}
 }
 
@@ -361,7 +361,7 @@ func (a *app) albumCard(c *ui.Context, al *music.Album) {
 		}
 		ui.Text(c, strings.Join(meta, " · ")).FontSize(12).TextColor(p.muted).SingleLine().Margin(-6, 0, 0, 0)
 	})
-	if card.Clicked() && a.can("album") {
+	if card.Clicked() {
 		a.open(route{page: pageAlbum, id: al.ID})
 	}
 }

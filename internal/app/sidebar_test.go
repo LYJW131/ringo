@@ -40,7 +40,7 @@ func TestSidebarPlaylistCollapse(t *testing.T) {
 		t.Fatalf("the restored playlist cannot be opened: %v", err)
 	}
 	tt.Frame()
-	if a.route != (route{page: pagePlaylist, src: "fake", id: "11"}) {
+	if a.route != (route{page: pagePlaylist, id: "11"}) {
 		t.Errorf("opened %+v, want playlist 11", a.route)
 	}
 }
@@ -100,7 +100,6 @@ func TestSidebarOpensPages(t *testing.T) {
 			t.Fatalf("%s: %v", entry.label, err)
 		}
 		tt.Frame()
-		entry.r.src = "fake"
 		if a.route != entry.r {
 			t.Fatalf("%s opened %+v", entry.label, a.route)
 		}

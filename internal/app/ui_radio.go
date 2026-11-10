@@ -13,22 +13,22 @@ import (
 // after a restart: the source, the station, and what it's called.
 
 // radioName names a station for the player.
-func radioName(src string, st *music.Station) string {
-	return src + "\x00" + st.ID + "\x00" + st.Name
+func radioName(st *music.Station) string {
+	return st.ID + "\x00" + st.Name
 }
 
 // radioParts takes a radio's name apart.
-func radioParts(name string) (src, id, label string) {
-	parts := strings.SplitN(name, "\x00", 3)
-	if len(parts) != 3 {
-		return "", "", ""
+func radioParts(name string) (id, label string) {
+	parts := strings.Split(name, "\x00")
+	if len(parts) != 2 {
+		return "", ""
 	}
-	return parts[0], parts[1], parts[2]
+	return parts[0], parts[1]
 }
 
 // radioLabel names a radio as the listener knows it.
 func radioLabel(name string) string {
-	_, _, label := radioParts(name)
+	_, label := radioParts(name)
 	return label
 }
 
@@ -47,9 +47,9 @@ func playable(tracks []music.Track) []music.Track {
 // cannot.
 func (a *app) radioFeed(name string) func(got func([]music.Track)) {
 	return func(got func([]music.Track)) {
-		src, id, _ := radioParts(name)
-		lib := a.libOf(src)
-		if lib == nil {
+		id, _ := radioParts(name)
+		lib := a.library
+		if id == "" {
 			got(nil)
 			return
 		}
@@ -82,7 +82,7 @@ func (a *app) playStation(lib *library, st *music.Station) {
 		a.promptSignIn(lib)
 		return
 	}
-	name := radioName(lib.id, st)
+	name := radioName(st)
 	if a.pl.Radio() == name {
 		if !a.pl.Playing() {
 			a.pl.TogglePlay()

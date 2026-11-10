@@ -30,9 +30,6 @@ import (
 // A page that comes in parts goes on at "<page>|<next>", where next is
 // Apple's own address of the part after, as it gave it.
 
-// Older names of pages, as the plugin's sidebar has them.
-var pageAliases = map[string]string{"recentlyAdded": music.PageRecentlyAdded}
-
 func orT(name, fallback string) string {
 	if name != "" {
 		return name
@@ -72,9 +69,6 @@ func (s *Source) browse(page string) (*music.Browse, error) {
 // browseAt is browse without the wrapper being woken (s.warm), for what the
 // app asks for before the listener does.
 func (s *Source) browseAt(page string) (*music.Browse, error) {
-	if alias, ok := pageAliases[page]; ok {
-		page = alias
-	}
 	if page == music.PageRecentlyAdded {
 		return s.recentlyAdded(false)
 	}

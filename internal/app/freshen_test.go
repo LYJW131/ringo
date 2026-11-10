@@ -25,7 +25,7 @@ func TestReopenedPlaylistLoadsAnew(t *testing.T) {
 			song("3", "新歌", "某人"),
 		}}, nil
 	}
-	a.route = route{page: pageHome, src: "fake"}
+	a.route = route{page: pageHome}
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 
@@ -133,7 +133,7 @@ func TestReopenedLikedLoadsAnew(t *testing.T) {
 	fake(a).liked = func(offset int) (*music.Page, error) {
 		return &music.Page{Tracks: []music.Track{song("3", "新歌", "某人"), song("1", "一张相片", "林宥嘉")}}, nil
 	}
-	a.open(route{page: pageLiked, src: "fake"})
+	a.open(route{page: pageLiked})
 	runPost(t, ch)
 	if len(lib.likedList) != 2 || lib.likedList[0].ID != "3" {
 		t.Errorf("liked songs are %v, want the new list", lib.likedList)

@@ -47,7 +47,7 @@ func shelfArt(a *app) {
 
 // shelfSong is an item of a song, by an invented band.
 func shelfSong(i int) music.Item {
-	tr := music.Track{ID: fmt.Sprint("s", i), Source: "fake", Name: fmt.Sprint("Song ", i), Duration: 200000,
+	tr := music.Track{ID: fmt.Sprint("s", i), Name: fmt.Sprint("Song ", i), Duration: 200000,
 		Artists:  []music.Artist{{ID: "7", Name: "The Polar Lights"}},
 		Album:    music.Album{ID: "70", Name: "Polar Night", ImageURL: fmt.Sprintf("cover:%d", i%5)},
 		Explicit: i%4 == 1}
@@ -109,14 +109,13 @@ func shelfPage() *music.Browse {
 func shelfApp() (*app, chan string) {
 	a := newTestApp()
 	a.account = &music.Account{ID: "1", Name: "Alex"}
-	without(a, "isLiked")
 	asked := make(chan string, 16)
 	fake(a).browse = func(page string) (*music.Browse, error) {
 		asked <- page
 		return &music.Browse{}, nil
 	}
 	a.browses[music.PageNew] = &browseData{page: shelfPage(), at: time.Now()}
-	a.route = route{page: pageBrowse, src: "fake", id: music.PageNew}
+	a.route = route{page: pageBrowse, id: music.PageNew}
 	return a, asked
 }
 
@@ -128,7 +127,7 @@ func TestShelfTitleOpensMorePage(t *testing.T) {
 	if err := tt.Click("New Releases"); err != nil {
 		t.Fatal(err)
 	}
-	if a.route != (route{page: pageBrowse, src: "fake", id: "room:albums"}) {
+	if a.route != (route{page: pageBrowse, id: "room:albums"}) {
 		t.Fatalf("opened %+v", a.route)
 	}
 	if page := wait(t, asked, "the page"); page != "room:albums" {
@@ -146,10 +145,10 @@ func TestShelfItemsOpenTheirPages(t *testing.T) {
 		label string
 		want  route
 	}{
-		{"Better Over Time", route{page: pageAlbum, src: "fake", id: "a2"}},
-		{"Natalie Taylor", route{page: pageArtist, src: "fake", id: "r1"}},
-		{"Mandopop", route{page: pagePlaylist, src: "fake", id: "p5"}},
-		{"Charts", route{page: pageBrowse, src: "fake", id: "room:Charts"}},
+		{"Better Over Time", route{page: pageAlbum, id: "a2"}},
+		{"Natalie Taylor", route{page: pageArtist, id: "r1"}},
+		{"Mandopop", route{page: pagePlaylist, id: "p5"}},
+		{"Charts", route{page: pageBrowse, id: "room:Charts"}},
 	} {
 		a, _ := shelfApp()
 		tt := ui.NewTester(a.view, 1180, 3400)
@@ -250,7 +249,7 @@ func TestBrowseLoadsNext(t *testing.T) {
 		{Kind: music.ItemAlbum, ID: "1", Title: "One"}, {Kind: music.ItemAlbum, ID: "2", Title: "Two"}, {Kind: music.ItemAlbum, ID: "3", Title: "Three"},
 	}}}}
 	a.browses[music.PageLibraryAlbums] = &browseData{page: page, at: time.Now(), next: paged{loaded: true, more: true}}
-	a.route = route{page: pageBrowse, src: "fake", id: music.PageLibraryAlbums}
+	a.route = route{page: pageBrowse, id: music.PageLibraryAlbums}
 	tt := ui.NewTester(a.view, 1180, 900)
 	tt.Frame()
 	if got := wait(t, asked, "the next part"); got != "library:albums?2" {
@@ -287,7 +286,7 @@ func TestSearchOpensSearchPages(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.route != (route{page: pageSearch, src: "fake"}) {
+	if a.route != (route{page: pageSearch}) {
 		t.Fatalf("the field opened %+v", a.route)
 	}
 	if page := wait(t, asked, "the categories"); page != music.PageSearchLanding {
@@ -296,14 +295,14 @@ func TestSearchOpensSearchPages(t *testing.T) {
 	tt.Type("迷星叫")
 	tt.Key(0, ui.KeyEnter)
 	tt.Frame()
-	if a.route != (route{page: pageSearch, src: "fake", query: "迷星叫"}) {
+	if a.route != (route{page: pageSearch, query: "迷星叫"}) {
 		t.Fatalf("searching opened %+v", a.route)
 	}
 	if page := wait(t, asked, "the search"); page != music.PageSearch+"迷星叫" {
 		t.Errorf("asked for %q", page)
 	}
 	tt.Key(0, ui.KeyBack)
-	if a.route != (route{page: pageSearch, src: "fake"}) {
+	if a.route != (route{page: pageSearch}) {
 		t.Errorf("back went to %+v", a.route)
 	}
 }
@@ -322,7 +321,7 @@ var shelfScenes = []struct {
 		a.browses[music.PageSearchLanding] = &browseData{page: &music.Browse{Sections: []music.Section{
 			{Title: "Browse Categories", Style: music.ShelfBrick, Items: bricks},
 		}}, at: time.Now()}
-		a.route = route{page: pageSearch, src: "fake"}
+		a.route = route{page: pageSearch}
 	}},
 	{"library-albums", func(a *app) {
 		var albums []music.Item
@@ -332,7 +331,7 @@ var shelfScenes = []struct {
 		a.browses[music.PageLibraryAlbums] = &browseData{page: &music.Browse{Next: "library:albums?31", Sections: []music.Section{
 			{Style: music.ShelfGrid, Items: albums},
 		}}, at: time.Now(), next: paged{loaded: true, more: true, err: "Couldn't load this page: offline"}}
-		a.route = route{page: pageBrowse, src: "fake", id: music.PageLibraryAlbums}
+		a.route = route{page: pageBrowse, id: music.PageLibraryAlbums}
 	}},
 }
 
@@ -379,13 +378,13 @@ func TestLibraryArtistOpensTheirLibraryPage(t *testing.T) {
 			{Kind: music.ItemArtist, ID: "r.1", Title: "The Polar Lights", Page: "library-artist:r.1", Artist: &music.Artist{ID: "r.1", Name: "The Polar Lights"}},
 		}},
 	}}}
-	a.route = route{page: pageBrowse, src: "fake", id: music.PageLibraryArtist}
+	a.route = route{page: pageBrowse, id: music.PageLibraryArtist}
 	tt := ui.NewTester(a.view, 1180, 780)
 	tt.Frame()
 	if err := tt.Click("The Polar Lights"); err != nil {
 		t.Fatal(err)
 	}
-	if a.route != (route{page: pageBrowse, src: "fake", id: "library-artist:r.1"}) {
+	if a.route != (route{page: pageBrowse, id: "library-artist:r.1"}) {
 		t.Fatalf("opened %+v", a.route)
 	}
 }

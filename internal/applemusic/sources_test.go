@@ -252,11 +252,6 @@ func TestSourcesPlayOn(t *testing.T) {
 	ts.Liked(0)
 	playsOn("liked", idRange(1600, 20), 0)
 
-	// A search, into its next page.
-	ts.Search("x", "tracks", 0)
-	ts.Search("x", "tracks", 25)
-	playsOn("a search", idRange(1700, 50), 20)
-
 	// A song on a page the listener opened stays on it when home comes again.
 	ts.Album("801")
 	ts.Home() // Recently Played, here 1100 to 1109, isn't 1500's
@@ -277,7 +272,6 @@ func TestSourcesPlayOn(t *testing.T) {
 	rec.clear()
 	ts.liked(0, true)
 	ts.libraryPlaylist("p.fav", true)
-	ts.stations(true)
 	clk.settle(t)
 	if got := rec.toWrapper(); len(got) != 0 {
 		t.Errorf("in the background: %v", got)
@@ -285,7 +279,7 @@ func TestSourcesPlayOn(t *testing.T) {
 
 	// Songs the app plays from its cache: their lyrics say they play, and the wrapper sleeps.
 	clk.minutes(t, 11)
-	ts.Stations() // browsing, which wakes it
+	ts.asked(true)() // browsing, which wakes it
 	clk.settle(t)
 	wakes := func() int {
 		n := 0

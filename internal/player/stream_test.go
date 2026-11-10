@@ -67,7 +67,7 @@ func TestStreamIntoCache(t *testing.T) {
 	ref := decodeAll(t, b)
 
 	st := &music.Stream{URL: srv.URL + "/whole", Size: int64(len(b)), Quality: "high", Type: "m4a"}
-	s, err := openMP4Stream(c.download("src", "1", "high", st))
+	s, err := openMP4Stream(c.download("1", "high", st))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,13 +84,13 @@ func TestStreamIntoCache(t *testing.T) {
 	if d := maxDiff(got, ref); len(got) != len(ref) || d != 0 {
 		t.Errorf("played %d of %d samples, off by up to %.4f", len(got), len(ref), d)
 	}
-	if dl, _, ok := c.lookup("src", "1", "high"); !ok {
+	if dl, _, ok := c.lookup("1", "high"); !ok {
 		t.Error("not kept")
 	} else {
 		dl.Close()
 	}
 
-	cut := c.download("src", "2", "high", &music.Stream{URL: srv.URL + "/cut", Size: int64(len(b)), Quality: "high", Type: "m4a"})
+	cut := c.download("2", "high", &music.Stream{URL: srv.URL + "/cut", Size: int64(len(b)), Quality: "high", Type: "m4a"})
 	cut.waitFor(int64(len(b) / 2))
 	cut.Close()
 	for start := time.Now(); time.Since(start) < 2*time.Second; time.Sleep(10 * time.Millisecond) {
@@ -101,7 +101,7 @@ func TestStreamIntoCache(t *testing.T) {
 	if parts, _ := filepath.Glob(filepath.Join(dir, "*.part")); len(parts) != 0 {
 		t.Errorf("left %v", parts)
 	}
-	if _, _, ok := c.lookup("src", "2", "high"); ok {
+	if _, _, ok := c.lookup("2", "high"); ok {
 		t.Error("kept a song cut short")
 	}
 }
@@ -122,7 +122,7 @@ func TestCacheKeepsOnlyKnownNames(t *testing.T) {
 	c := NewCache(dir, 1<<30)
 
 	for _, tc := range []struct{ quality, typ string }{{"/../../pwned", "m4a"}, {"high", "/../../pwned"}} {
-		dl := c.download("src", "1", tc.quality, &music.Stream{URL: srv.URL, Size: int64(len(b)), Type: tc.typ})
+		dl := c.download("1", tc.quality, &music.Stream{URL: srv.URL, Size: int64(len(b)), Type: tc.typ})
 		dl.waitFor(int64(len(b)))
 		dl.Close()
 		for start := time.Now(); time.Since(start) < 2*time.Second; time.Sleep(10 * time.Millisecond) {

@@ -246,20 +246,6 @@ func (s *Source) like(id string, on bool) error {
 	return nil
 }
 
-func (s *Source) savedAlbums(offset int, ahead bool) (*music.AlbumList, error) {
-	return kept(s, "albums:"+strconv.Itoa(offset), freshness{maxAge: listKept}, func(func()) (*music.AlbumList, error) {
-		p := params{"limit": "100"}
-		if offset > 0 {
-			p["offset"] = strconv.Itoa(offset)
-		}
-		b, err := s.me("/library/albums", p, reqOpts{})
-		if err != nil {
-			return nil, err
-		}
-		return &music.AlbumList{Albums: s.toAlbums(b.Data), More: b.Next != ""}, nil
-	}, ahead)
-}
-
 var catalogOrPlaylistID = regexp.MustCompile(`^(\d+|pl\.[\w.-]+)$`)
 
 // inLibrary is the library's own resource for what of the catalog is in the library.
@@ -346,7 +332,6 @@ func (s *Source) personal(typ, id string) (own *resource, favorite bool, err err
 }
 
 func (s *Source) saveAlbum(id string, on bool) error {
-	s.forget("albums:")
 	s.forget("recentlyAdded")
 	s.forget("library")
 	if on {

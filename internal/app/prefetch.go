@@ -29,10 +29,8 @@ import (
 // on first, the library's before the editors', which are bigger and opened
 // more seldom, the playlists' last.
 //
-// Only a source that has accounts is fetched from this way, as the pages named
-// are Apple Music's; a plugin's are asked for as they open. Nothing is fetched
-// ahead for a listener who is signed out but for the pages that need no
-// account, and a round that finds nothing due asks for nothing.
+// Nothing is fetched ahead for a listener who is signed out but for the pages
+// that need no account, and a round that finds nothing due asks for nothing.
 //
 // How: at most warmAtOnce requests at a time, none starting while the
 // listener waits for the page they are on, and what the listener asks for
@@ -66,10 +64,10 @@ type warmJob struct {
 
 func newWarmQueue() *warmQueue { return &warmQueue{keys: map[string]bool{}} }
 
-// warmPages queues what is due of what the sidebar opens, and starts it, for a
-// source that has accounts, whose pages these are: another's are its own.
+// warmPages queues what is due of what the sidebar opens, and starts it, once
+// the source has said whose pages these are.
 func (a *app) warmPages(lib *library) {
-	if lib == nil || lib != a.library || !lib.started || !lib.can("account") || lib.accountUnknown() {
+	if lib == nil || lib != a.library || !lib.started || lib.accountUnknown() {
 		return
 	}
 	w := lib.warm
@@ -106,15 +104,11 @@ func warmKey(r route) string {
 
 // warmJobs are all the pages the sidebar opens, in the order to fetch them.
 func (a *app) warmJobs(lib *library) []warmJob {
-	signedIn := lib.account != nil || !lib.can("signIn")
+	signedIn := lib.account != nil
 	var jobs []warmJob
-	browse := func(page string) {
-		if lib.can("browse") {
-			jobs = append(jobs, a.warmBrowse(lib, page))
-		}
-	}
+	browse := func(page string) { jobs = append(jobs, a.warmBrowse(lib, page)) }
 	playlists := func(from, to int) {
-		if !lib.can("playlist") || !signedIn {
+		if !signedIn {
 			return
 		}
 		lists := append(append([]music.Playlist(nil), lib.mine...), lib.saved...)
@@ -128,9 +122,7 @@ func (a *app) warmJobs(lib *library) []warmJob {
 		for _, page := range []string{music.PageRecentlyAdded, a.libraryPage(music.PageLibraryAlbums), a.libraryPage(music.PageLibrarySongs), music.PageLibraryArtist} {
 			browse(page)
 		}
-		if lib.can("liked") {
-			jobs = append(jobs, a.warmLiked(lib))
-		}
+		jobs = append(jobs, a.warmLiked(lib))
 		for _, page := range []string{music.PageAllPlaylists, music.PageMadeForYou} {
 			browse(page)
 		}
@@ -167,9 +159,6 @@ func (a *app) pumpWarm(lib *library) {
 // show yet, as it loads.
 func (a *app) listenerWaits(lib *library) bool {
 	r := a.route
-	if r.src != lib.id {
-		return false
-	}
 	switch r.page {
 	case pageHome:
 		return lib.homeLoading && lib.home == nil
@@ -196,9 +185,7 @@ func (a *app) warmTick() {
 	time.AfterFunc(warmEvery, func() {
 		a.post(func() {
 			if a.win != nil && a.win.IsVisible() && !a.win.IsMinimized() {
-				for _, lib := range a.libs {
-					a.warmPages(lib)
-				}
+				a.warmPages(a.library)
 			}
 			a.warmTick()
 		})
@@ -245,7 +232,7 @@ func (a *app) warmBrowse(lib *library, page string) warmJob {
 				a.post(func() {
 					defer done()
 					if err != nil {
-						log.Printf("source %s: fetching %s ahead: %v", lib.id, page, err)
+						log.Printf("fetching %s ahead: %v", page, err)
 						return
 					}
 					d := lib.browses[page]
@@ -286,7 +273,7 @@ func (a *app) warmPlaylist(lib *library, id string) warmJob {
 				a.post(func() {
 					defer done()
 					if err != nil {
-						log.Printf("source %s: fetching a playlist ahead: %v", lib.id, err)
+						log.Printf("fetching a playlist ahead: %v", err)
 						return
 					}
 					if lib.warm != w || lib.playlists[id] != nil || lib.loadingPl[id] {
@@ -322,7 +309,7 @@ func (a *app) warmLiked(lib *library) warmJob {
 				a.post(func() {
 					defer done()
 					if err != nil {
-						log.Printf("source %s: fetching the favorite songs ahead: %v", lib.id, err)
+						log.Printf("fetching the favorite songs ahead: %v", err)
 						return
 					}
 					if lib.warm != w || lib.likedPaged.loaded || lib.likedPaged.loading {

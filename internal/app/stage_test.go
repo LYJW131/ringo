@@ -61,7 +61,7 @@ func TestTimedLyricsReachTheStage(t *testing.T) {
 	a := newTestApp()
 	ch := posts(a)
 	a.pl = player.New(a.post)
-	a.pl.Source = a.sourceByID
+	a.pl.Source = a.src
 	a.pl.More = a.autoplay
 	fake(a).lyrics = func(string) (*music.Lyrics, error) {
 		return &music.Lyrics{Lines: []music.LyricLine{
@@ -69,9 +69,7 @@ func TestTimedLyricsReachTheStage(t *testing.T) {
 			{Start: 4000, End: 6000, Text: "the next line"},
 		}}, nil
 	}
-	tr := song("7", "宝船")
-	tr.Source = "fake"
-	a.pl.PlayQueue([]music.Track{tr}, 0, music.Origin{})
+	a.pl.PlayQueue([]music.Track{song("7", "宝船")}, 0, music.Origin{})
 	until(t, ch, func() bool { _, loaded := a.pl.Lyrics(); return loaded })
 	if lines, _ := a.pl.Lyrics(); len(lines) != 2 || lines[0].Text != "hello world" {
 		t.Fatalf("lines %+v", lines)

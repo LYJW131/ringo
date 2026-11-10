@@ -25,7 +25,6 @@ var appleMusicChinese = map[string]string{
 	"The playlist changed elsewhere. Try again in a moment.":                                   "此播放列表已在别处更改，请稍后再试。",
 	"There are no items in your library.":                                                      "你的资料库中没有任何项目。",
 	"This song isn't available in your country or region":                                      "你所在的国家或地区不提供这首歌",
-	"Your Station":  "你的电台",
 	"Account in %s": "%s 的账户",
 	"An account the wrapper holds can't be removed here":                                     "wrapper 里的账户不能在这里移除",
 	"An account the wrapper holds can't be signed out of: switch to another account instead": "wrapper 里的账户不能退出登录，请切换到其他账户",

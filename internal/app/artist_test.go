@@ -31,7 +31,7 @@ func TestArtistNameOpensTheirPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.nowPlaying || a.route != (route{page: pageArtist, src: "fake", id: "12"}) {
+	if a.nowPlaying || a.route != (route{page: pageArtist, id: "12"}) {
 		t.Fatalf("after the click: Now Playing open %v, page %+v", a.nowPlaying, a.route)
 	}
 
@@ -44,7 +44,7 @@ func TestArtistNameOpensTheirPage(t *testing.T) {
 	}
 	tt.ClickAt(r.X+4, r.Y+r.H/2)
 	tt.Frame()
-	if a.route != (route{page: pageArtist, src: "fake", id: "13"}) {
+	if a.route != (route{page: pageArtist, id: "13"}) {
 		t.Fatalf("a row's artist opened %+v", a.route)
 	}
 	if cur := a.pl.Current(); cur == nil || cur.ID != duet.ID {
@@ -81,7 +81,7 @@ func TestArtistAlbums(t *testing.T) {
 	if err := tt.Click("迷跡波"); err != nil {
 		t.Fatal(err)
 	}
-	if a.route != (route{page: pageAlbum, src: "fake", id: "8"}) {
+	if a.route != (route{page: pageAlbum, id: "8"}) {
 		t.Fatalf("the album opened %+v", a.route)
 	}
 	tt.Key(0, ui.KeyBack)

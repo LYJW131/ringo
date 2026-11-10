@@ -22,43 +22,11 @@ func Tf(format string, args ...any) string { return i18n.Tf(format, args...) }
 // N marks text kept in a table for T to translate when it shows.
 func N(text string) string { return i18n.N(text) }
 
-// capabilities are the names a source's Can is asked about as its library is
-// made, ahead of the views that hide what it can't do. A plugin knows from
-// compiling it, so the first frame shows the source as it stays.
-var capabilities = []string{
-	"signIn", "signOut", "account",
-	// music.Switcher, which a source may be or not.
-	"accounts",
-	"search", "suggest",
-	"playlists", "playlist", "album", "artist", "liked", "recent",
-	"home", "browse",
-	"isLiked", "like",
-	"createPlaylist", "renamePlaylist", "deletePlaylist", "addToPlaylist", "removeFromPlaylist", "movePlaylistTrack", "savePlaylist",
-	"stationNext",
-	"lyrics", "stream",
-	// music.Favorer, music.Keeper, music.LibraryChecker and
-	// music.Autoplayer, which a source may be or not.
-	"favorite", "addToLibrary", "inLibrary", "autoplay",
-}
-
-func probeCaps(src music.Source) map[string]bool {
-	caps := make(map[string]bool, len(capabilities))
-	for _, name := range capabilities {
-		if src.Can(name) {
-			caps[name] = true
-		}
-	}
-	return caps
-}
-
-// library is what the app has of a source. What a source answers goes here,
-// so an answer that comes after the listener switched to another source lands
-// where it belongs, and shows when they come back.
+// library is what the app has of Apple Music: what it answered, and who is
+// signed in. forget drops what was loaded, as another listener signs in.
 type library struct {
-	id      string
 	src     music.Source
-	caps    map[string]bool // what it can do
-	started bool            // what it lists was asked for
+	started bool // what it lists was asked for
 
 	account      *music.Account
 	accountBusy  bool // it's being asked who's signed in
@@ -133,7 +101,7 @@ type library struct {
 }
 
 func newLibrary(src music.Source) *library {
-	lib := &library{id: src.Info().ID, src: src, caps: probeCaps(src)}
+	lib := &library{src: src}
 	lib.forget()
 	return lib
 }
@@ -155,51 +123,23 @@ func (l *library) forget() {
 	l.warm = newWarmQueue()
 }
 
-// can reports whether the source does what's named.
-func (l *library) can(what string) bool { return l != nil && l.caps[what] }
-
 // accountUnknown reports whether the source is yet to say who's signed in.
-func (l *library) accountUnknown() bool { return l.can("account") && !l.accountAsked }
+func (l *library) accountUnknown() bool { return !l.accountAsked }
 
-// signedOut reports whether the source wants a listener and has none, which it
-// isn't known to until it said so.
-func (l *library) signedOut() bool {
-	return l.can("signIn") && l.account == nil && !l.accountUnknown()
-}
+// signedOut reports whether no one is signed in, which isn't known until the
+// source said so.
+func (l *library) signedOut() bool { return l.account == nil && l.accountAsked }
 
 // name is what the listener knows the source as.
-func (l *library) name() string {
-	return l.src.Info().Name
-}
+func (l *library) name() string { return "Apple Music" }
 
-// libOf returns the library of the source id, or nil.
-func (a *app) libOf(id string) *library {
-	for _, lib := range a.libs {
-		if lib.id == id {
-			return lib
-		}
-	}
-	return nil
-}
-
-// trackLib returns the library of the source of tr, or the active one's for a
-// track that doesn't say.
-func (a *app) trackLib(tr *music.Track) *library {
-	if lib := a.libOf(tr.Source); lib != nil {
-		return lib
-	}
-	return a.library
-}
-
-// boot loads the active source's pages, and picks up playback where it was left.
-// The others are asked once they're needed: a plugin runs from when it's first
-// asked.
+// boot loads the source's pages, and picks up playback where it was left.
 func (a *app) boot() {
 	a.startLibrary(a.library)
 	a.restoreSession()
 }
 
-// startLibrary loads what the sidebar and Home show of a source, once.
+// startLibrary loads what the sidebar and Home show, once.
 func (a *app) startLibrary(lib *library) {
 	if lib.started {
 		return
@@ -209,24 +149,6 @@ func (a *app) startLibrary(lib *library) {
 	a.loadAccount(lib)
 	a.loadMine(lib)
 	a.loadHome(lib)
-}
-
-// activate makes lib the active source: its sidebar and pages show.
-func (a *app) activate(lib *library) {
-	if lib == a.library {
-		return
-	}
-	a.library = lib
-	a.dismissSuggestions()
-	a.accountOpen = false
-	a.startLibrary(lib)
-}
-
-// switchSource goes to a source's Home, as the sidebar's switcher does.
-func (a *app) switchSource(id string) {
-	if lib := a.libOf(id); lib != nil && lib != a.library {
-		a.open(route{page: pageHome, src: id})
-	}
 }
 
 // errNoAnswer stands for a source that answered nothing where it had to answer
@@ -246,7 +168,7 @@ func answered[T any](v *T, err error) (*T, error) {
 // ErrSetup take the listener where they can fix it, the first time only if
 // nobody asked for this in particular.
 func (a *app) problem(lib *library, err error, msg string) string {
-	log.Printf("source %s: %s: %v", lib.id, msg, err)
+	log.Printf("%s: %v", msg, err)
 	switch {
 	case errors.Is(err, music.ErrSignIn):
 		lib.needsSignIn = true
@@ -280,7 +202,7 @@ func (a *app) problem(lib *library, err error, msg string) string {
 // actionFailed says that something the listener did didn't work, taking them
 // where they can fix it if that's the reason.
 func (a *app) actionFailed(lib *library, err error, msg string) {
-	log.Printf("source %s: %s: %v", lib.id, msg, err)
+	log.Printf("%s: %v", msg, err)
 	switch {
 	case errors.Is(err, music.ErrSignIn):
 		a.promptSignIn(lib)
@@ -294,57 +216,51 @@ func (a *app) actionFailed(lib *library, err error, msg string) {
 	}
 }
 
-// sourceFailed hears from the player that a source wants something of the
+// sourceFailed hears from the player that the source wants something of the
 // listener before it plays.
-func (a *app) sourceFailed(source string, err error) {
-	if lib := a.libOf(source); lib != nil {
-		a.problem(lib, err, T("Couldn't play this song"))
-	}
+func (a *app) sourceFailed(err error) {
+	a.problem(a.library, err, T("Couldn't play this song"))
 }
 
-// libraryChanged shows what changed in a source that says so, as files found
-// on disk: other pages load anew as they open. The page showing stays as it is,
-// rather than going blank at each batch of files, but for a page the source
+// libraryChanged has what the source answers asked for anew, as after a
+// setting that changes it: other pages load anew as they open. The page
+// showing stays as it is, rather than going blank, but for a page the source
 // makes up, or Home, which take the new one in place as it comes.
 func (a *app) libraryChanged(lib *library) {
 	was := *lib
 	lib.forget()
 	lib.home, lib.browses, lib.liked = was.home, was.browses, was.liked
-	if r := a.route; r.src == lib.id {
-		switch r.page {
-		case pagePlaylist:
-			if pl := was.playlists[r.id]; pl != nil {
-				lib.playlists[r.id] = pl
-			}
-		case pageAlbum:
-			if d := was.albums[r.id]; d != nil && d.album != nil {
-				lib.albums[r.id] = d
-			}
-		case pageArtist:
-			if d := was.artists[r.id]; d != nil && d.page != nil {
-				lib.artists[r.id] = d
-			}
-		case pageLiked:
-			lib.likedList, lib.likedPaged = was.likedList, was.likedPaged
+	switch r := a.route; r.page {
+	case pagePlaylist:
+		if pl := was.playlists[r.id]; pl != nil {
+			lib.playlists[r.id] = pl
 		}
+	case pageAlbum:
+		if d := was.albums[r.id]; d != nil && d.album != nil {
+			lib.albums[r.id] = d
+		}
+	case pageArtist:
+		if d := was.artists[r.id]; d != nil && d.page != nil {
+			lib.artists[r.id] = d
+		}
+	case pageLiked:
+		lib.likedList, lib.likedPaged = was.likedList, was.likedPaged
 	}
 	shown := browseID(a.route)
 	for page := range lib.browses {
-		if shown != page || a.route.src != lib.id {
+		if shown != page {
 			delete(lib.browses, page)
 		}
 	}
 	a.loadMine(lib)
 	a.loadHome(lib)
-	if a.route.src == lib.id {
-		a.reload(a.route)
-	}
+	a.reload(a.route)
 }
 
 // reload loads what the page of r shows anew.
 func (a *app) reload(r route) {
 	if id := browseID(r); id != "" {
-		a.loadBrowse(a.libOf(r.src), id, true)
+		a.loadBrowse(a.library, id, true)
 		return
 	}
 	a.load(r)

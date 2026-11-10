@@ -173,13 +173,9 @@ func (a *app) shortcuts(c *ui.Context) {
 }
 
 // open opens a page, remembering the one before for the back button, and
-// closes Now Playing over it, though it is the page open. A page of another
-// source makes that source the active one.
+// closes Now Playing over it, though it is the page open.
 func (a *app) open(r route) {
 	a.nowPlaying = false
-	if r.src == "" {
-		r.src = a.route.src
-	}
 	if r == a.route {
 		return
 	}
@@ -187,7 +183,7 @@ func (a *app) open(r route) {
 	a.show(r)
 	// Opened anew, not gone back to, a page paged through starts over.
 	if id := browseID(r); id != "" {
-		if lib := a.libOf(r.src); lib != nil && lib.browses[id] != nil && lib.browses[id].paged {
+		if lib := a.library; lib.browses[id] != nil && lib.browses[id].paged {
 			a.loadBrowse(lib, id, true)
 		}
 	}
@@ -195,16 +191,6 @@ func (a *app) open(r route) {
 
 // show shows the page of r.
 func (a *app) show(r route) {
-	if r.src == "" {
-		r.src = a.route.src
-	}
-	lib := a.libOf(r.src)
-	if lib == nil {
-		// Its source went away since: the active one's Home instead.
-		r = route{page: pageHome, src: a.library.id}
-		lib = a.library
-	}
-	a.activate(lib)
 	a.route = r
 	if r.page == pageSearch {
 		a.query, a.searched = r.query, r
@@ -214,10 +200,7 @@ func (a *app) show(r route) {
 
 // load loads what the page of r shows, unless it has.
 func (a *app) load(r route) {
-	lib := a.libOf(r.src)
-	if lib == nil {
-		return
-	}
+	lib := a.library
 	switch r.page {
 	case pageHome:
 		a.freshenHome()
@@ -521,12 +504,12 @@ func (a *app) remedy(c *ui.Context) {
 
 // Loading what the pages show.
 
-// homeFresh is how long what Home shows stays good. A plugin's picks may change
+// homeFresh is how long what Home shows stays good. Apple's picks may change
 // by the hour; the app may stay open overnight.
 const homeFresh = time.Hour
 
-// loadHome loads what the Home of a source shows: its own page if it makes one
-// up, else what it played lately, the playlists being the sidebar's.
+// loadHome loads what Home shows: Apple Music's page, or what was played
+// lately if that has nothing, the playlists being the sidebar's.
 func (a *app) loadHome(lib *library) {
 	lib.homeLoading, lib.homeErr = true, ""
 	at := time.Now()
@@ -534,20 +517,16 @@ func (a *app) loadHome(lib *library) {
 		var home *music.Browse
 		var recent []music.Track
 		var homeErr, recentErr error
-		if lib.can("home") {
-			home, homeErr = lib.src.Home()
-		}
+		home, homeErr = lib.src.Home()
 		if home == nil || len(home.Sections) == 0 {
 			home = nil
-			if lib.can("recent") {
-				recent, recentErr = lib.src.Recent()
-			}
+			recent, recentErr = lib.src.Recent()
 		}
 		a.post(func() {
 			lib.homeLoading = false
 			// What was kept from last time stays, if Home can't be loaded now.
 			if homeErr != nil && lib.homeKept && lib.home != nil {
-				log.Printf("source %s: Home: %v", lib.id, homeErr)
+				log.Printf("Home: %v", homeErr)
 				return
 			}
 			lib.home, lib.recent, lib.homeKept = home, recent, false
@@ -656,7 +635,7 @@ func sameList(x, y []music.Track) bool {
 	return len(x) == len(y) && (len(x) == 0 || &x[0] == &y[0])
 }
 
-// freshen asks anew for what the listener keeps of the active source, as
+// freshen asks anew for what the listener keeps in Apple Music, as
 // the window comes back to the front: their playlists, and the page showing
 // if it's one of them.
 func (a *app) freshen() {
@@ -667,7 +646,7 @@ func (a *app) freshen() {
 	if time.Since(lib.mineAt) > listsFresh {
 		a.loadMine(lib)
 	}
-	if r := a.route; r.src == lib.id && (r.page == pagePlaylist || r.page == pageLiked) {
+	if r := a.route; r.page == pagePlaylist || r.page == pageLiked {
 		a.load(r)
 	}
 	a.warmPages(lib)

@@ -26,9 +26,6 @@ import (
 	"mygo-music/internal/music"
 )
 
-// ID is the source's.
-const ID = "apple-music"
-
 // Options are what the app gives the source.
 type Options struct {
 	// DataDir is the source's own folder: storage.json, settings.json, the
@@ -166,14 +163,11 @@ type Source struct {
 }
 
 var (
-	_ music.Source     = (*Source)(nil)
-	_ music.Recorder   = (*Source)(nil)
-	_ music.Flusher    = (*Source)(nil)
-	_ music.Favorer    = (*Source)(nil)
-	_ music.Keeper     = (*Source)(nil)
-	_ music.Autoplayer = (*Source)(nil)
-	_ music.Switcher   = (*Source)(nil)
-	_ music.Preloader  = (*Source)(nil)
+	_ music.Source    = (*Source)(nil)
+	_ music.Recorder  = (*Source)(nil)
+	_ music.Flusher   = (*Source)(nil)
+	_ music.Switcher  = (*Source)(nil)
+	_ music.Preloader = (*Source)(nil)
 )
 
 // New makes the source. It asks nothing and starts nothing until it's first called.
@@ -238,26 +232,6 @@ func (s *Source) Close() {
 	s.stopHelper()
 }
 
-func (s *Source) Info() music.Info {
-	return music.Info{
-		ID:       ID,
-		Name:     "Apple Music",
-		Playback: music.PlaybackStream,
-	}
-}
-
-// can is what the plugin exported: what the app may call.
-var can = map[string]bool{
-	"account": true, "accounts": true, "addToLibrary": true, "addToPlaylist": true, "album": true, "artist": true, "autoplay": true, "browse": true,
-	"createPlaylist": true, "deletePlaylist": true, "favorite": true, "home": true, "inLibrary": true, "isLiked": true, "like": true, "liked": true,
-	"lyrics": true, "movePlaylistTrack": true, "played": true, "playlist": true, "playlists": true, "recent": true,
-	"removeFromPlaylist": true, "renamePlaylist": true, "saveAlbum": true, "savePlaylist": true, "savedAlbums": true, "search": true,
-	"setSetting": true, "signIn": true, "signOut": true, "stationNext": true,
-	"stations": true, "stream": true, "suggest": true,
-}
-
-func (s *Source) Can(what string) bool { return can[what] }
-
 func (s *Source) Setting(key string) string { return s.settings.getString(key) }
 
 // SetSetting keeps the setting. The app asks who's signed in after. None
@@ -315,11 +289,6 @@ func (s *Source) RemoveAccount(id string) error {
 func (s *Source) Account() (*music.Account, error) {
 	defer s.asked(true)()
 	return s.account()
-}
-
-func (s *Source) Search(q string, kind music.SearchKind, offset int) (*music.SearchResult, error) {
-	defer s.asked(true)()
-	return s.search(q, kind, offset)
 }
 
 func (s *Source) Suggest(q string) ([]string, error) {
@@ -429,26 +398,6 @@ func (s *Source) AddToPlaylist(id string, trackIDs []string) error {
 	return s.addToPlaylist(id, trackIDs)
 }
 
-func (s *Source) SavePlaylist(id string, on bool) error {
-	defer s.asked(true)()
-	return s.savePlaylist(id, on)
-}
-
-func (s *Source) SaveAlbum(id string, on bool) error {
-	defer s.asked(true)()
-	return s.saveAlbum(id, on)
-}
-
-func (s *Source) SavedAlbums(offset int) (*music.AlbumList, error) {
-	defer s.asked(true)()
-	return s.savedAlbums(offset, false)
-}
-
-func (s *Source) Stations() ([]music.Station, error) {
-	defer s.asked(true)()
-	return s.stations(false)
-}
-
 func (s *Source) StationNext(id string) ([]music.Track, error) {
 	defer s.asked(true)()
 	return s.stationNext(id)
@@ -489,7 +438,3 @@ func (s *Source) MovePlaylistTrack(id string, from, to int) error {
 	defer s.asked(true)()
 	return s.movePlaylistTrack(id, from, to)
 }
-
-// What Apple Music doesn't do, or the web player's API doesn't let it.
-
-func (s *Source) FollowArtist(string, bool) error { return music.ErrUnsupported }

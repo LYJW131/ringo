@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"image/draw"
@@ -77,7 +78,7 @@ func TestAccountMyPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if want := (route{page: pageBrowse, id: "user:1", src: "fake"}); a.route != want || a.accountOpen {
+	if want := (route{page: pageBrowse, id: "user:1"}); a.route != want || a.accountOpen {
 		t.Fatalf("route %+v, menu open %v", a.route, a.accountOpen)
 	}
 	if got := wait(t, asked, "the page"); got != "user:1" {
@@ -319,7 +320,6 @@ func TestAccountsFrames(t *testing.T) {
 	dir := framesDir(t)
 	settingsShot := func(name string, w, h int, dark bool, set func(a *app)) {
 		a := newTestApp()
-		fake(a).info.Name = "Apple Music"
 		fake(a).vals["wrapper"] = "http://wrapper.example"
 		withAccounts(a, "own:1")
 		if set != nil {
@@ -369,5 +369,326 @@ func TestAccountsFrames(t *testing.T) {
 			name = "account-menu-dark.png"
 		}
 		saveFrame(t, dir, name, out)
+	}
+}
+
+// Sign in to X in the account row opens the dialog, whose Sign In calls the source,
+// and the account shows; Sign Out goes back.
+func TestSignInAndOut(t *testing.T) {
+	asked := make(chan struct{}, 1)
+	signedOut := make(chan struct{}, 1)
+	a := newTestApp()
+	ch := posts(a)
+	f := fake(a)
+	f.signIn = func() (*music.Account, error) {
+		asked <- struct{}{}
+		return &music.Account{ID: "1", Name: "小明"}, nil
+	}
+	f.signOut = func() error { signedOut <- struct{}{}; return nil }
+	a.homeLoading = true // for the dialog's Sign In to be the one that shows
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if err := tt.Click("Sign in to Apple Music"); err != nil {
+		t.Fatal(err)
+	}
+	settled(tt)
+	if !a.signIn.open {
+		t.Fatal("no dialog")
+	}
+	if err := tt.Click("Sign In"); err != nil {
+		t.Fatal(err)
+	}
+	wait(t, asked, "signing in")
+	until(t, ch, func() bool { return a.account != nil })
+	if a.signIn.open || a.signIn.waiting {
+		t.Errorf("the dialog stayed: %+v", a.signIn)
+	}
+	settled(tt)
+	if _, ok := tt.Find("小明"); !ok {
+		t.Fatalf("no account in %q", tt.Texts())
+	}
+	if _, ok := tt.Find("Sign in to Apple Music"); ok {
+		t.Error("still offers to sign in")
+	}
+
+	if err := tt.Click("小明"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("Sign Out"); err != nil {
+		t.Fatal(err)
+	}
+	wait(t, signedOut, "signing out")
+	settled(tt)
+	if a.account != nil {
+		t.Error("still signed in")
+	}
+	if _, ok := tt.Find("Sign in to Apple Music"); !ok {
+		t.Errorf("doesn't offer to sign in again: %q", tt.Texts())
+	}
+}
+
+// Sign In in the settings asks in the settings window. It used to open the
+// dialog in the main window, behind the settings, where it went unseen.
+func TestSignInFromSettingsAsksThere(t *testing.T) {
+	a := newTestApp()
+	a.settingsPage = "account"
+	main := ui.NewTester(a.view, 1200, 800)
+	settings := ui.NewTester(a.settingsView, 780, 1000)
+	main.Frame()
+	settings.Frame()
+	if err := settings.Click("Sign In"); err != nil {
+		t.Fatal(err)
+	}
+	settled(settings)
+	settled(main)
+	if _, ok := settings.Find("Cancel"); !ok {
+		t.Errorf("no dialog in the settings: %q", settings.Texts())
+	}
+	if _, ok := main.Find("Cancel"); ok {
+		t.Error("the dialog opened in the main window")
+	}
+}
+
+// A sign-in that fails says why in its dialog, ready to try again.
+func TestSignInFails(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	fake(a).signIn = func() (*music.Account, error) { return nil, errors.New("the code expired") }
+	a.promptSignIn(a.library)
+	a.startSignIn()
+	if !a.signIn.waiting {
+		t.Fatal("not waiting")
+	}
+	runPost(t, ch)
+	if !a.signIn.open || a.signIn.waiting || a.signIn.err != "the code expired" || a.account != nil {
+		t.Errorf("the dialog is %+v, account %+v", a.signIn, a.account)
+	}
+}
+
+// Trying again after a sign-in failed at once leaves the dialog as it was: it
+// showed its wait for a frame, which takes a line where the error took two, and
+// the dialog sprang after it and back, its text moving by fractions of a pixel
+// for half a second. One that takes a while says it's waiting.
+func TestSignInFailingAtOnceStaysPut(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	msg := "Paste your session's cookie in Settings > Plugins > Example, which says how to find it"
+	slow := make(chan struct{})
+	var hold chan struct{}
+	fake(a).signIn = func() (*music.Account, error) {
+		if hold != nil {
+			<-hold
+		}
+		return nil, errors.New(msg)
+	}
+	tt := ui.NewTester(func(c *ui.Context) { a.signInDialog(c, a.pal, false) }, 800, 600)
+	a.promptSignIn(a.library)
+	settled(tt)
+	if err := tt.Click(T("Sign In")); err != nil {
+		t.Fatal(err)
+	}
+	runPost(t, ch)
+	settled(tt)
+	before, ok := tt.Find(msg)
+	if !ok {
+		t.Fatalf("doesn't say why: %q", tt.Texts())
+	}
+
+	if err := tt.Click(T("Sign In")); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	runPost(t, ch)
+	for range 30 {
+		if r, ok := tt.Find(msg); !ok || r != before {
+			t.Fatalf("the error went from %v to %v (shown %v)", before, r, ok)
+		}
+		tt.Advance(16 * time.Millisecond)
+		tt.Frame()
+	}
+
+	hold = slow
+	if err := tt.Click(T("Sign In")); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Advance(signInSettle)
+	tt.Frame()
+	if _, ok := tt.Find(T("Waiting for you to finish signing in…")); !ok {
+		t.Errorf("doesn't say it's waiting: %q", tt.Texts())
+	}
+	close(slow)
+	runPost(t, ch)
+}
+
+// A sign-in that ends after the dialog was put away still counts, with what's the
+// listener's loaded anew.
+func TestSignInEndsAfterDialog(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	f := fake(a)
+	f.signIn = func() (*music.Account, error) { return &music.Account{ID: "1", Name: "小明"}, nil }
+	f.playlists = func() ([]music.Playlist, error) { return []music.Playlist{{ID: "10", Name: "通勤", Mine: true}}, nil }
+	a.promptSignIn(a.library)
+	a.startSignIn()
+	a.signIn.open = false
+	until(t, ch, func() bool { return a.account != nil && len(a.mine) > 0 })
+	if a.signIn.open {
+		t.Error("the dialog came back")
+	}
+}
+
+// Who's signed in is asked of the source once it starts: signed in already, it's
+// known without the dialog, and one who isn't asks nothing of the listener.
+func TestAccountAskedOnStart(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	fake(a).account = func() (*music.Account, error) { return &music.Account{ID: "1", Name: "小明"}, nil }
+	a.library.started = false
+	a.startLibrary(a.library)
+	until(t, ch, func() bool { return a.account != nil })
+	if a.signIn.open {
+		t.Error("asked the listener to sign in")
+	}
+}
+
+// Who's signed in, said for the first time, changes nothing listed as the source
+// started: Home loaded twice at each launch, its picks changing under the listener.
+func TestFirstAccountLoadsNothingAgain(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	f := fake(a)
+	f.account = func() (*music.Account, error) { return &music.Account{ID: "1", Name: "小明"}, nil }
+	asked, answer := make(chan struct{}, 4), make(chan struct{})
+	f.home = func() (*music.Browse, error) {
+		asked <- struct{}{}
+		<-answer
+		return &music.Browse{Sections: []music.Section{{Title: "Picks"}}}, nil
+	}
+	a.library.started, a.library.accountAsked = false, false
+	a.startLibrary(a.library)
+	wait(t, asked, "Home")
+	until(t, ch, func() bool { return a.account != nil })
+	close(answer)
+	until(t, ch, func() bool { return a.home != nil })
+	select {
+	case <-asked:
+		t.Error("Home was asked for again")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// What the source refused as it started, not knowing the listener yet, it's asked
+// again once it says who they are.
+func TestFirstAccountLoadsAgainWhatFailed(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	f := fake(a)
+	answer := make(chan struct{})
+	f.account = func() (*music.Account, error) {
+		<-answer
+		return &music.Account{ID: "1", Name: "小明"}, nil
+	}
+	f.home = func() (*music.Browse, error) { return nil, errors.New("not yet") }
+	a.library.started, a.library.accountAsked = false, false
+	a.startLibrary(a.library)
+	until(t, ch, func() bool { return a.homeErr != "" })
+	f.home = func() (*music.Browse, error) {
+		return &music.Browse{Sections: []music.Section{{Title: "Picks"}}}, nil
+	}
+	close(answer)
+	until(t, ch, func() bool { return a.home != nil })
+}
+
+// A heart asked about before the source said who's signed in is asked about again
+// after: its answer is dropped, which left it empty for good.
+func TestLikeAskedBeforeAccountAskedAgain(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	f := fake(a)
+	accountGo, likedGo := make(chan struct{}), make(chan struct{})
+	f.account = func() (*music.Account, error) {
+		<-accountGo
+		return &music.Account{ID: "1", Name: "小明"}, nil
+	}
+	f.isLiked = func(ids []string) (map[string]bool, error) {
+		<-likedGo
+		return map[string]bool{"1": true}, nil
+	}
+	a.library.started, a.library.accountAsked = false, false
+	a.startLibrary(a.library)
+	tr := song("1", "Song")
+	a.wantLike(&tr)
+	a.askLikes()
+	close(accountGo)
+	until(t, ch, func() bool { return a.account != nil })
+	close(likedGo)
+	a.wantLike(&tr)
+	a.askLikes()
+	until(t, ch, func() bool { return a.isLiked(&tr) })
+}
+
+// Started signed out, the app asks for no playlists and opens no sign-in
+// dialog by itself: it used to ask for them as it started, and open the
+// dialog when told to sign in. Signed in, it asks for them.
+func TestSignedOutStartAsksNothing(t *testing.T) {
+	asked := make(chan struct{}, 4)
+	a := newTestApp()
+	ch := posts(a)
+	lib := a.library
+	lib.started, lib.accountAsked = false, false
+	fake(a).playlists = func() ([]music.Playlist, error) {
+		asked <- struct{}{}
+		return nil, music.ErrSignIn
+	}
+	tt := ui.NewTester(a.view, 1200, 800)
+	a.startLibrary(lib)
+	until(t, ch, func() bool { return lib.accountAsked && !lib.homeLoading })
+	settled(tt)
+	if a.signIn.open || len(asked) > 0 {
+		t.Fatalf("signed out: dialog open %v, playlists asked %d times", a.signIn.open, len(asked))
+	}
+
+	b := newTestApp()
+	ch = posts(b)
+	b.library.started, b.library.accountAsked = false, false
+	fake(b).account = func() (*music.Account, error) { return &music.Account{ID: "1", Name: "Alex"}, nil }
+	fake(b).playlists = func() ([]music.Playlist, error) {
+		asked <- struct{}{}
+		return nil, nil
+	}
+	b.startLibrary(b.library)
+	until(t, ch, func() bool { return len(asked) > 0 })
+}
+
+// The account's row says nothing of who is signed in until the source has
+// said: it said "sign in" to someone signed in, moving what's around it.
+func TestAccountRowWaitsForTheAccount(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	answer := make(chan struct{})
+	fake(a).account = func() (*music.Account, error) {
+		<-answer
+		return &music.Account{ID: "1", Name: "小明"}, nil
+	}
+	a.started, a.accountAsked = false, false
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	check := func() {
+		t.Helper()
+		if tt.HasText("Sign in to Apple Music") {
+			t.Error("the account's row says what isn't known yet")
+		}
+	}
+	check()
+	a.startLibrary(a.library)
+	tt.Frame()
+	check()
+	close(answer)
+	until(t, ch, func() bool { return a.account != nil })
+	tt.Frame()
+	if !tt.HasText("小明") {
+		t.Error("who's signed in doesn't show")
 	}
 }

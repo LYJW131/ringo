@@ -43,9 +43,9 @@ func (a *app) homePage(c *ui.Context) {
 		return
 	}
 	loading := lib.homeLoading || !lib.started || lib.accountUnknown()
-	// A source that makes up its own Home shows none of this one until it said
-	// it has none: its playlists, loaded first, would show here, then make way.
-	nothing := len(lib.recent) == 0 && len(lib.mine) == 0 && len(lib.saved) == 0 || lib.can("home") && loading
+	// None of this shows until Home is known to have nothing: the playlists,
+	// loaded first, would show here, then make way.
+	nothing := len(lib.recent) == 0 && len(lib.mine) == 0 && len(lib.saved) == 0 || loading
 	if nothing && !loading {
 		if lib.homeErr != "" {
 			a.centered(c, lib.homeErr, func() { a.loadHome(lib) })
@@ -62,7 +62,7 @@ func (a *app) homePage(c *ui.Context) {
 		defer a.endMark(c)
 		ui.Box(c).PaddingX(12).Children(func() { a.heading(c, T("Home"), "") })
 		if nothing {
-			a.homeSkeleton(c, a.pageShimmer(c), lib.can("home"))
+			a.homeSkeleton(c, a.pageShimmer(c))
 			return
 		}
 		if len(lib.recent) > 0 {
@@ -103,9 +103,7 @@ func (a *app) emptyHome(c *ui.Context) {
 			}
 		default:
 			ui.Text(c, T("Nothing here yet")).FontSize(22).FontWeight(700).LetterSpacing(-0.3)
-			if a.can("search") {
-				ui.Text(c, T("Search for something to play.")).FontSize(13.5).TextColor(p.muted)
-			}
+			ui.Text(c, T("Search for something to play.")).FontSize(13.5).TextColor(p.muted)
 		}
 	})
 }
@@ -373,10 +371,10 @@ func (a *app) playlistRow(c *ui.Context, tracks []music.Track, i int, pid string
 			a.artistLinks(c, tr, p.muted, p.text).Grow(2).Basis(0).MinWidth(0).FontSize(13).SingleLine()
 			album := ui.RichText(c).Grow(2).Basis(0).MinWidth(0).FontSize(13).TextColor(p.muted).SingleLine()
 			album.Children(func() {
-				if tr.Album.ID == "" || !a.trackLib(tr).can("album") {
+				if tr.Album.ID == "" {
 					ui.Text(c, tr.Album.Name)
 				} else {
-					a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, src: tr.Source, id: tr.Album.ID})
+					a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, id: tr.Album.ID})
 				}
 			})
 		}
@@ -588,9 +586,9 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 	a.pageBars(c, list, rows)
 }
 
-// sameTrack reports whether two tracks are one: IDs are their source's.
+// sameTrack reports whether two tracks are one.
 func sameTrack(x, y *music.Track) bool {
-	return x != nil && y != nil && x.ID == y.ID && x.Source == y.Source
+	return x != nil && y != nil && x.ID == y.ID
 }
 
 // trackRow is a row of the list tracks, its track i, which plays the list from
@@ -647,10 +645,10 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 		if wide {
 			album := ui.RichText(c).Grow(2).Basis(0).MinWidth(0).FontSize(12.5).TextColor(p.muted).SingleLine()
 			album.Children(func() {
-				if tr.Album.ID == "" || !a.trackLib(tr).can("album") {
+				if tr.Album.ID == "" {
 					ui.Text(c, tr.Album.Name)
 				} else {
-					a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, src: tr.Source, id: tr.Album.ID})
+					a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, id: tr.Album.ID})
 				}
 			})
 		}

@@ -10,14 +10,6 @@ import (
 	"mygo-music/internal/music"
 )
 
-// sourced is tracks of the source called fake, as the player goes by.
-func sourced(tracks ...music.Track) []music.Track {
-	for i := range tracks {
-		tracks[i].Source = "fake"
-	}
-	return tracks
-}
-
 // nightDrive is the station radioApp plays.
 var nightDrive = music.Station{ID: "st", Name: "Night Drive"}
 
@@ -25,7 +17,6 @@ var nightDrive = music.Station{ID: "st", Name: "Night Drive"}
 func radioApp() (*app, chan func()) {
 	a := newTestApp()
 	ch := posts(a)
-	without(a, "isLiked")
 	a.account = &music.Account{ID: "1"}
 	return a, ch
 }
@@ -35,7 +26,7 @@ func radioApp() (*app, chan func()) {
 func TestStationPlaysAndGoesOn(t *testing.T) {
 	asked := make(chan string, 4)
 	a, ch := radioApp()
-	batches := [][]music.Track{sourced(song("1", "一"), song("2", "二")), sourced(song("2", "二"), song("3", "三"))}
+	batches := [][]music.Track{{song("1", "一"), song("2", "二")}, {song("2", "二"), song("3", "三")}}
 	fake(a).stationNext = func(id string) ([]music.Track, error) {
 		asked <- id
 		b := batches[0]
@@ -50,7 +41,7 @@ func TestStationPlaysAndGoesOn(t *testing.T) {
 		t.Fatalf("asked station %q", id)
 	}
 	until(t, ch, func() bool { return a.pl.Radio() != "" })
-	if a.pl.Radio() != radioName("fake", &nightDrive) || a.pl.Current().ID != "1" || a.radioStarting != "" {
+	if a.pl.Radio() != radioName(&nightDrive) || a.pl.Current().ID != "1" || a.radioStarting != "" {
 		t.Fatalf("radio %q, playing %+v, starting %q", a.pl.Radio(), a.pl.Current(), a.radioStarting)
 	}
 	wait(t, asked, "more songs")
@@ -64,8 +55,8 @@ func TestStationPlaysAndGoesOn(t *testing.T) {
 func TestStationPlayingGoesOn(t *testing.T) {
 	a, _ := radioApp()
 	fake(a).stationNext = func(string) ([]music.Track, error) { t.Error("started it again"); return nil, nil }
-	a.pl.Cue(sourced(song("1", "一"), song("2", "二"), song("3", "三")))
-	a.pl.AttachRadio(radioName("fake", &nightDrive), func(func([]music.Track)) {})
+	a.pl.Cue([]music.Track{song("1", "一"), song("2", "二"), song("3", "三")})
+	a.pl.AttachRadio(radioName(&nightDrive), func(func([]music.Track)) {})
 	a.playStation(a.library, &nightDrive)
 	if a.radioStarting != "" {
 		t.Errorf("starting %q", a.radioStarting)
@@ -110,9 +101,9 @@ func TestStationSignedOut(t *testing.T) {
 // queued after it go.
 func TestLeaveRadio(t *testing.T) {
 	a, _ := radioApp()
-	a.pl.Cue(sourced(song("1", "晚风"), song("2", "推荐的歌"), song("3", "下一首")))
+	a.pl.Cue([]music.Track{song("1", "晚风"), song("2", "推荐的歌"), song("3", "下一首")})
 	a.pl.SetLyrics(nil)
-	a.pl.AttachRadio(radioName("fake", &nightDrive), func(func([]music.Track)) {})
+	a.pl.AttachRadio(radioName(&nightDrive), func(func([]music.Track)) {})
 	a.nowPlaying = true
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -130,14 +121,14 @@ func TestLeaveRadio(t *testing.T) {
 	}
 }
 
-// A radio's name gives back the source, the station and what it's called, and
-// something else names none.
+// A radio's name gives back the station and what it's called, and something
+// else names none.
 func TestRadioName(t *testing.T) {
-	src, id, label := radioParts(radioName("fake", &music.Station{ID: "st", Name: "Night Drive"}))
-	if src != "fake" || id != "st" || label != "Night Drive" {
-		t.Errorf("source %q, station %q, called %q", src, id, label)
+	id, label := radioParts(radioName(&music.Station{ID: "st", Name: "Night Drive"}))
+	if id != "st" || label != "Night Drive" {
+		t.Errorf("station %q, called %q", id, label)
 	}
-	if src, _, _ := radioParts("heart"); src != "" {
-		t.Errorf("source %q of something else", src)
+	if id, _ := radioParts("heart"); id != "" {
+		t.Errorf("station %q of something else", id)
 	}
 }

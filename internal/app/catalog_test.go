@@ -119,7 +119,7 @@ func TestClearSearch(t *testing.T) {
 		}
 		want := before
 		if onPage {
-			want = route{page: pageSearch, src: "fake"}
+			want = route{page: pageSearch}
 		}
 		if a.route != want {
 			t.Errorf("on page %v: showing %+v, want %+v", onPage, a.route, want)
@@ -236,7 +236,7 @@ func TestAlbumLinkInRow(t *testing.T) {
 	}
 	tt.ClickAt(r.X+8, r.Y+r.H/2)
 	tt.Frame()
-	if a.route != (route{page: pageAlbum, src: "fake", id: "8"}) || a.pl.Current() != nil {
+	if a.route != (route{page: pageAlbum, id: "8"}) || a.pl.Current() != nil {
 		t.Fatalf("opened %+v, playing %+v", a.route, a.pl.Current())
 	}
 }

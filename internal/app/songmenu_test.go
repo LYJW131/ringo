@@ -57,7 +57,7 @@ func TestSongMenuOnRightClick(t *testing.T) {
 	linked := song("2", "宝船", "DOUDOU")
 	linked.URL = "https://example.com/song/2"
 	a.playlists["42"] = &music.Playlist{ID: "42", Name: "飙升榜", Tracks: []music.Track{song("1", "一张相片", "林宥嘉"), linked}}
-	a.route = route{page: pagePlaylist, src: "fake", id: "42"}
+	a.route = route{page: pagePlaylist, id: "42"}
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 
@@ -84,13 +84,12 @@ func TestSongMenuOnRightClick(t *testing.T) {
 	}
 }
 
-// A song's menu goes to its artist's and album's pages, as far as its source
-// has them.
+// A song's menu goes to its artist's and album's pages.
 func TestSongMenuGoesToPages(t *testing.T) {
 	a := newTestApp()
 	tr := music.Track{ID: "1", Name: "宝船", Artists: []music.Artist{{ID: "12", Name: "DOUDOU"}}, Album: music.Album{ID: "8", Name: "迷跡波"}, Duration: 200000}
 	a.playlists["42"] = &music.Playlist{ID: "42", Name: "飙升榜", Tracks: []music.Track{tr}}
-	a.route = route{page: pagePlaylist, src: "fake", id: "42"}
+	a.route = route{page: pagePlaylist, id: "42"}
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 
@@ -100,19 +99,19 @@ func TestSongMenuGoesToPages(t *testing.T) {
 	if err := tt.ChooseMenuItem("Go to Artist: DOUDOU"); err != nil {
 		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
 	}
-	if a.route != (route{page: pageArtist, src: "fake", id: "12"}) {
+	if a.route != (route{page: pageArtist, id: "12"}) {
 		t.Fatalf("went to %+v", a.route)
 	}
 	tt.Key(0, ui.KeyBack)
 	tt.Frame()
 
-	without(a, "album")
-	tt.Frame()
 	if err := tt.RightClick("宝船"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Show Album"); err == nil {
-		t.Error("offered the page of an album its source has no pages of")
+	if err := tt.ChooseMenuItem("Show Album"); err != nil {
+		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
 	}
-	tt.CloseMenu()
+	if a.route != (route{page: pageAlbum, id: "8"}) {
+		t.Errorf("went to %+v", a.route)
+	}
 }

@@ -157,30 +157,3 @@ const (
 func wideReplacer(w, h int) *strings.Replacer {
 	return strings.NewReplacer("{w}", strconv.Itoa(w), "{h}", strconv.Itoa(h), "{c}", "sr", "{f}", "jpg")
 }
-
-// What follows is a source's to do or not, as Recorder is: the app asks Can
-// by the method's name, with a small letter first, before it offers any.
-
-// A Favorer keeps the listener's favorites: albums, playlists, artists and
-// songs, by an Item's kind.
-type Favorer interface {
-	Favorite(kind, id string, on bool) error
-}
-
-// A Keeper adds what an Item's kind names to the listener's library, a
-// song, an album, a playlist or a video, or takes it out.
-type Keeper interface {
-	AddToLibrary(kind, id string, on bool) error
-}
-
-// A LibraryChecker says which of ids, of an Item's kind, are in the
-// listener's library, all at once: those it leaves out aren't.
-type LibraryChecker interface {
-	InLibrary(kind string, ids []string) (map[string]bool, error)
-}
-
-// An Autoplayer answers songs to go on with once the queue ends, like
-// those of ids, the songs it ended with.
-type Autoplayer interface {
-	Autoplay(ids []string) ([]Track, error)
-}

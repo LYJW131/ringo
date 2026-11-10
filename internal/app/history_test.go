@@ -14,7 +14,7 @@ func TestBackAndForward(t *testing.T) {
 	a.playlists["42"] = &music.Playlist{ID: "42", Name: "飙升榜", Tracks: []music.Track{{ID: "1", Name: "一张相片"}}}
 	a.playlists["43"] = &music.Playlist{ID: "43", Name: "睡前", Tracks: []music.Track{{ID: "2", Name: "宝船"}}}
 	tt := ui.NewTester(a.view, 1200, 800)
-	other, list := route{page: pagePlaylist, src: "fake", id: "43"}, route{page: pagePlaylist, src: "fake", id: "42"}
+	other, list := route{page: pagePlaylist, id: "43"}, route{page: pagePlaylist, id: "42"}
 	a.open(other)
 	a.open(list)
 	tt.Frame()
@@ -43,7 +43,7 @@ func TestBackAndForward(t *testing.T) {
 	// A new page leaves nothing to go forward to.
 	tt.Key(0, ui.KeyBack)
 	tt.Frame()
-	home := route{page: pageHome, src: "fake"}
+	home := route{page: pageHome}
 	a.open(home)
 	tt.Key(0, ui.KeyForward)
 	tt.Frame()

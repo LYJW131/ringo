@@ -61,7 +61,7 @@ type pageFile struct {
 	Playlists map[string]*music.Playlist `json:",omitempty"`
 }
 
-// pageStore is the file of a source's pages, and the state of writing it.
+// pageStore is the file of the pages, and the state of writing it.
 type pageStore struct {
 	path string
 	// account is who's signed in, which what's kept is for, or "" while that
@@ -77,27 +77,24 @@ type pageStore struct {
 
 // accountKey is how the file names whose it is: a hash, so that it doesn't
 // hold the account's ID.
-func accountKey(lib *library, acc *music.Account) string {
+func accountKey(acc *music.Account) string {
 	if acc == nil {
 		return ""
 	}
-	sum := sha256.Sum256([]byte(lib.id + "\x00" + acc.ID))
+	sum := sha256.Sum256([]byte(acc.ID))
 	return hex.EncodeToString(sum[:8])
 }
 
-// pagesPath is the file of a source's pages.
-func pagesPath(dir, source string) string {
-	sum := sha256.Sum256([]byte(source))
-	return filepath.Join(dir, hex.EncodeToString(sum[:6])+".json")
-}
+// pagesPath is the file of the pages kept in dir.
+func pagesPath(dir string) string { return filepath.Join(dir, "pages.json") }
 
 // stagePages reads what was kept last time, as the source starts, and shows
 // it as the pages it was of, until the source says who's signed in (adoptPages).
 func (a *app) stagePages(lib *library) {
-	if a.pagesDir == "" || !lib.can("account") || lib.pages != nil {
+	if a.pagesDir == "" || lib.pages != nil {
 		return
 	}
-	lib.pages = &pageStore{path: pagesPath(a.pagesDir, lib.id)}
+	lib.pages = &pageStore{path: pagesPath(a.pagesDir)}
 	data, err := os.ReadFile(lib.pages.path)
 	if err != nil {
 		return
@@ -132,7 +129,7 @@ func (a *app) adoptPages(lib *library) {
 	if st == nil {
 		return
 	}
-	st.account = accountKey(lib, lib.account)
+	st.account = accountKey(lib.account)
 	f := lib.staged
 	lib.staged = nil
 	if f == nil {
@@ -144,8 +141,8 @@ func (a *app) adoptPages(lib *library) {
 		return
 	}
 	a.dropStaged(lib)
-	if r := a.route; r.src == lib.id && lib.account != nil {
-		a.reload(r)
+	if lib.account != nil {
+		a.reload(a.route)
 	}
 }
 
@@ -174,7 +171,7 @@ func (a *app) resetPages(lib *library) {
 	}
 	trashPages(st.path)
 	// A write on its way is for the account it started under.
-	lib.pages = &pageStore{path: st.path, account: accountKey(lib, lib.account)}
+	lib.pages = &pageStore{path: st.path, account: accountKey(lib.account)}
 }
 
 // trashPages deletes a file of pages.
@@ -204,10 +201,8 @@ func (a *app) keepPages(lib *library) {
 
 // flushPages writes what's loaded as the app quits, before it's gone.
 func (a *app) flushPages() {
-	for _, lib := range a.libs {
-		if lib.pages != nil && lib.pages.account != "" && lib.pages.pending {
-			a.savePages(lib, true)
-		}
+	if lib := a.library; lib.pages != nil && lib.pages.account != "" && lib.pages.pending {
+		a.savePages(lib, true)
 	}
 }
 

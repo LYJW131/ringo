@@ -123,12 +123,8 @@ func TestLiveActivity(t *testing.T) {
 		return music.Track{}
 	}
 
-	albums, err := s.Search("lofi", music.SearchAlbums, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
 	var album *music.AlbumPage
-	for _, al := range albums.Albums {
+	for _, al := range searchFor(t, s, "lofi", music.ItemAlbum) {
 		if isCatalogID(al.ID) && !known("albums", al.ID) {
 			if album, err = s.Album(al.ID); err == nil && len(album.Tracks) > 0 {
 				break
@@ -143,12 +139,8 @@ func TestLiveActivity(t *testing.T) {
 	play(songOf(album.Tracks, from))
 	topWithin("albums:" + album.Album.ID)
 
-	lists, err := s.Search("lofi", music.SearchPlaylists, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
 	var list *music.Playlist
-	for _, pl := range lists.Playlists {
+	for _, pl := range searchFor(t, s, "lofi", music.ItemPlaylist) {
 		if strings.HasPrefix(pl.ID, "pl.") && !known("playlists", pl.ID) {
 			if list, err = s.Playlist(pl.ID); err == nil && len(list.Tracks) > 0 && list.Version != "" {
 				break

@@ -40,7 +40,7 @@ type Album struct {
 	ImageURL string   `json:"imageUrl,omitempty"`
 	Artists  []Artist `json:"artists,omitempty"`
 	Released string   `json:"released,omitempty"` // as the source has it, such as 2024-03-01
-	// Saved says the listener saved it, for a source with saveAlbum.
+	// Saved says it is in the listener's library.
 	Saved bool `json:"saved,omitempty"`
 	// Uploaded says some of its songs are the listener's uploads (see
 	// Track.Uploaded), so it stays in their library: deleted, those
@@ -71,10 +71,7 @@ type Album struct {
 }
 
 type Track struct {
-	ID string `json:"id"`
-	// Source is the ID of the source the track came from, which it plays
-	// through. The source's own answers leave it out; it's filled in for them.
-	Source   string   `json:"source,omitempty"`
+	ID       string   `json:"id"`
 	Name     string   `json:"name"`
 	Artists  []Artist `json:"artists,omitempty"`
 	Album    Album    `json:"album"`
@@ -262,40 +259,9 @@ type AccountChoice struct {
 	Used time.Time `json:"used,omitzero"`
 }
 
-// SearchKind is what a search looks for.
-type SearchKind string
-
-const (
-	SearchTracks    SearchKind = "tracks"
-	SearchAlbums    SearchKind = "albums"
-	SearchArtists   SearchKind = "artists"
-	SearchPlaylists SearchKind = "playlists"
-)
-
-// SearchResult is a page of what a search found; only the kind searched for
-// is filled in.
-type SearchResult struct {
-	Tracks    []Track    `json:"tracks,omitempty"`
-	Albums    []Album    `json:"albums,omitempty"`
-	Artists   []Artist   `json:"artists,omitempty"`
-	Playlists []Playlist `json:"playlists,omitempty"`
-	More      bool       `json:"more,omitempty"` // there is a next page
-}
-
-// Len is how many things the page holds.
-func (r *SearchResult) Len() int {
-	return len(r.Tracks) + len(r.Albums) + len(r.Artists) + len(r.Playlists)
-}
-
 // Page is a page of tracks.
 type Page struct {
 	Tracks []Track `json:"tracks,omitempty"`
-	More   bool    `json:"more,omitempty"`
-}
-
-// AlbumList is a page of albums.
-type AlbumList struct {
-	Albums []Album `json:"albums,omitempty"`
 	More   bool    `json:"more,omitempty"`
 }
 
@@ -432,27 +398,11 @@ type LyricWord struct {
 	Text  string `json:"text"`
 }
 
-// Playback is how a source's tracks get heard.
-type Playback string
-
-const (
-	// PlaybackStream sources give audio for the app to play.
-	PlaybackStream Playback = "stream"
-)
-
-// Info is how a source introduces itself.
-type Info struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"name"`
-	Version  string   `json:"version,omitempty"`
-	Playback Playback `json:"playback"`
-}
-
 var (
 	// ErrSignIn says the listener has to sign in for this.
 	ErrSignIn = errors.New("sign in first")
 	// ErrSetup says a setting the source needs is missing.
-	ErrSetup = errors.New("the plugin needs setting up")
+	ErrSetup = errors.New("the source needs setting up")
 	// ErrUnavailable says the track can't be played.
 	ErrUnavailable = errors.New("not available")
 	// ErrUnsupported says the source doesn't do this.
@@ -630,17 +580,9 @@ type Preloader interface {
 	PreloadLiked() (*Page, error)
 }
 
-// Source is where music comes from. Everything but Info and Can may take a
-// while and is called off the main thread. A source that doesn't do something
-// answers ErrUnsupported, and Can says so beforehand for the views to leave it
-// out.
+// Source is where music comes from: Apple Music, the app's one. Everything
+// may take a while and is called off the main thread.
 type Source interface {
-	Info() Info
-	// Can reports whether the source does what's named, by the name of its
-	// plugin's function, such as "lyrics" or "like". It answers at once, on
-	// the main thread, without starting anything.
-	Can(what string) bool
-
 	Setting(key string) string
 	SetSetting(key, value string) error
 
@@ -648,7 +590,6 @@ type Source interface {
 	SignOut() error
 	Account() (*Account, error)
 
-	Search(query string, kind SearchKind, offset int) (*SearchResult, error)
 	// Suggest says what a search being typed may be after.
 	Suggest(query string) ([]string, error)
 	// Playlists lists those the listener made and those they saved.
@@ -659,13 +600,22 @@ type Source interface {
 	Liked(offset int) (*Page, error)
 	Recent() ([]Track, error)
 
-	// Home is what the Home page shows, for a source that makes up its own.
+	// Home is what the Home page shows.
 	Home() (*Browse, error)
 	// Browse is any other page it makes up.
 	Browse(page string) (*Browse, error)
 
 	IsLiked(ids []string) (map[string]bool, error)
 	Like(id string, on bool) error
+	// Favorite keeps the listener's favorites: albums, playlists, artists
+	// and songs, by an Item's kind.
+	Favorite(kind, id string, on bool) error
+	// AddToLibrary adds what an Item's kind names to the listener's
+	// library, a song, an album, a playlist or a video, or takes it out.
+	AddToLibrary(kind, id string, on bool) error
+	// InLibrary says which of ids, of an Item's kind, are in the listener's
+	// library, all at once: those it leaves out aren't.
+	InLibrary(kind string, ids []string) (map[string]bool, error)
 
 	CreatePlaylist(name string) (*Playlist, error)
 	RenamePlaylist(id, name string) error
@@ -676,16 +626,11 @@ type Source interface {
 	// MovePlaylistTrack moves the track at index from to index to, of the
 	// tracks as Playlist lists them.
 	MovePlaylistTrack(id string, from, to int) error
-	// SavePlaylist saves someone else's playlist, or lets it go.
-	SavePlaylist(id string, on bool) error
-
-	FollowArtist(id string, on bool) error
-	SaveAlbum(id string, on bool) error
-	SavedAlbums(offset int) (*AlbumList, error)
-
-	Stations() ([]Station, error)
 	// StationNext answers the next tracks of a station.
 	StationNext(id string) ([]Track, error)
+	// Autoplay answers songs to go on with once the queue ends, like those
+	// of ids, the songs it ended with.
+	Autoplay(ids []string) ([]Track, error)
 
 	Lyrics(id string) (*Lyrics, error)
 

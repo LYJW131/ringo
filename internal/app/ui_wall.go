@@ -202,13 +202,13 @@ func (a *app) wall(c *ui.Context, y, w, h, top, foot, frost float32) {
 	}
 	// Shown, the wall brings the song playing to its middle; after, it
 	// glides to the next as little as shows it, unless held.
-	if tr := pl.Current(); tr != nil && tr.Source+"\x00"+tr.ID != ws.track && playing >= 0 {
+	if tr := pl.Current(); tr != nil && tr.ID != ws.track && playing >= 0 {
 		if ws.track == "" {
 			ws.pan, ws.off = ui.Point{}, l.centre(playing, w, h, top, foot)
 		} else if !l.shows(playing, addPoint(ws.shown, ws.pan), w, h, top, foot) {
 			ws.off = subPoint(l.centre(playing, w, h, top, foot), ws.pan)
 		}
-		ws.track = tr.Source + "\x00" + tr.ID
+		ws.track = tr.ID
 	}
 
 	// Covers go only into the frost, never past it over the song: the area

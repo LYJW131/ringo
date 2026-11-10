@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"image"
 	"image/png"
 	"os"
@@ -55,17 +56,15 @@ func TestMain(m *testing.M) {
 }
 
 // fakeSource is a music.Source that does what its tests set, and answers
-// ErrUnsupported to the rest. Can says true of what's in caps, which
-// newFakeSource fills with everything; a test deletes what it wants hidden.
+// ErrUnsupported to the rest. Asked about songs it wasn't set to answer,
+// whether they're favorites or in the library, it fails, which the app takes
+// quietly: a test of something else doesn't expect what an answer posts.
 type fakeSource struct {
-	info music.Info
-	caps map[string]bool
 	vals map[string]string
 
 	signIn      func() (*music.Account, error)
 	signOut     func() error
 	account     func() (*music.Account, error)
-	search      func(query string, kind music.SearchKind, offset int) (*music.SearchResult, error)
 	suggest     func(query string) ([]string, error)
 	playlists   func() ([]music.Playlist, error)
 	playlist    func(id string) (*music.Playlist, error)
@@ -83,16 +82,11 @@ type fakeSource struct {
 	addTo       func(id string, tracks []string) error
 	removeFrom  func(id string, tracks []string) error
 	move        func(id string, from, to int) error
-	save        func(id string, on bool) error
-	follow      func(id string, on bool) error
-	saveAlbum   func(id string, on bool) error
 	stationNext func(id string) ([]music.Track, error)
 	lyrics      func(id string) (*music.Lyrics, error)
 	stream      func(id, quality string) (*music.Stream, error)
 	setSetting  func(key, value string) error
 
-	// What a source of Apple Music does besides (music.Favorer, Keeper and
-	// Autoplayer).
 	favorite     func(kind, id string, on bool) error
 	addToLibrary func(kind, id string, on bool) error
 	inLibrary    func(kind string, ids []string) (map[string]bool, error)
@@ -105,22 +99,11 @@ type fakeSource struct {
 	removeAccount func(id string) error
 }
 
-func newFakeSource(id string) *fakeSource {
-	s := &fakeSource{info: music.Info{ID: id, Name: id, Playback: music.PlaybackStream}, caps: map[string]bool{}, vals: map[string]string{}}
-	for _, name := range capabilities {
-		s.caps[name] = true
-	}
-	// Autoplay asks the source as soon as a queue nears its end, which a
-	// test of something else doesn't expect: one of it turns it on.
-	delete(s.caps, "autoplay")
-	// Asking whether songs shown are in the library goes as they show, as
-	// autoplay does: one of it turns it on.
-	delete(s.caps, "inLibrary")
-	return s
-}
+func newFakeSource() *fakeSource { return &fakeSource{vals: map[string]string{}} }
 
-func (s *fakeSource) Info() music.Info     { return s.info }
-func (s *fakeSource) Can(what string) bool { return s.caps[what] }
+// errNotSet is what fakeSource answers of what a test didn't set it to.
+var errNotSet = errors.New("not set")
+
 func (s *fakeSource) Setting(key string) string {
 	return s.vals[key]
 }
@@ -149,12 +132,6 @@ func (s *fakeSource) Account() (*music.Account, error) {
 		return nil, nil
 	}
 	return s.account()
-}
-func (s *fakeSource) Search(query string, kind music.SearchKind, offset int) (*music.SearchResult, error) {
-	if s.search == nil {
-		return &music.SearchResult{}, nil
-	}
-	return s.search(query, kind, offset)
 }
 func (s *fakeSource) Suggest(query string) ([]string, error) {
 	if s.suggest == nil {
@@ -212,7 +189,7 @@ func (s *fakeSource) Browse(page string) (*music.Browse, error) {
 }
 func (s *fakeSource) IsLiked(ids []string) (map[string]bool, error) {
 	if s.isLiked == nil {
-		return map[string]bool{}, nil
+		return nil, errNotSet
 	}
 	return s.isLiked(ids)
 }
@@ -258,28 +235,6 @@ func (s *fakeSource) MovePlaylistTrack(id string, from, to int) error {
 	}
 	return s.move(id, from, to)
 }
-func (s *fakeSource) SavePlaylist(id string, on bool) error {
-	if s.save == nil {
-		return nil
-	}
-	return s.save(id, on)
-}
-func (s *fakeSource) FollowArtist(id string, on bool) error {
-	if s.follow == nil {
-		return nil
-	}
-	return s.follow(id, on)
-}
-func (s *fakeSource) SaveAlbum(id string, on bool) error {
-	if s.saveAlbum == nil {
-		return nil
-	}
-	return s.saveAlbum(id, on)
-}
-func (s *fakeSource) SavedAlbums(offset int) (*music.AlbumList, error) {
-	return nil, music.ErrUnsupported
-}
-func (s *fakeSource) Stations() ([]music.Station, error) { return nil, music.ErrUnsupported }
 func (s *fakeSource) StationNext(id string) ([]music.Track, error) {
 	if s.stationNext == nil {
 		return nil, music.ErrUnsupported
@@ -313,7 +268,7 @@ func (s *fakeSource) AddToLibrary(kind, id string, on bool) error {
 }
 func (s *fakeSource) InLibrary(kind string, ids []string) (map[string]bool, error) {
 	if s.inLibrary == nil {
-		return map[string]bool{}, nil
+		return nil, errNotSet
 	}
 	return s.inLibrary(kind, ids)
 }
@@ -350,36 +305,29 @@ func (s *fakeSource) RemoveAccount(id string) error {
 }
 
 var (
-	_ music.Switcher   = (*fakeSource)(nil)
-	_ music.Source     = (*fakeSource)(nil)
-	_ music.Favorer    = (*fakeSource)(nil)
-	_ music.Keeper     = (*fakeSource)(nil)
-	_ music.Autoplayer = (*fakeSource)(nil)
+	_ music.Switcher = (*fakeSource)(nil)
+	_ music.Source   = (*fakeSource)(nil)
 )
 
-// addFake adds a library of src to the app, started as if it had answered.
-func addFake(a *app, src music.Source) *library {
-	lib := newLibrary(src)
-	lib.started, lib.accountAsked = true, true
-	a.libs = append(a.libs, lib)
-	return lib
-}
-
-// newTestApp is an app with one source, a fakeSource called "fake": see fake.
+// newTestApp is an app whose source is a fakeSource (fake), started as if
+// it had answered. AutoPlay is off: it asks the source as soon as a queue
+// nears its end, which a test of something else doesn't expect.
 func newTestApp() *app {
 	a := &app{signInOver: new(atomic.Pointer[mygo.Window]), settings: defaultSettings(), settingText: map[string]*string{}, lyricAt: -1, queueAt: -1}
-	a.library = addFake(a, newFakeSource("fake"))
-	a.route = route{page: pageHome, src: "fake"}
+	a.settings.Autoplay = false
+	a.library = newLibrary(newFakeSource())
+	a.started, a.accountAsked = true, true
+	a.route = route{page: pageHome}
 	a.art = newArtCache(func(func()) {})
 	a.pl = player.New(func(func()) {})
-	a.pl.Source = a.sourceByID
+	a.pl.Source = a.src
 	a.pl.More = a.autoplay
 	a.pl.SetVolume(0.5)
 	return a
 }
 
 // fake is the source of an app newTestApp made.
-func fake(a *app) *fakeSource { return a.libs[0].src.(*fakeSource) }
+func fake(a *app) *fakeSource { return a.src.(*fakeSource) }
 
 // posts collects what the app posts to the main thread, for a test to run with
 // runPost once what it waits for is on its way.
@@ -418,15 +366,6 @@ func wait[T any](t *testing.T, ch chan T, what string) T {
 		t.Fatalf("%s wasn't asked for", what)
 		panic("unreachable")
 	}
-}
-
-// without takes capabilities away from the source of an app newTestApp made.
-func without(a *app, names ...string) {
-	f := fake(a)
-	for _, name := range names {
-		delete(f.caps, name)
-	}
-	a.libs[0].caps = probeCaps(f)
 }
 
 // song is a track of a source's, as its answers have them.

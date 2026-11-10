@@ -14,7 +14,7 @@ func (a *app) search(q string) {
 	if q == "" {
 		return
 	}
-	a.searchFor(route{page: pageSearch, src: a.id, query: q})
+	a.searchFor(route{page: pageSearch, query: q})
 }
 
 // searchFor opens the page of a search, remembering its query. Searched
@@ -24,7 +24,7 @@ func (a *app) searchFor(r route) {
 	a.dismissSuggestions()
 	if r == a.route {
 		a.nowPlaying = false
-		a.loadBrowse(a.libOf(r.src), browseID(r), true)
+		a.loadBrowse(a.library, browseID(r), true)
 		return
 	}
 	a.open(r)
@@ -71,7 +71,7 @@ func (a *app) artistCard(c *ui.Context, ar *music.Artist) {
 		art.Children(func() { a.coverFillWith(c, ar.ImageURL, 400, 999, iconUser) })
 		ui.Text(c, ar.Name).FontSize(13).FontWeight(500).SingleLine().AlignSelf(ui.Center)
 	})
-	if card.Clicked() && a.can("artist") {
+	if card.Clicked() {
 		a.open(route{page: pageArtist, id: ar.ID})
 	}
 }

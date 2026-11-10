@@ -48,7 +48,7 @@ func (a *app) songMenuIn(c *ui.Context, tr *music.Track, pid string, size float3
 func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 	a.wantInLibrary(tr)
 	return func(m *ui.Menu) {
-		lib := a.trackLib(tr)
+		lib := a.library
 		kind := trackKind(tr)
 		group := false
 		if lib.canKeep(tr) {
@@ -87,31 +87,29 @@ func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 				copyText(tr.Name + " - " + names)
 			}
 		})
-		if lib.canLike(tr) {
-			m.Separator()
-			if a.isLiked(tr) {
-				if m.Item(T("Undo Favorite")).Chosen() {
-					a.toggleLike(tr)
-				}
-			} else if m.Item(T("Favorite")).Chosen() {
+		m.Separator()
+		if a.isLiked(tr) {
+			if m.Item(T("Undo Favorite")).Chosen() {
 				a.toggleLike(tr)
 			}
+		} else if m.Item(T("Favorite")).Chosen() {
+			a.toggleLike(tr)
 		}
 		// Its album's and artists' pages, those the source has.
-		linked := tr.Album.ID != "" && lib.can("album")
+		linked := tr.Album.ID != ""
 		for _, ar := range tr.Artists {
-			linked = linked || ar.ID != "" && lib.can("artist")
+			linked = linked || ar.ID != ""
 		}
 		if !linked {
 			return
 		}
 		m.Separator()
-		if tr.Album.ID != "" && lib.can("album") && m.Item(T("Show Album")).Chosen() {
-			a.openPage(route{page: pageAlbum, src: lib.id, id: tr.Album.ID})
+		if tr.Album.ID != "" && m.Item(T("Show Album")).Chosen() {
+			a.openPage(route{page: pageAlbum, id: tr.Album.ID})
 		}
 		for _, ar := range tr.Artists {
-			if ar.ID != "" && lib.can("artist") && m.Item(Tf("Go to Artist: %s", ar.Name)).Chosen() {
-				a.openArtist(lib.id, ar.ID)
+			if ar.ID != "" && m.Item(Tf("Go to Artist: %s", ar.Name)).Chosen() {
+				a.openArtist(ar.ID)
 			}
 		}
 	}

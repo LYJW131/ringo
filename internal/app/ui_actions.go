@@ -83,12 +83,8 @@ func (a *app) overlay(lib *library, marks func() map[string]bool, kind, id strin
 // setFavorite makes what kind and id name a favorite, or no longer one. A
 // song's favorite is its like (toggleLike).
 func (a *app) setFavorite(lib *library, kind, id string, on bool) {
-	fav, ok := lib.src.(music.Favorer)
-	if !ok || !lib.can("favorite") {
-		return
-	}
 	a.overlay(lib, func() map[string]bool { return lib.favorites }, kind, id, on,
-		func() error { return fav.Favorite(kind, id, on) },
+		func() error { return lib.src.Favorite(kind, id, on) },
 		func() {
 			if on {
 				a.toast = T("Added to Favorites")
@@ -102,12 +98,8 @@ func (a *app) setFavorite(lib *library, kind, id string, on bool) {
 // deletes it from there. A playlist shows in the sidebar, or goes, once its
 // source has it.
 func (a *app) setInLibrary(lib *library, kind, id string, on bool) {
-	keeper, ok := lib.src.(music.Keeper)
-	if !ok || !lib.can("addToLibrary") {
-		return
-	}
 	a.overlay(lib, func() map[string]bool { return lib.kept }, kind, id, on,
-		func() error { return keeper.AddToLibrary(kind, id, on) },
+		func() error { return lib.src.AddToLibrary(kind, id, on) },
 		func() {
 			if on {
 				a.toast = T("Added to Library")
@@ -193,7 +185,7 @@ func (a *app) share(url string) {
 func (a *app) listItems(m *ui.Menu, lib *library, kind, id, name, url string, saved, favorite, stays bool, more func()) {
 	// What stays in the library, as an album with uploads, isn't offered
 	// to be taken out.
-	if lib.can("addToLibrary") && !(stays && lib.inLibrary(kind, id, saved)) {
+	if !(stays && lib.inLibrary(kind, id, saved)) {
 		if lib.inLibrary(kind, id, saved) {
 			if m.Item(T("Delete From Library")).Chosen() {
 				a.setInLibrary(lib, kind, id, false)
@@ -226,15 +218,13 @@ func (a *app) shareAndFavorite(m *ui.Menu, lib *library, kind, id, url string, f
 			}
 		})
 	}
-	if lib.can("favorite") {
-		m.Separator()
-		if lib.isFavorite(kind, id, favorite) {
-			if m.Item(T("Undo Favorite")).Chosen() {
-				a.setFavorite(lib, kind, id, false)
-			}
-		} else if m.Item(T("Favorite")).Chosen() {
-			a.setFavorite(lib, kind, id, true)
+	m.Separator()
+	if lib.isFavorite(kind, id, favorite) {
+		if m.Item(T("Undo Favorite")).Chosen() {
+			a.setFavorite(lib, kind, id, false)
 		}
+	} else if m.Item(T("Favorite")).Chosen() {
+		a.setFavorite(lib, kind, id, true)
 	}
 }
 
@@ -245,7 +235,7 @@ func (a *app) albumItems(lib *library, al music.Album) func(m *ui.Menu) {
 		a.listItems(m, lib, music.ItemAlbum, al.ID, al.Name, al.URL, al.Saved, al.Favorite, al.Uploaded, func() {
 			first := true
 			for _, ar := range al.Artists {
-				if ar.ID == "" || !lib.can("artist") {
+				if ar.ID == "" {
 					continue
 				}
 				if first {
@@ -253,7 +243,7 @@ func (a *app) albumItems(lib *library, al music.Album) func(m *ui.Menu) {
 					first = false
 				}
 				if m.Item(Tf("Go to Artist: %s", ar.Name)).Chosen() {
-					a.openArtist(lib.id, ar.ID)
+					a.openArtist(ar.ID)
 				}
 			}
 		})
@@ -275,7 +265,7 @@ func (a *app) playlistItemsOf(lib *library, pl music.Playlist) func(m *ui.Menu) 
 				a.tracksOf(lib, music.ItemPlaylist, pl.ID, func(tracks []music.Track, from music.Origin) { a.enqueue(tracks, false, pl.Name, from) })
 			}
 			a.shareAndFavorite(m, lib, music.ItemPlaylist, pl.ID, pl.URL, pl.Favorite)
-			if mine != nil && (lib.can("renamePlaylist") || lib.can("deletePlaylist")) {
+			if mine != nil {
 				m.Separator()
 				a.playlistMenu(m, mine)
 			}
@@ -288,9 +278,6 @@ func (a *app) playlistItemsOf(lib *library, pl music.Playlist) func(m *ui.Menu) 
 // artistItems builds the menu of an artist: sharing their page and making
 // them a favorite.
 func (a *app) artistItems(lib *library, ar music.Artist) func(m *ui.Menu) {
-	if ar.URL == "" && !lib.can("favorite") {
-		return nil
-	}
 	return func(m *ui.Menu) {
 		a.shareAndFavorite(m, lib, music.ItemArtist, ar.ID, ar.URL, ar.Favorite)
 	}
@@ -299,9 +286,6 @@ func (a *app) artistItems(lib *library, ar music.Artist) func(m *ui.Menu) {
 // favoriteButton is the star that makes what kind and id name a favorite,
 // filled once it is, as Apple Music's pages have by their Play buttons.
 func (a *app) favoriteButton(c *ui.Context, lib *library, kind, id string, was bool, size float32, color ui.Color) ui.Element {
-	if !lib.can("favorite") {
-		return ui.Element{}
-	}
 	on := lib.isFavorite(kind, id, was)
 	icon, label := iconStar, T("Favorite")
 	if on {

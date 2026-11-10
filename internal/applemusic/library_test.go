@@ -81,14 +81,14 @@ func TestOwnPlaylistByCatalogID(t *testing.T) {
 
 	// Unsaving never deletes a playlist they made.
 	for _, id := range []string{"pl.u-mine", "p.mine"} {
-		if err := ts.SavePlaylist(id, false); !errors.Is(err, music.ErrUnsupported) {
+		if err := ts.AddToLibrary(music.ItemPlaylist, id, false); !errors.Is(err, music.ErrUnsupported) {
 			t.Errorf("unsaving %s: %v", id, err)
 		}
 	}
 	if len(deleted) != 0 {
 		t.Errorf("deleted %v", deleted)
 	}
-	if err := ts.SavePlaylist("pl.u-theirs", false); err != nil {
+	if err := ts.AddToLibrary(music.ItemPlaylist, "pl.u-theirs", false); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(deleted, []string{"p.theirs"}) {

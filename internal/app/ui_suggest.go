@@ -29,9 +29,6 @@ func (a *app) suggest(q string) {
 	a.dismissSuggestions()
 	s.query = q
 	lib := a.library
-	if !lib.can("suggest") {
-		return
-	}
 	s.loading = true
 	s.timer = time.AfterFunc(suggestDelay, func() {
 		items, err := lib.src.Suggest(q)
@@ -71,7 +68,7 @@ func (a *app) searchField(c *ui.Context) {
 		// With something to clear, it ends in a button that clears it, as
 		// NSSearchField's does: the query, and the results the sidebar
 		// goes back to.
-		clearable := a.query != "" || a.searched.query != "" && a.searched.src == a.id
+		clearable := a.query != "" || a.searched.query != ""
 		end := float32(10)
 		if clearable {
 			end = 2
@@ -108,7 +105,7 @@ func (a *app) searchField(c *ui.Context) {
 		switch {
 		case focused && !a.searchFocused && (a.route.page != pageSearch || a.nowPlaying):
 			r := route{page: pageSearch}
-			if a.searched.query != "" && a.searched.src == a.id && q == a.searched.query {
+			if a.searched.query != "" && q == a.searched.query {
 				r = a.searched
 			}
 			a.open(r)

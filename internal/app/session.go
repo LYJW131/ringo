@@ -89,7 +89,7 @@ func (a *app) restoreSession() {
 	}
 	a.savedSession = string(b)
 	a.pl.Restore(s)
-	if src, _, _ := radioParts(s.Radio); a.libOf(src) != nil && a.pl.Current() != nil {
+	if id, _ := radioParts(s.Radio); id != "" && a.pl.Current() != nil {
 		a.pl.AttachRadio(s.Radio, a.radioFeed(s.Radio))
 	}
 }

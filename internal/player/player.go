@@ -24,19 +24,19 @@ const (
 	RepeatOne = music.RepeatOne
 )
 
-// Player plays a queue of tracks, from whichever source each is of. Its
+// Player plays a queue of tracks, from its source. Its
 // methods run on the main thread; loading happens on goroutines, whose results
 // post brings back there.
 type Player struct {
 	post func(func())
 	// Quiet is post without a redraw, for what mostly changes nothing, if set.
 	Quiet func(func())
-	// Source finds the source of an ID, or nil if it's gone.
-	Source func(id string) music.Source
-	// Failed, if set, hears that a source said the listener has something to
+	// Source is where the tracks come from: none, and nothing plays.
+	Source music.Source
+	// Failed, if set, hears that the source said the listener has something to
 	// do first, ErrSignIn or ErrSetup, of a song they asked to play.
-	Failed func(source string, err error)
-	// Quality returns what to ask sources for, as the settings say: a
+	Failed func(err error)
+	// Quality returns what to ask the source for, as the settings say: a
 	// music.Ask, of a level and how songs with Dolby Atmos play.
 	Quality func() string
 	// Normalize reports whether to even out the loudness of tracks, as
@@ -102,7 +102,7 @@ type Player struct {
 	after func(d time.Duration, fn func())
 	now   func() time.Time
 
-	// told says the current track's source was told it plays, and not yet
+	// told says the source was told the current track it plays, and not yet
 	// that it stopped: so that what stops is told once, and what never
 	// started isn't told of.
 	told bool
@@ -374,14 +374,13 @@ func (p *Player) awaitMore() bool {
 
 // appendTracks adds tracks to the end of the queue, but those in it.
 func (p *Player) appendTracks(tracks []music.Track) {
-	type key struct{ source, id string }
-	in := make(map[key]bool, len(p.queue))
+	in := make(map[string]bool, len(p.queue))
 	for _, t := range p.queue {
-		in[key{t.Source, t.ID}] = true
+		in[t.ID] = true
 	}
 	for _, t := range tracks {
-		if k := (key{t.Source, t.ID}); !in[k] {
-			in[k] = true
+		if !in[t.ID] {
+			in[t.ID] = true
 			p.order = append(p.order, len(p.queue))
 			p.queue = append(p.queue, t)
 		}
@@ -734,21 +733,13 @@ func (p *Player) load(at int) {
 	p.loadSkipping(at, 0, forward, true, 0)
 }
 
-// sourceOf returns the source of track t, or nil if it's gone.
-func (p *Player) sourceOf(t *music.Track) music.Source {
-	if p.Source == nil {
-		return nil
-	}
-	return p.Source(t.Source)
-}
-
-// recorder returns the source of the current track, if it wants to know
-// what's played.
+// recorder returns the source, if it wants to know what's played and a
+// track plays.
 func (p *Player) recorder() music.Recorder {
 	if p.track == nil {
 		return nil
 	}
-	rec, _ := p.sourceOf(p.track).(music.Recorder)
+	rec, _ := p.Source.(music.Recorder)
 	return rec
 }
 
@@ -798,7 +789,7 @@ func (p *Player) StopTelling() { p.stopped(music.StopOther) }
 // skipping those that cannot play the way dir goes: skipped of them so far.
 func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duration) {
 	t := p.queue[p.order[at]]
-	src := p.sourceOf(&t)
+	src := p.Source
 	// Whatever was playing is over; those who ask for another say why first.
 	p.stopped(music.StopChanged)
 	p.stop()
@@ -832,7 +823,7 @@ func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duratio
 			}
 			p.loading = false
 			if err != nil {
-				p.loadFailed(t.Source, err, at, skipped, dir)
+				p.loadFailed(err, at, skipped, dir)
 				return
 			}
 			p.stream, p.info = s, info
@@ -888,11 +879,11 @@ func (p *Player) loadCover(gen int, t *music.Track) {
 	}()
 }
 
-// loadLyrics asks the source of t for its lyrics, if it has any.
+// loadLyrics asks the source for t's lyrics.
 func (p *Player) loadLyrics(gen int, src music.Source, t music.Track) {
 	go func() {
 		var lines []lyrics.Line
-		if src != nil && src.Can("lyrics") {
+		if src != nil {
 			if l, err := src.Lyrics(t.ID); err == nil && l != nil {
 				lines = lyrics.FromSource(l)
 			}
@@ -909,7 +900,7 @@ func (p *Player) loadLyrics(gen int, src music.Source, t music.Track) {
 // loadFailed says why the track at order[at] can't play, and skips it the way
 // dir goes, unless it stays, nothing in the queue can play, or the listener has
 // to do something first, which would stop the next track too.
-func (p *Player) loadFailed(source string, err error, at, skipped, dir int) {
+func (p *Player) loadFailed(err error, at, skipped, dir int) {
 	p.err = errorText(err)
 	if errors.Is(err, music.ErrSignIn) || errors.Is(err, music.ErrSetup) {
 		// Only a song the listener asked to play takes them to fix it: one
@@ -917,7 +908,7 @@ func (p *Player) loadFailed(source string, err error, at, skipped, dir int) {
 		asked := p.playing
 		p.playing = false
 		if p.Failed != nil && asked {
-			p.Failed(source, err)
+			p.Failed(err)
 		}
 		p.sync()
 		return
@@ -973,7 +964,7 @@ func (p *Player) open(src music.Source, t music.Track, quality string, pre *ahea
 		}
 	}
 	if !ok {
-		dl, info, ok = p.Cache.lookup(t.Source, t.ID, quality)
+		dl, info, ok = p.Cache.lookup(t.ID, quality)
 	}
 	if !ok {
 		var err error
@@ -984,7 +975,7 @@ func (p *Player) open(src music.Source, t music.Track, quality string, pre *ahea
 		if info == nil {
 			return nil, nil, music.ErrUnavailable
 		}
-		dl = p.Cache.download(t.Source, t.ID, quality, info)
+		dl = p.Cache.download(t.ID, quality, info)
 	}
 	s, err := openMP4Stream(dl)
 	if err != nil {

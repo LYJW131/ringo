@@ -452,20 +452,16 @@ func (a *app) openItem(secs []music.Section, s, i int) {
 	lib := a.library
 	switch it.Kind {
 	case music.ItemAlbum:
-		if lib.can("album") {
-			a.open(route{page: pageAlbum, id: itemID(it, it.Album != nil, func() string { return it.Album.ID })})
-		}
+		a.open(route{page: pageAlbum, id: itemID(it, it.Album != nil, func() string { return it.Album.ID })})
 	case music.ItemPlaylist:
-		if lib.can("playlist") {
-			a.open(route{page: pagePlaylist, id: itemID(it, it.Playlist != nil, func() string { return it.Playlist.ID })})
-		}
+		a.open(route{page: pagePlaylist, id: itemID(it, it.Playlist != nil, func() string { return it.Playlist.ID })})
 	case music.ItemArtist:
 		switch {
 		case it.Page != "":
 			// An artist of the library opens as what the library has of
 			// them: their library ID isn't one the catalog's page takes.
 			a.open(route{page: pageBrowse, id: it.Page})
-		case lib.can("artist"):
+		default:
 			a.open(route{page: pageArtist, id: itemID(it, it.Artist != nil, func() string { return it.Artist.ID })})
 		}
 	case music.ItemStation:
@@ -508,15 +504,9 @@ func (a *app) playItem(it *music.Item) func() {
 	lib := a.library
 	switch it.Kind {
 	case music.ItemAlbum:
-		if !lib.can("album") {
-			return nil
-		}
 		id := itemID(it, it.Album != nil, func() string { return it.Album.ID })
 		return func() { a.playAlbum(lib, id) }
 	case music.ItemPlaylist:
-		if !lib.can("playlist") {
-			return nil
-		}
 		id := itemID(it, it.Playlist != nil, func() string { return it.Playlist.ID })
 		return func() { a.loadPlaylist(lib, id, true) }
 	case music.ItemStation:

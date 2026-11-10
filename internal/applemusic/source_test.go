@@ -32,25 +32,18 @@ func TestSignedOut(t *testing.T) {
 	for name, call := range map[string]func() error{
 		"playlists":     func() error { _, err := ts.Playlists(); return err },
 		"liked":         func() error { _, err := ts.Liked(0); return err },
-		"savedAlbums":   func() error { _, err := ts.SavedAlbums(0); return err },
-		"recentlyAdded": func() error { _, err := ts.Browse("recentlyAdded"); return err },
+		"recentlyAdded": func() error { _, err := ts.Browse(music.PageRecentlyAdded); return err },
 		"stream":        func() error { _, err := ts.Stream("1783644604", ""); return err },
 	} {
 		if err := call(); !errors.Is(err, music.ErrSignIn) {
 			t.Errorf("%s: %v", name, err)
 		}
 	}
-	if st, err := ts.Stations(); len(st) != 0 || err != nil {
-		t.Errorf("stations %v %v", st, err)
-	}
 	if l, err := ts.Lyrics("1783644604"); l != nil || err != nil {
 		t.Errorf("lyrics %v %v", l, err)
 	}
 	if _, err := ts.Stream("i.abc", ""); !errors.Is(err, music.ErrSignIn) {
 		t.Errorf("an upload: %v", err)
-	}
-	if err := ts.FollowArtist("1", true); !errors.Is(err, music.ErrUnsupported) {
-		t.Errorf("follow: %v", err)
 	}
 }
 

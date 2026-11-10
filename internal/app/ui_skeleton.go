@@ -104,17 +104,10 @@ func boneWidth(i int) float32 { return boneWidths[i%len(boneWidths)] }
 // Skeletons of the pages, shaped as homePage, trackRows and the cards they
 // show.
 
-// homeSkeleton is homePage's cards while they load, or with shelves, as
-// browseRows starts a source's own Home.
-func (a *app) homeSkeleton(c *ui.Context, s shimmer, shelves bool) {
-	if shelves {
-		// A listener's Home leads with cards three to four, Apple's picks.
-		a.shelfSkeletonWith(c, s, a.account != nil)
-		return
-	}
-	ui.Column(c.Key("home-skeleton")).PaddingX(12).Children(func() {
-		a.playlistCardsSkeleton(c.Key("cards"), s, a.columns(c, 168)*2, 168, false)
-	})
+// homeSkeleton is Home's shelves while they load, as browseRows starts them.
+// A listener's Home leads with cards three to four, Apple's picks.
+func (a *app) homeSkeleton(c *ui.Context, s shimmer) {
+	a.shelfSkeletonWith(c, s, a.account != nil)
 }
 
 // shelfSkeleton is a page of shelves while it loads: titles over rows of
@@ -194,25 +187,6 @@ func (a *app) cardsSkeletonRow(c *ui.Context, s shimmer, artists bool, row int) 
 						s.text(c, 12, 1.3).WidthPercent(boneWidth(i+row+4) * 0.7)
 					}
 				})
-			})
-		}
-	})
-}
-
-// playlistCardsSkeleton is n of playlistCard's cards, in columns at least
-// min DIPs wide, with a line for how often they update if freq.
-func (a *app) playlistCardsSkeleton(c *ui.Context, s shimmer, n int, min float32, freq bool) {
-	ui.Grid(c).Columns(a.columns(c, min)).GapX(20).GapY(28).Children(func() {
-		for i := range n {
-			ui.Column(c.Key(i)).Gap(10).AlignItems(ui.Stretch).Children(func() {
-				s.bone(c, 10).AspectRatio(1)
-				ui.Column(c).Gap(0).Children(func() {
-					s.text(c, 13, 1.35).WidthPercent(92)
-					s.text(c, 13, 1.35).WidthPercent(boneWidth(i))
-				})
-				if freq {
-					s.text(c, 12, 1.3).WidthPercent(40).Margin(-6, 0, 0, 0)
-				}
 			})
 		}
 	})

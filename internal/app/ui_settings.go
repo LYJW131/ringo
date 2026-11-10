@@ -78,7 +78,7 @@ func (a *app) changed() {
 var systemLanguages = func() []string { return mygo.App.PreferredLanguages() }
 
 // setLanguage speaks another language from now on: the views say it as they
-// redraw; the menus, and what the sources wrote out in it, are made anew.
+// redraw; the menus, and what the source wrote out in it, are made anew.
 func (a *app) setLanguage(code string) {
 	a.settings.Language = code
 	i18n.SetLanguage(i18n.Resolve(code, systemLanguages()))

@@ -71,8 +71,6 @@ func (s *Source) runWarmup(gen int) {
 	steps := []func() error{
 		func() error { _, err := s.libraryPlaylists(true); return err },
 		func() error { _, err := s.liked(0, true); return err },
-		func() error { _, err := s.savedAlbums(0, true); return err },
-		func() error { _, err := s.stations(true); return err },
 		func() error { _, err := s.recentlyAdded(true); return err },
 	}
 	for i := 0; i < len(steps); i++ {

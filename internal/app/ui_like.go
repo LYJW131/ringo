@@ -15,10 +15,7 @@ import (
 
 // wantLike notes that the heart of tr may show, to ask its source about it.
 func (a *app) wantLike(tr *music.Track) {
-	lib := a.trackLib(tr)
-	if !lib.can("isLiked") {
-		return
-	}
+	lib := a.library
 	if _, known := lib.liked[tr.ID]; known {
 		return
 	}
@@ -28,14 +25,12 @@ func (a *app) wantLike(tr *music.Track) {
 	lib.wantLikes = append(lib.wantLikes, tr.ID)
 }
 
-// askLikes asks the sources about the hearts this frame showed, as it ends,
+// askLikes asks the source about the hearts this frame showed, as it ends,
 // and about the songs whose place in the library it showed.
 func (a *app) askLikes() {
-	for _, lib := range a.libs {
-		if len(lib.wantLikes) > 0 {
-			a.askLiked(lib, lib.wantLikes)
-			lib.wantLikes = nil
-		}
+	if lib := a.library; len(lib.wantLikes) > 0 {
+		a.askLiked(lib, lib.wantLikes)
+		lib.wantLikes = nil
 	}
 	a.askInLibrary()
 }
@@ -90,21 +85,15 @@ func (l *library) listener() string {
 }
 
 // isLiked reports whether the listener likes tr.
-func (a *app) isLiked(tr *music.Track) bool { return a.trackLib(tr).liked[tr.ID] }
-
-// canLike reports whether tr's source likes songs.
-func (l *library) canLike(tr *music.Track) bool { return l.can("like") }
+func (a *app) isLiked(tr *music.Track) bool { return a.library.liked[tr.ID] }
 
 // toggleLike likes a song, or unlikes it, at once in the app
 // and then with its source, which may refuse: the heart goes back then.
 // Signed out, it asks the listener to sign in.
 func (a *app) toggleLike(tr *music.Track) {
-	lib := a.trackLib(tr)
+	lib := a.library
 	if lib.signedOut() {
 		a.promptSignIn(lib)
-		return
-	}
-	if !lib.canLike(tr) {
 		return
 	}
 	if lib.liked == nil {
@@ -153,10 +142,7 @@ func (a *app) likeCurrent() {
 	if tr == nil {
 		return
 	}
-	lib := a.trackLib(tr)
-	if !lib.canLike(tr) {
-		return
-	}
+	lib := a.library
 	a.toggleLike(tr)
 	switch {
 	case lib.signedOut():
@@ -170,13 +156,9 @@ func (a *app) likeCurrent() {
 
 // likeButton is the star that makes tr a favorite: filled in the accent once
 // it is. Starring pops it in on a spring while a ring swells around it and
-// confetti flies out; unstarring lets it give a little. A source that has no
-// likes shows none.
+// confetti flies out; unstarring lets it give a little.
 func (a *app) likeButton(c *ui.Context, tr *music.Track, size float32, color ui.Color) ui.Element {
-	lib := a.trackLib(tr)
-	if !lib.canLike(tr) {
-		return ui.Element{}
-	}
+	lib := a.library
 	a.wantLike(tr)
 	liked := a.isLiked(tr)
 	icon, label := iconStar, T("Favorite")

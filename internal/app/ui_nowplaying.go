@@ -676,7 +676,7 @@ func (a *app) lyricsPane(c *ui.Context, tr *music.Track, h float32) {
 		})
 		return
 	}
-	if key := tr.Source + "\x00" + tr.ID; a.lyricTrack != key {
+	if key := tr.ID; a.lyricTrack != key {
 		a.lyricTrack, a.lyricAt = key, -2
 		a.lyricScroll, a.lyricGlide = ui.ScrollState{}, lyricGlide{}
 	}
