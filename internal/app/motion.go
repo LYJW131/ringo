@@ -30,7 +30,20 @@ var (
 	motionCard   = motionSize{436, 582}
 	motionHead   = motionSize{486, 486}
 	motionArtist = motionSize{768, 432}
+	// motionArtistMac is an artist's head where the Mac's own decoder plays
+	// it (video.Hardware), as large as Music on the Mac plays it: there it
+	// takes almost no CPU, where FFmpeg's took half a core.
+	motionArtistMac = motionSize{1920, 1080}
 )
+
+// artistMotion is the biggest variant fetched for the head of an artist's
+// page on this machine.
+func artistMotion() motionSize {
+	if video.Hardware() {
+		return motionArtistMac
+	}
+	return motionArtist
+}
 
 // motionPlayers is how many covers decode at once: five cards took 20–40%
 // of a core between them on an M4 Pro, so four keep it near a third at
@@ -90,9 +103,10 @@ var motionCache = sync.OnceValue(func() *video.Cache {
 })
 
 // loadMotion fetches the variant of a cover's video for w×h pixels, from
-// the cache if it's there, and opens it. The cache keeps it by the
-// variant, which places of other sizes may pick too; the master playlist
-// that says which is a few kilobytes.
+// the cache if it's there, and opens it, for the Mac's own decoder where
+// there is one. The cache keeps it by the variant, which places of other
+// sizes may pick too; the master playlist that says which is a few
+// kilobytes.
 func loadMotion(url string, w, h int, size motionSize) (ui.VideoDecoder, error) {
 	cache := motionCache()
 	v, err := video.Choose(url, w, h, size.w, size.h, music.Fetch)
@@ -106,7 +120,7 @@ func loadMotion(url string, w, h int, size motionSize) (ui.VideoDecoder, error) 
 		}
 		cache.Put(v.URI, data)
 	}
-	return video.Open(data)
+	return video.Play(data)
 }
 
 // motionOn reports whether covers move: the listener wants them to, the

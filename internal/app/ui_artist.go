@@ -294,7 +294,7 @@ func (a *app) artistHeader(c *ui.Context, d *artistData) {
 				ui.Image(c, bmp).Absolute().Top(0).Left(0).Right(0).Bottom(0).Fit(ui.Cover).ObjectPosition(0.5, 0.4).Opacity(in)
 			}
 		})
-		a.motionOver(c, head, ar.VideoURL, w, h, motionArtist, 0, 0.5, 0.4)
+		a.motionOver(c, head, ar.VideoURL, w, h, artistMotion(), 0, 0.5, 0.4)
 		// Darker toward its foot, where their name is, and then the page.
 		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(h * 0.6).
 			LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
