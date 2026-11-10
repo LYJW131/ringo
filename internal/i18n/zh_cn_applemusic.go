@@ -2,7 +2,6 @@ package i18n
 
 // The Apple Music source's text (internal/applemusic) in Simplified Chinese.
 var appleMusicChinese = map[string]string{
-	"About %s|Apple Music": "%s简介",
 	"Apple Music didn't accept the sign-in. Sign in again.":                                         "Apple Music 不接受当前登录，请重新登录。",
 	"Apple Music didn't accept the token of the wrapper's account. Log it in to the wrapper again.": "Apple Music 不接受 wrapper 里这个账户的令牌。请在 wrapper 里重新登录该账户。",
 	"Apple Music didn't sign you in":                                                                "Apple Music 没有完成登录",

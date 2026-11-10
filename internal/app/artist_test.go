@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -91,15 +93,174 @@ func TestArtistAlbums(t *testing.T) {
 	}
 }
 
-// A band's date is when it formed, not when it was born.
-func TestGroupFormed(t *testing.T) {
+// The button by an artist's name opens their biography over the page, as
+// Music on the Mac has it, where it was at the page's foot; and a band's
+// date there is when it formed, not when it was born.
+func TestArtistBiography(t *testing.T) {
 	for _, group := range []bool{false, true} {
 		a := artistApp(false)
 		a.artists["159260351"].page.Artist.Group = group
-		tt := ui.NewTester(a.view, 1180, 1700)
+		tt := ui.NewTester(a.view, 1180, 900)
 		settled(tt)
+		if _, ok := tt.Find("She began in country music, in Nashville, at fourteen."); ok {
+			t.Fatal("the biography shows on the page")
+		}
+		tt.Click("About")
+		settled(tt)
+		if !a.bioOpen {
+			t.Fatal("About didn't open the biography")
+		}
+		if _, ok := tt.Find("She began in country music, in Nashville, at fourteen."); !ok {
+			t.Fatalf("no biography: %q", tt.Texts())
+		}
 		if _, ok := tt.Find("Formed"); ok != group {
-			t.Errorf("a group %v reads Formed %v: %q", group, ok, tt.Texts())
+			t.Errorf("a group %v reads Formed %v", group, ok)
+		}
+		tt.Click("Close")
+		settled(tt)
+		if a.bioOpen {
+			t.Error("Close left the biography open")
+		}
+	}
+}
+
+// An artist's latest release has the plus that adds it to the library once
+// the library says it isn't there, as in Music on the Mac; the plus adds the
+// album without opening it, and goes.
+func TestLatestReleaseAdds(t *testing.T) {
+	a := artistApp(false)
+	ch := posts(a)
+	a.accountAsked = true
+	asked := make(chan string, 8)
+	fake(a).inLibrary = func(kind string, ids []string) (map[string]bool, error) {
+		asked <- kind
+		return map[string]bool{}, nil
+	}
+	added := make(chan string, 4)
+	fake(a).addToLibrary = func(kind, id string, on bool) error { added <- kind + ":" + id; return nil }
+	tt := ui.NewTester(a.view, 1180, 900)
+	settled(tt)
+	if _, ok := tt.Find("Add to Library"); ok {
+		t.Fatal("a plus before the library said")
+	}
+	// Asked with the page's songs and videos, in no order.
+	for wait(t, asked, "the album") != music.ItemAlbum {
+	}
+	until(t, ch, func() bool { _, known := a.albumInLibrary("pz"); return known })
+	settled(tt)
+	before := a.route
+	if err := tt.Click("Add to Library"); err != nil {
+		t.Fatalf("no plus: %v", err)
+	}
+	if got := wait(t, added, "the album added"); got != "album:pz" {
+		t.Errorf("added %s", got)
+	}
+	if a.route != before {
+		t.Errorf("the plus opened %+v", a.route)
+	}
+	until(t, ch, func() bool { return a.library.inLibrary(music.ItemAlbum, "pz", false) })
+	settled(tt)
+	if _, ok := tt.Find("Add to Library"); ok {
+		t.Error("the plus stayed once the album was added")
+	}
+}
+
+// With MM_FRAMES set, saves an artist's page headed by their picture
+// moving (its still, as tests don't decode video), by their round photo, and
+// by nothing, in the light and the dark, wide and narrow, to set beside
+// Music on the Mac's (.work/apple-app/artist).
+func TestArtistFrames(t *testing.T) {
+	dir := framesDir(t)
+	heads := []struct {
+		name string
+		set  func(ar *music.Artist)
+	}{
+		{"video", func(ar *music.Artist) {
+			ar.WideURL, ar.VideoURL = "wide:2:{w}x{h}", "motion"
+			ar.Colors = music.Colors{BG: "202a3a", Text1: "ffffff"}
+		}},
+		{"photo", func(ar *music.Artist) { ar.Colors = music.Colors{BG: "6a4a35", Text1: "ffffff"} }},
+		{"bare", func(ar *music.Artist) { ar.ImageURL, ar.Bio = "", "" }},
+	}
+	// Top Songs of eighteen, as Jay Chou's are: three to a column, the
+	// next column's corner showing; beside them the latest release's plus.
+	for _, dark := range []bool{false, true} {
+		a := artistApp(false)
+		top := &a.artists["159260351"].page.Sections[1]
+		for len(top.Items) < 18 {
+			it := top.Items[len(top.Items)%6]
+			it.ID += fmt.Sprint("-", len(top.Items))
+			top.Items = append(top.Items, it)
+		}
+		a.artists["159260351"].secs = artistSections(a.artists["159260351"].page)
+		// The latest release not in the library: its plus.
+		a.library.kept[itemKey(music.ItemAlbum, "pz")] = false
+		shelfArt(a)
+		tt := ui.NewTester(a.view, 1440, 900)
+		tt.SetDark(dark)
+		settled(tt)
+		name := "artist-top"
+		if dark {
+			name += "-dark"
+		}
+		saveFrame(t, dir, name+".png", tt.Image())
+	}
+	// An artist of the library, as the sidebar's Artists and the search
+	// open them, with the way to their page of Apple Music.
+	for _, dark := range []bool{false, true} {
+		a, _ := shelfApp()
+		var albums []music.Item
+		for i, name := range []string{"Polar Night", "Aurora", "Thaw"} {
+			albums = append(albums, music.Item{Kind: music.ItemAlbum, ID: fmt.Sprint("70", i), Title: name, Subtitle: "The Polar Lights", ImageURL: fmt.Sprintf("cover:%d", i)})
+		}
+		a.browses["library-artist:r.1"] = &browseData{at: time.Now(), page: &music.Browse{Title: "The Polar Lights", ImageURL: "cover:1", Artist: "7",
+			Sections: []music.Section{{Style: music.ShelfGrid, Items: albums}}}}
+		a.route = route{page: pageBrowse, id: "library-artist:r.1"}
+		shelfArt(a)
+		tt := ui.NewTester(a.view, 1180, 780)
+		tt.SetDark(dark)
+		settled(tt)
+		name := "library-artist"
+		if dark {
+			name += "-dark"
+		}
+		saveFrame(t, dir, name+".png", tt.Image())
+	}
+	// And their biography over the page, in both appearances.
+	for _, dark := range []bool{false, true} {
+		a := artistApp(false)
+		ar := &a.artists["159260351"].page.Artist
+		ar.Colors = music.Colors{BG: "6a4a35", Text1: "ffffff", Text2: "e6d6c8"}
+		ar.Bio = strings.Repeat(ar.Bio+"\n", 4)
+		shelfArt(a)
+		tt := ui.NewTester(a.view, 1180, 900)
+		tt.SetDark(dark)
+		settled(tt)
+		a.bioOpen = true
+		settled(tt)
+		name := "artist-bio"
+		if dark {
+			name += "-dark"
+		}
+		saveFrame(t, dir, name+".png", tt.Image())
+	}
+	for _, head := range heads {
+		for _, w := range []int{1180, 860} {
+			for _, dark := range []bool{false, true} {
+				a := artistApp(false)
+				head.set(&a.artists["159260351"].page.Artist)
+				// Its still: a test fetches no video.
+				a.settings.AnimatedArt = false
+				shelfArt(a)
+				tt := ui.NewTester(a.view, w, 900)
+				tt.SetDark(dark)
+				settled(tt)
+				name := fmt.Sprintf("artist-%s-%d", head.name, w)
+				if dark {
+					name += "-dark"
+				}
+				saveFrame(t, dir, name+".png", tt.Image())
+			}
 		}
 	}
 }

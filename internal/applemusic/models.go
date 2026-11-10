@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"html"
 	"regexp"
-	"slices"
 	"strings"
 
 	"ringo/internal/music"
@@ -106,9 +105,6 @@ type artwork struct {
 	TextColor2 string `json:"textColor2,omitempty"`
 	TextColor3 string `json:"textColor3,omitempty"`
 	TextColor4 string `json:"textColor4,omitempty"`
-	// RecommendedCropCodes are the crops Apple made for the picture, of an
-	// artist's hero: see heroCrop.
-	RecommendedCropCodes []string `json:"recommendedCropCodes,omitempty"`
 }
 
 type playParams struct {
@@ -189,11 +185,6 @@ type attributes struct {
 	BornOrFormed string `json:"bornOrFormed"`
 	IsGroup      bool   `json:"isGroup"`
 	Origin       string `json:"origin"`
-	Hero         []struct {
-		Content []struct {
-			Artwork *artwork `json:"artwork"`
-		} `json:"content"`
-	} `json:"hero"`
 
 	// An editorial element's: what it is, and the words over it.
 	EditorialElementKind string   `json:"editorialElementKind"`
@@ -465,14 +456,15 @@ func moving(a *attributes, names ...string) (video, still string) {
 // neither). And the moving ones, as the web player picks them: the cover
 // moving, square, for the head of an album's or a playlist's page; three to
 // four for a card of Home's picks; sixteen to nine across the head of an
-// artist's page, the fullscreen one first; and wide for a hero.
+// artist's page, the wide one first, which Music on the Mac plays there
+// (the fullscreen one is another film); and wide for a hero.
 var (
 	heroArt    = []string{"subscriptionHero", "superHeroWide", "storeFlowcase", "bannerUber", "epicStageWide", "centeredFullscreenBackground"}
 	tallArt    = []string{"superHeroTall", "staticDetailTall"}
 	brickArt   = []string{"subscriptionCover", "superHeroWide", "subscriptionHero", "storeFlowcase", "bannerUber"}
 	squareMove = []string{"motionDetailSquare", "motionSquareVideo1x1", "motionArtistSquare1x1"}
 	tallMove   = []string{"motionTallVideo3x4"}
-	artistMove = []string{"motionArtistFullscreen16x9", "motionArtistWide16x9"}
+	artistMove = []string{"motionArtistWide16x9", "motionArtistFullscreen16x9"}
 	wideMove   = []string{"motionWideVideo21x9", "motionMediumVideo16x9", "motionArtistWide16x9", "motionArtistFullscreen16x9", "motionDetailTall"}
 )
 
@@ -594,49 +586,19 @@ func toArtist(item *resource) music.Artist {
 		out.Bio = plain(a.PlainEditorialNotes.long())
 	}
 	out.Born, out.Origin, out.Group = a.BornOrFormed, a.Origin, a.IsGroup
-	// The head of their page, as the web player picks it: the editors'
-	// background made for it, else their photo cropped around them by a crop
-	// Apple made for it, kept as its template; else another editorial one.
+	// The head of their page, as Music on the Mac has it: their picture
+	// moving, across the page, where Apple made one for it, its first frame
+	// the still until it plays; else their round photo. A banner made for
+	// them, or their photo cut wide, isn't shown there.
 	if u, w := wide(a, "centeredFullscreenBackground"); u != "" {
 		out.WideURL, out.Colors = u, colors(w)
 	}
-	for _, h := range a.Hero {
-		for _, c := range h.Content {
-			if c.Artwork != nil && c.Artwork.URL != "" && out.WideURL == "" {
-				out.WideURL, out.Colors = heroCrop(c.Artwork), colors(c.Artwork)
-			}
-		}
-	}
-	if out.WideURL == "" {
-		if u, w := wide(a, "bannerUber", "superHeroWide", "subscriptionHero", "storeFlowcase"); u != "" {
-			out.WideURL, out.Colors = u, colors(w)
-		}
-	}
-	// The head plays their picture moving where Apple has one, its first
-	// frame the still where there's no other.
 	var still string
 	out.VideoURL, still = moving(a, artistMove...)
-	if out.WideURL == "" {
+	if out.VideoURL != "" && out.WideURL == "" {
 		out.WideURL = still
 	}
 	return out
-}
-
-// heroCrops are the crops of an artist's photo that keep them in a wide
-// one, the best first: the web player's for its hero (HeroGalleryCrop),
-// then the others Apple recommends. A photo is square, and cut wide as
-// music.Wide does (sr), from its middle, it showed only their body.
-var heroCrops = []string{"vf", "vb", "vn", "va"}
-
-// heroCrop is an artist's photo as a template of a wide picture, its crop
-// one Apple recommends for it, if any.
-func heroCrop(w *artwork) string {
-	for _, c := range heroCrops {
-		if slices.Contains(w.RecommendedCropCodes, c) {
-			return strings.Replace(w.URL, "{c}", c, 1)
-		}
-	}
-	return w.URL
 }
 
 func (s *Source) toPlaylist(item *resource) music.Playlist {

@@ -226,8 +226,31 @@ func (a *app) browseHeader(c *ui.Context, page *music.Browse, id string) {
 			}
 			ui.Text(c, page.Title).FontSize(30).FontWeight(800).LetterSpacing(-0.6).MaxLines(2).LineHeight(1.2)
 			about()
+			if page.Artist != "" {
+				a.artistPageButton(c, page.Artist)
+			}
 		})
 	})
+}
+
+// artistPageButton opens the page of the artist whom a page of the library
+// is about: the library has only their albums there, and Apple Music has
+// their songs, releases, videos and biography. In the accent, to be found.
+func (a *app) artistPageButton(c *ui.Context, id string) {
+	p := a.pal
+	label := T("Go to Artist Page")
+	b := ui.ButtonBase(c.Key("artist-page")).Row().AlignSelf(ui.Start).AlignItems(ui.Center).Gap(6).Height(34).Padding(0, 14, 0, 16).
+		Radius(999).Background(p.accent).TextColor(p.onAccent).Label(label).FocusRing(false).Margin(6, 0, 0, 0)
+	if b.Hovered() {
+		b.Background(p.accent.Mix(ui.RGB(255, 255, 255), 0.12))
+	}
+	b.Children(func() {
+		ui.Text(c, label).FontSize(13).FontWeight(600)
+		ui.Icon(c, iconForward).Size(14, 14)
+	})
+	if b.Clicked() {
+		a.openArtist(id)
+	}
 }
 
 // wideHeader heads a page with a picture across it, its title over it in

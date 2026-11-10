@@ -425,7 +425,7 @@ func coverImage(from, to ui.Color) *image.RGBA {
 // it had loaded, its backdrop with it.
 func giveCover(a *app, url string, img *image.RGBA) {
 	art := &artwork{bmp: ui.NewBitmap(img), tint: dominantColor(img)}
-	for _, px := range []int{80, 96, 120, 160, 240, 400, 600} {
+	for _, px := range []int{80, 96, 120, 160, 240, 400, 600, bioArt} {
 		a.art.art[sized(url, px)] = art
 	}
 	bd := *art

@@ -149,18 +149,20 @@ func TestSwitchingLanguage(t *testing.T) {
 }
 
 // A text in a context has its own translation, and reads as itself in English:
-// the app's About is about the app, and an artist's About is their profile.
+// the app's About is about the app, and another About may be another word.
 func TestTextInContext(t *testing.T) {
 	defer SetLanguage(English)
+	zhCN["About %s|test"] = "%s简介"
+	defer delete(zhCN, "About %s|test")
 	SetLanguage(Chinese)
 	if got := T("About %s"); got != "关于%s" {
 		t.Errorf("About the app: %q", got)
 	}
-	if got := TC("About %s", "Apple Music"); got != "%s简介" {
-		t.Errorf("About an artist: %q", got)
+	if got := TC("About %s", "test"); got != "%s简介" {
+		t.Errorf("About in a context: %q", got)
 	}
 	SetLanguage(English)
-	if got := TC("About %s", "Apple Music"); got != "About %s" {
+	if got := TC("About %s", "test"); got != "About %s" {
 		t.Errorf("English: %q", got)
 	}
 }

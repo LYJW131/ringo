@@ -78,6 +78,7 @@ func (a *app) view(c *ui.Context) {
 	a.signInDialog(c, a.pal, false)
 	a.playlistNameDialog(c)
 	a.deletePlaylistDialog(c)
+	a.artistBioDialog(c)
 	if a.toast != "" {
 		c.Toast(a.toast)
 		a.toast = ""

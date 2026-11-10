@@ -3,7 +3,6 @@ package applemusic
 import (
 	"cmp"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 
@@ -337,7 +336,7 @@ func (s *Source) viewSection(b *body, v *relationship, style string) (music.Sect
 func artistParams() params {
 	return params{
 		"views":                         "canvas,top-songs",
-		"extend":                        "artistBio,bornOrFormed,editorialArtwork,editorialVideo,extendedAssetUrls,hasBiographyContent,hero,isGroup,keyColor,origin,plainEditorialNotes",
+		"extend":                        "artistBio,bornOrFormed,editorialArtwork,editorialVideo,extendedAssetUrls,hasBiographyContent,isGroup,keyColor,origin,plainEditorialNotes",
 		"art[url]":                      "c,f",
 		"include":                       "default-playable-content",
 		"include[canvas-shelves]":       "contents,children",
@@ -459,9 +458,6 @@ func (s *Source) artist(id string) (*music.ArtistPage, error) {
 				page.Albums = append(page.Albums, *it.Album)
 			}
 		}
-	}
-	if a := page.Artist; a.Bio != "" {
-		page.Sections = append(page.Sections, music.Section{Title: fmt.Sprintf(i18n.TC("About %s", "Apple Music"), a.Name), Style: music.ShelfText, Subtitle: a.Bio})
 	}
 	return page, nil
 }

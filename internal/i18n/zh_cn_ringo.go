@@ -86,6 +86,7 @@ var ringoChinese = map[string]string{
 	"Friday":                            "周五",
 	"From":                              "来自",
 	"Genre":                             "类型",
+	"Go to Artist Page":                 "前往艺人页面",
 	"Hi-Res Lossless":                   "高解析度无损",
 	"January 2, 2006":                   "2006年1月2日",
 	"Less":                              "收起",

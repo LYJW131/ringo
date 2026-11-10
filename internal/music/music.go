@@ -288,6 +288,9 @@ type Browse struct {
 	// ImageURL is a picture of whom the page is about, such as a listener's
 	// avatar, which heads it round, as an artist's photo heads theirs.
 	ImageURL string `json:"imageUrl,omitempty"`
+	// Artist is the ID of the catalog's artist whom a page of the library
+	// is about, whose own page it offers.
+	Artist string `json:"artist,omitempty"`
 	// Description goes under the title, a line to each line of it.
 	Description string    `json:"description,omitempty"`
 	Sections    []Section `json:"sections,omitempty"`

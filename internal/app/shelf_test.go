@@ -40,8 +40,6 @@ func shelfArt(a *app) {
 		giveCover(a, fmt.Sprintf("cover:%d", i), coverImage(c.from, c.to))
 		wide := ui.NewBitmap(wideImage(c.from, c.to))
 		a.art.art[sized(music.Wide(fmt.Sprintf("wide:%d:{w}x{h}", i), wideArt, wideArt*9/16), wideArt)] = &artwork{bmp: wide}
-		// And as an artist's page heads with it.
-		a.art.art[sized(music.Wide(fmt.Sprintf("wide:%d:{w}x{h}", i), wideArt, wideArt*21/50), wideArt)] = &artwork{bmp: wide}
 	}
 }
 
@@ -385,6 +383,24 @@ func TestLibraryArtistOpensTheirLibraryPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	if a.route != (route{page: pageBrowse, id: "library-artist:r.1"}) {
+		t.Fatalf("opened %+v", a.route)
+	}
+}
+
+// The page of an artist of the library, their albums there, opens their
+// page of Apple Music from the button under their name, as the search and
+// the sidebar's Artists bring the listener to the library's.
+func TestLibraryArtistGoesToTheirPage(t *testing.T) {
+	a, _ := shelfApp()
+	a.browses["library-artist:r.1"] = &browseData{at: time.Now(), page: &music.Browse{Title: "The Polar Lights", ImageURL: "cover:1", Artist: "7",
+		Sections: []music.Section{{Style: music.ShelfGrid, Items: []music.Item{{Kind: music.ItemAlbum, ID: "70", Title: "Polar Night", ImageURL: "cover:2"}}}}}}
+	a.route = route{page: pageBrowse, id: "library-artist:r.1"}
+	tt := ui.NewTester(a.view, 1180, 780)
+	tt.Frame()
+	if err := tt.Click("Go to Artist Page"); err != nil {
+		t.Fatal(err)
+	}
+	if a.route != (route{page: pageArtist, id: "7"}) {
 		t.Fatalf("opened %+v", a.route)
 	}
 }

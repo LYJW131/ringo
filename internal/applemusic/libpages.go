@@ -301,7 +301,7 @@ func (s *Source) libraryArtist(id, next string) (*music.Browse, error) {
 	items := s.items(b, albums.Data)
 	out := &music.Browse{Title: a.attrs().Name, Sections: []music.Section{{Style: music.ShelfGrid, Items: items}}}
 	if cat := b.all(a.related("catalog").Data); len(cat) > 0 {
-		out.ImageURL = art(cat[0].attrs().Artwork)
+		out.ImageURL, out.Artist = art(cat[0].attrs().Artwork), cat[0].ID
 	}
 	if albums.Next != "" {
 		out.Next = "library-artist:" + id + "|" + albums.Next
