@@ -412,14 +412,16 @@ func TestAlbumPage(t *testing.T) {
 // A library album with some of its songs has its catalog album's shelves
 // and the ID that Show Complete Album opens; found by a song of it when the
 // library album doesn't say, as of Ao No Hako's second soundtrack it didn't.
-// One with all its songs has the shelves and nothing to complete.
+// One with all its songs has the shelves and nothing to complete. Either
+// takes when it came out and how it sounds from the catalog's, as its own
+// may not say.
 func TestLibraryAlbumOfCatalog(t *testing.T) {
 	whole := func(count int) map[string]any {
 		return map[string]any{
 			"data": []any{map[string]any{"id": "900", "type": "albums"}},
 			"resources": map[string]any{"albums": map[string]any{
 				"900": map[string]any{"id": "900", "type": "albums",
-					"attributes": map[string]any{"name": "Whole", "trackCount": count},
+					"attributes": map[string]any{"name": "Whole", "trackCount": count, "releaseDate": "2025-03-20", "audioTraits": []string{"lossy-stereo", "lossless"}},
 					"views": map[string]any{"more-by-artist": map[string]any{
 						"attributes": map[string]any{"title": "More By Hiroaki"},
 						"data":       []any{map[string]any{"id": "901", "type": "albums"}}}}},
@@ -469,6 +471,10 @@ func TestLibraryAlbumOfCatalog(t *testing.T) {
 				t.Errorf("sections %+v", page.Sections)
 			}
 			if page.Album.ID != "l.part" || len(page.Tracks) != c.have || page.Tracks[0].Number != 26 {
+				t.Errorf("album %+v, songs %+v", page.Album, page.Tracks)
+			}
+			// What the library's album doesn't say, the catalog's does.
+			if page.Album.Released != "2025-03-20" || !page.Album.Traits.Lossless {
 				t.Errorf("album %+v, songs %+v", page.Album, page.Tracks)
 			}
 		})

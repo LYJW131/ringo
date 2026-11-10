@@ -1,6 +1,7 @@
 package applemusic
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"strings"
@@ -129,6 +130,15 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 		a.ID, a.Saved = id, true
 		for _, song := range songs {
 			a.Uploaded = a.Uploaded || song.Uploaded
+		}
+		if wholeAlbum != nil {
+			// The library's album may not say when it came out or how it
+			// sounds; the catalog's does, and Music's page shows it.
+			w := s.toAlbum(wholeAlbum)
+			a.Released = cmp.Or(a.Released, w.Released)
+			if a.Traits == (music.Traits{}) {
+				a.Traits = w.Traits
+			}
 		}
 		page := &music.AlbumPage{Album: a, Tracks: songs}
 		if wholeAlbum != nil {
