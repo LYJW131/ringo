@@ -168,7 +168,7 @@ func TestRenamePlaylist(t *testing.T) {
 	if err := tt.RightClick("睡前"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Rename…"); err != nil {
+	if err := tt.ChooseMenuItem("Edit…"); err != nil {
 		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
 	}
 	tt.Advance(300 * time.Millisecond)
@@ -204,7 +204,7 @@ func TestDeletePlaylist(t *testing.T) {
 	if err := tt.Click("More"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Delete Playlist…"); err != nil {
+	if err := tt.ChooseMenuItem("Delete From Library…"); err != nil {
 		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
 	}
 	tt.Advance(300 * time.Millisecond)
@@ -214,7 +214,7 @@ func TestDeletePlaylist(t *testing.T) {
 		t.Fatal("deleted before it was confirmed")
 	default:
 	}
-	if err := tt.Click("Delete"); err != nil {
+	if err := tt.Click("OK"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -240,7 +240,7 @@ func TestCancelDeletingPlaylist(t *testing.T) {
 	if err := tt.RightClick("睡前"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Delete Playlist…"); err != nil {
+	if err := tt.ChooseMenuItem("Delete From Library…"); err != nil {
 		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
 	}
 	tt.Advance(300 * time.Millisecond)
@@ -370,6 +370,70 @@ func TestPlaylistEditsGoBack(t *testing.T) {
 	}
 }
 
+// All Playlists follows the listener's changes at once: a playlist renamed
+// has its new name on its card, and one deleted loses its card, which comes
+// back if the source refuses.
+func TestPlaylistCardsFollowEdits(t *testing.T) {
+	a := editTestApp()
+	ch := posts(a)
+	fake(a).remove = func(string) error { return errors.New("offline") }
+	a.browses[music.PageAllPlaylists] = &browseData{at: time.Now(), page: &music.Browse{Sections: []music.Section{{Style: music.ShelfGrid, Items: []music.Item{
+		{Kind: music.ItemPlaylist, ID: "10", Title: "通勤", Playlist: &music.Playlist{ID: "10", Name: "通勤", Mine: true}},
+		{Kind: music.ItemPlaylist, ID: "11", Title: "睡前", Playlist: &music.Playlist{ID: "11", Name: "睡前", Mine: true}},
+	}}}}}
+	a.route = route{page: pageBrowse, src: "fake", id: music.PageAllPlaylists}
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	cards := func() []string {
+		var out []string
+		for _, it := range a.browses[music.PageAllPlaylists].page.Sections[0].Items {
+			out = append(out, it.Title)
+		}
+		return out
+	}
+
+	a.naming = nameDialog{open: true, name: "助眠", rename: "11"}
+	a.submitName()
+	tt.Frame()
+	if got := cards(); len(got) != 2 || got[1] != "助眠" || !tt.HasText("助眠") {
+		t.Errorf("renamed, the cards are %q", got)
+	}
+
+	a.deleting = deleteDialog{open: true, id: "10", name: "通勤"}
+	a.deleteChosen()
+	tt.Frame()
+	if got := cards(); len(got) != 1 || got[0] != "助眠" {
+		t.Errorf("deleted, the cards are %q", got)
+	}
+	until(t, ch, func() bool { return len(cards()) == 2 })
+	if got := cards(); got[0] != "通勤" {
+		t.Errorf("refused, the cards are %q", got)
+	}
+}
+
+// The dots of a song's row in the listener's playlist offer to take it out,
+// as a right click on the row does. They offered the menu of a song listed
+// nowhere.
+func TestRowDotsRemoveFromPlaylist(t *testing.T) {
+	a := editTestApp()
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	r, ok := tt.Find("宝船")
+	if !ok {
+		t.Fatal("no row of the song")
+	}
+	tt.Move(r.X+r.W/2, r.Y+r.H/2)
+	tt.Frame()
+	tt.ClickAt(r.X+r.W-22, r.Y+r.H/2)
+	tt.Frame()
+	if err := tt.ChooseMenuItem("Remove from Playlist"); err != nil {
+		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+	}
+	if len(a.playlists["10"].Tracks) != 1 {
+		t.Error("the song is still listed")
+	}
+}
+
 // A dialog's backdrop fades in as it opens and out as it closes. Its
 // transition was set on the panel, which MyGo doesn't play in a parent new
 // in the same frame, so the dialog came and went in one frame.
@@ -467,7 +531,7 @@ func TestFixedPlaylist(t *testing.T) {
 	if err := tt.RightClick("我喜欢的音乐"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Delete Playlist…"); err == nil {
+	if err := tt.ChooseMenuItem("Delete From Library…"); err == nil {
 		t.Error("the sidebar offered to delete the fixed playlist")
 	}
 	tt.Frame()

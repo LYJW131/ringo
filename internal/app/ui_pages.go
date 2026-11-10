@@ -386,7 +386,7 @@ func (a *app) playlistRow(c *ui.Context, tracks []music.Track, i int, pid string
 			}
 		})
 		ui.Text(c, clock(tr.Length())).FontSize(13).FontFeatures("tnum").TextColor(p.muted).Width(44).TextAlign(ui.End)
-		a.songMenu(c.Key("menu"), tr, 15, p.muted).Margin(0, -6, 0, 0)
+		a.songMenuIn(c.Key("menu"), tr, pid, 15, p.muted).Margin(0, -6, 0, 0)
 	})
 	if row.Clicked() {
 		a.playRow(tracks, i)

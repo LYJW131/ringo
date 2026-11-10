@@ -22,6 +22,7 @@ var appleMusicChinese = map[string]string{
 	"Recently Added":                                                                                "最近添加",
 	"Songs you uploaded can't be added back once deleted, so this album stays in your library": "你上传的歌曲删除后无法再添加回来，所以这张专辑会保留在资料库中",
 	"That isn't a media-user-token: paste the value of the media-user-token cookie":            "这不是 media-user-token：请粘贴 Cookie 中 media-user-token 的值",
+	"The playlist changed elsewhere. Try again in a moment.":                                   "此播放列表已在别处更改，请稍后再试。",
 	"There are no items in your library.":                                                      "你的资料库中没有任何项目。",
 	"This song isn't available in your country or region":                                      "你所在的国家或地区不提供这首歌",
 	"Your Station":  "你的电台",

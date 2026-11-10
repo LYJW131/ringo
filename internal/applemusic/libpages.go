@@ -146,7 +146,7 @@ func (s *Source) libraryPage(page, next string) (*music.Browse, error) {
 	if err != nil {
 		return nil, err
 	}
-	items := s.items(b, b.Data)
+	items := s.editedItems(s.items(b, b.Data))
 	out := &music.Browse{Sections: []music.Section{{Style: list.style, Items: items}}}
 	if next == "" {
 		out.Title = list.title()

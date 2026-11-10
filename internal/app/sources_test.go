@@ -224,10 +224,10 @@ func TestPlaylistMenuGoesWithoutCapability(t *testing.T) {
 	if err := tt.RightClick("睡前"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Rename…"); err == nil {
+	if err := tt.ChooseMenuItem("Edit…"); err == nil {
 		t.Error("offered to rename without being able to")
 	}
-	if err := tt.ChooseMenuItem("Delete Playlist…"); err != nil {
+	if err := tt.ChooseMenuItem("Delete From Library…"); err != nil {
 		t.Errorf("no deleting without renaming: %v", err)
 	}
 	a.deleting.open = false
@@ -244,7 +244,7 @@ func TestPlaylistMenuGoesWithoutCapability(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, item := range tt.Menu() {
-		if item == "Rename…" || item == "Delete Playlist…" {
+		if item == "Edit…" || item == "Delete From Library…" {
 			t.Errorf("the playlist's page offers %q", item)
 		}
 	}

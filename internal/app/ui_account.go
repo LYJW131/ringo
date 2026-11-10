@@ -591,16 +591,17 @@ func (a *app) avatar(c *ui.Context, url string, size float32, empty ui.Color) {
 }
 
 // playlistMenu has what can be done with a playlist of the listener's, as far
-// as the source can.
+// as the source can, in Apple Music's words: Edit, for its name, and Delete
+// From Library, which deletes it.
 func (a *app) playlistMenu(m *ui.Menu, pl *music.Playlist) {
-	if a.can("renamePlaylist") && m.Item(T("Rename…")).Chosen() {
+	if a.can("renamePlaylist") && m.Item(T("Edit…")).Chosen() {
 		a.startRename(pl)
 	}
 	if a.can("deletePlaylist") {
 		if a.can("renamePlaylist") {
 			m.Separator()
 		}
-		if m.Item(T("Delete Playlist…")).Chosen() {
+		if m.Item(T("Delete From Library…")).Chosen() {
 			a.confirmDelete(pl)
 		}
 	}

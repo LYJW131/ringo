@@ -101,6 +101,9 @@ type Source struct {
 
 	libMu sync.Mutex
 	lib   libraryState
+	// edits are changes to the listener's playlists that Apple took but may
+	// not answer with yet, by playlist (playlistEdit).
+	edits map[string]*playlistEdit
 
 	warmMu      sync.Mutex
 	warmTimer   *warmTimer
@@ -239,9 +242,9 @@ func (s *Source) Info() music.Info {
 // can is what the plugin exported: what the app may call.
 var can = map[string]bool{
 	"account": true, "accounts": true, "addToLibrary": true, "addToPlaylist": true, "album": true, "artist": true, "autoplay": true, "browse": true,
-	"createPlaylist": true, "favorite": true, "home": true, "isLiked": true, "like": true, "liked": true,
-	"lyrics": true, "played": true, "playlist": true, "playlists": true, "recent": true,
-	"saveAlbum": true, "savePlaylist": true, "savedAlbums": true, "search": true,
+	"createPlaylist": true, "deletePlaylist": true, "favorite": true, "home": true, "isLiked": true, "like": true, "liked": true,
+	"lyrics": true, "movePlaylistTrack": true, "played": true, "playlist": true, "playlists": true, "recent": true,
+	"removeFromPlaylist": true, "renamePlaylist": true, "saveAlbum": true, "savePlaylist": true, "savedAlbums": true, "search": true,
 	"setSetting": true, "signIn": true, "signOut": true, "stationNext": true,
 	"stations": true, "stream": true, "suggest": true,
 }
@@ -436,10 +439,26 @@ func (s *Source) Stream(id, quality string) (*music.Stream, error) {
 	return s.stream(id, quality)
 }
 
+func (s *Source) RenamePlaylist(id, name string) error {
+	defer s.asked(true)()
+	return s.renamePlaylist(id, name)
+}
+
+func (s *Source) DeletePlaylist(id string) error {
+	defer s.asked(true)()
+	return s.deletePlaylist(id)
+}
+
+func (s *Source) RemoveFromPlaylist(id string, trackIDs []string) error {
+	defer s.asked(true)()
+	return s.removeFromPlaylist(id, trackIDs)
+}
+
+func (s *Source) MovePlaylistTrack(id string, from, to int) error {
+	defer s.asked(true)()
+	return s.movePlaylistTrack(id, from, to)
+}
+
 // What Apple Music doesn't do, or the web player's API doesn't let it.
 
-func (s *Source) RenamePlaylist(string, string) error       { return music.ErrUnsupported }
-func (s *Source) DeletePlaylist(string) error               { return music.ErrUnsupported }
-func (s *Source) RemoveFromPlaylist(string, []string) error { return music.ErrUnsupported }
-func (s *Source) MovePlaylistTrack(string, int, int) error  { return music.ErrUnsupported }
-func (s *Source) FollowArtist(string, bool) error           { return music.ErrUnsupported }
+func (s *Source) FollowArtist(string, bool) error { return music.ErrUnsupported }

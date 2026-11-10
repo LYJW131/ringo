@@ -24,8 +24,14 @@ func (a *app) playRow(tracks []music.Track, i int) {
 
 // songMenu is three dots that open the menu of tr.
 func (a *app) songMenu(c *ui.Context, tr *music.Track, size float32, color ui.Color) ui.Element {
+	return a.songMenuIn(c, tr, "", size, color)
+}
+
+// songMenuIn is songMenu for a song listed in playlist pid, whose menu can
+// take it out of there, as its row's right click does.
+func (a *app) songMenuIn(c *ui.Context, tr *music.Track, pid string, size float32, color ui.Color) ui.Element {
 	b := iconButton(c, iconMore, size, color, T("More"))
-	b.Menu(a.songItems(tr, ""))
+	b.Menu(a.songItems(tr, pid))
 	return b
 }
 

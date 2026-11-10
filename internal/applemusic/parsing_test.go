@@ -107,8 +107,8 @@ func TestSongs(t *testing.T) {
 // Can names what the plugin exported, and nothing else.
 func TestCan(t *testing.T) {
 	want := []string{
-		"account", "accounts", "addToLibrary", "addToPlaylist", "album", "artist", "autoplay", "browse", "createPlaylist", "favorite", "home", "isLiked", "like",
-		"liked", "lyrics", "played", "playlist", "playlists", "recent", "saveAlbum", "savePlaylist",
+		"account", "accounts", "addToLibrary", "addToPlaylist", "album", "artist", "autoplay", "browse", "createPlaylist", "deletePlaylist", "favorite", "home", "isLiked", "like",
+		"liked", "lyrics", "movePlaylistTrack", "played", "playlist", "playlists", "recent", "removeFromPlaylist", "renamePlaylist", "saveAlbum", "savePlaylist",
 		"savedAlbums", "search", "setSetting", "signIn", "signOut", "stationNext", "stations", "stream", "suggest",
 	}
 	var got []string
@@ -120,7 +120,7 @@ func TestCan(t *testing.T) {
 		t.Errorf("Can: %q", got)
 	}
 	s := New(Options{DataDir: t.TempDir()})
-	for _, name := range append(want, "followArtist", "renamePlaylist", "deletePlaylist") {
+	for _, name := range append(want, "followArtist") {
 		if s.Can(name) != slices.Contains(want, name) {
 			t.Errorf("Can(%q) = %v", name, s.Can(name))
 		}

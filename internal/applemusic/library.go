@@ -3,6 +3,7 @@ package applemusic
 import (
 	"errors"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,6 +36,7 @@ func (s *Source) forgetLibrary() {
 	s.forgetAll()
 	s.libMu.Lock()
 	s.lib = libraryState{changed: map[string]string{}}
+	s.edits = nil
 	s.libMu.Unlock()
 	s.subMu.Lock()
 	s.subscribed = nil
@@ -374,8 +376,11 @@ func (s *Source) playlists() ([]music.Playlist, error) {
 	favorites, _ := s.favorites()
 	out := []music.Playlist{}
 	for _, p := range lists {
-		if p != nil && p.ID != favorites {
-			out = append(out, s.toPlaylist(p))
+		if p == nil || p.ID == favorites {
+			continue
+		}
+		if pl, ok := s.asEdited(s.toPlaylist(p)); ok {
+			out = append(out, pl)
 		}
 	}
 	return out, nil
@@ -413,5 +418,216 @@ func (s *Source) addToPlaylist(id string, trackIDs []string) error {
 		return err
 	}
 	s.forget("playlist:" + id)
+	return nil
+}
+
+// Editing the listener's own playlists, as the web player does: a new name
+// is PATCHed, a playlist is DELETEd, a song is taken out by its library ID,
+// and a new order is PUT as the whole list of its tracks.
+//
+// Apple takes a change at once but may answer with the playlist as it was
+// for a minute or two after. Until it catches up, the source answers with
+// what the listener made of it, so that what the app shows isn't undone by
+// reading it back, and the next change starts from it, not from the past.
+
+// editSettles is how long the source keeps answering with a change: by then
+// Apple has it, or someone changed the playlist again elsewhere.
+const editSettles = 5 * time.Minute
+
+// playlistEdit is what the listener changed of one of their playlists.
+type playlistEdit struct {
+	at      time.Time
+	name    string // its new name, if it was renamed
+	deleted bool
+	// tracks are all its tracks as they are now, music videos among them,
+	// if they changed; nil if they didn't.
+	tracks []*resource
+}
+
+// edited is what the listener lately changed of playlist id, or nil.
+func (s *Source) edited(id string) *playlistEdit {
+	s.libMu.Lock()
+	defer s.libMu.Unlock()
+	e := s.edits[id]
+	if e == nil {
+		return nil
+	}
+	if s.clk.Now().Sub(e.at) > editSettles {
+		delete(s.edits, id)
+		return nil
+	}
+	c := *e
+	return &c
+}
+
+// noteEdit keeps what change made of playlist id, which Apple took, and
+// forgets the playlist as it was kept.
+func (s *Source) noteEdit(id string, change func(e *playlistEdit)) {
+	s.libMu.Lock()
+	if s.edits == nil {
+		s.edits = map[string]*playlistEdit{}
+	}
+	e := s.edits[id]
+	if e == nil || s.clk.Now().Sub(e.at) > editSettles {
+		e = &playlistEdit{}
+		s.edits[id] = e
+	}
+	change(e)
+	e.at = s.clk.Now()
+	s.libMu.Unlock()
+	s.forget("playlist:" + id)
+}
+
+// asEdited is pl with the name the listener last gave it, and false for one
+// they deleted. Its tracks are left as they are, for a list of playlists.
+func (s *Source) asEdited(pl music.Playlist) (music.Playlist, bool) {
+	e := s.edited(pl.ID)
+	switch {
+	case e == nil:
+	case e.deleted:
+		return pl, false
+	case e.name != "":
+		pl.Name = e.name
+	}
+	return pl, true
+}
+
+// editedItems are a page's items with the listener's playlists as they last
+// changed them: renamed, or gone.
+func (s *Source) editedItems(items []music.Item) []music.Item {
+	out := make([]music.Item, 0, len(items))
+	for _, it := range items {
+		if it.Kind == music.ItemPlaylist && it.Playlist != nil {
+			pl, ok := s.asEdited(*it.Playlist)
+			if !ok {
+				continue
+			}
+			if pl.Name != it.Playlist.Name {
+				it.Title, it.Playlist = pl.Name, &pl
+			}
+		}
+		out = append(out, it)
+	}
+	return out
+}
+
+// changedElsewhere says a playlist isn't as the app showed it: it changed on
+// another device, or Apple hasn't caught up with a song added here.
+func changedElsewhere() error {
+	return fail("unsupported", i18n.T("The playlist changed elsewhere. Try again in a moment."))
+}
+
+// playlistTracks are all of playlist id's tracks as they are now: as the
+// listener last changed them, or else as Apple answers, asked anew.
+func (s *Source) playlistTracks(id string) ([]*resource, error) {
+	if e := s.edited(id); e != nil && e.tracks != nil {
+		return e.tracks, nil
+	}
+	all, err := s.allPages("/v1/me/library/playlists/"+id+"/tracks", params{"limit": "100"}, 5000, nil)
+	if errors.Is(err, music.ErrUnavailable) {
+		return nil, nil // an empty playlist has no tracks to find
+	}
+	if err != nil {
+		return nil, err
+	}
+	tracks := make([]*resource, 0, len(all))
+	for _, t := range all {
+		if t != nil {
+			tracks = append(tracks, t)
+		}
+	}
+	return tracks, nil
+}
+
+func (s *Source) renamePlaylist(id, name string) error {
+	if _, err := s.me("/library/playlists/"+id, nil, reqOpts{method: "PATCH", body: map[string]any{"attributes": map[string]any{"name": name}}}); err != nil {
+		return err
+	}
+	s.noteEdit(id, func(e *playlistEdit) { e.name = name })
+	return nil
+}
+
+func (s *Source) deletePlaylist(id string) error {
+	if _, err := s.me("/library/playlists/"+id, nil, reqOpts{method: "DELETE"}); err != nil {
+		return err
+	}
+	s.noteEdit(id, func(e *playlistEdit) { e.deleted = true })
+	s.forget("recentlyAdded")
+	s.forget("library")
+	return nil
+}
+
+// removeFromPlaylist takes songs out by their library IDs, which the
+// playlist's tracks are: the app knows a song by its catalog ID, and an
+// upload by its library ID already. mode=all takes out every time a song is
+// listed, as the app does.
+func (s *Source) removeFromPlaylist(id string, trackIDs []string) error {
+	tracks, err := s.playlistTracks(id)
+	if err != nil {
+		return err
+	}
+	out := map[string]bool{}
+	for _, t := range trackIDs {
+		out[t] = true
+	}
+	var gone []string
+	for _, t := range tracks {
+		if t.Type == "library-songs" && (out[songID(t)] || out[t.ID]) && !slices.Contains(gone, t.ID) {
+			gone = append(gone, t.ID)
+		}
+	}
+	if len(gone) == 0 {
+		s.forget("playlist:" + id)
+		return changedElsewhere()
+	}
+	var done []string
+	for _, lid := range gone {
+		if _, err = s.me("/library/playlists/"+id+"/tracks", params{"ids[library-songs]": lid, "mode": "all"}, reqOpts{method: "DELETE"}); err != nil {
+			break
+		}
+		done = append(done, lid)
+	}
+	if len(done) > 0 {
+		left := slices.DeleteFunc(slices.Clone(tracks), func(t *resource) bool { return slices.Contains(done, t.ID) })
+		s.noteEdit(id, func(e *playlistEdit) { e.tracks = left })
+	}
+	return err
+}
+
+// movePlaylistTrack moves a song from and to places among the songs, which
+// are what the app lists: music videos stay where they are.
+func (s *Source) movePlaylistTrack(id string, from, to int) error {
+	tracks, err := s.playlistTracks(id)
+	if err != nil {
+		return err
+	}
+	var at []int
+	for i, t := range tracks {
+		if t.Type == "songs" || t.Type == "library-songs" {
+			at = append(at, i)
+		}
+	}
+	if from < 0 || to < 0 || from >= len(at) || to >= len(at) {
+		s.forget("playlist:" + id)
+		return changedElsewhere()
+	}
+	songs := make([]*resource, len(at))
+	for i, j := range at {
+		songs[i] = tracks[j]
+	}
+	moving := songs[from]
+	songs = slices.Insert(slices.Delete(songs, from, from+1), to, moving)
+	order := slices.Clone(tracks)
+	for i, j := range at {
+		order[j] = songs[i]
+	}
+	data := make([]map[string]string, len(order))
+	for i, t := range order {
+		data[i] = map[string]string{"id": t.ID, "type": t.Type}
+	}
+	if _, err := s.me("/library/playlists/"+id+"/tracks", nil, reqOpts{method: "PUT", body: map[string]any{"data": data}}); err != nil {
+		return err
+	}
+	s.noteEdit(id, func(e *playlistEdit) { e.tracks = order })
 	return nil
 }

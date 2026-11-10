@@ -484,8 +484,10 @@ type Source interface {
 	RenamePlaylist(id, name string) error
 	DeletePlaylist(id string) error
 	AddToPlaylist(id string, trackIDs []string) error
+	// RemoveFromPlaylist takes the tracks out, every time each is listed.
 	RemoveFromPlaylist(id string, trackIDs []string) error
-	// MovePlaylistTrack moves the track at index from to index to.
+	// MovePlaylistTrack moves the track at index from to index to, of the
+	// tracks as Playlist lists them.
 	MovePlaylistTrack(id string, from, to int) error
 	// SavePlaylist saves someone else's playlist, or lets it go.
 	SavePlaylist(id string, on bool) error

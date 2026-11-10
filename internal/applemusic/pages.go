@@ -471,6 +471,21 @@ func (s *Source) playlist(id string) (*music.Playlist, error) {
 		if err != nil {
 			return nil, err
 		}
+		// As the listener last changed it, which Apple may not answer with yet.
+		if e := s.edited(id); e != nil {
+			if e.deleted {
+				return nil, fail("unavailable", i18n.T("Apple Music doesn't have this"))
+			}
+			edited := *found
+			if e.name != "" {
+				edited.Name = e.name
+			}
+			if e.tracks != nil {
+				edited.Tracks = s.songsOf(e.tracks)
+				edited.TrackCount = len(edited.Tracks)
+			}
+			found = &edited
+		}
 		s.prefetch(found.Tracks, nil)
 		return found, nil
 	}

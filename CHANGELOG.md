@@ -14,6 +14,6 @@ The first version: Apple Music in a desktop app of its own, drawn by MyGo's nati
 - Pages for albums, artists and playlists with what Apple Music shows on them: editors' notes, the cover's colors, how an album sounds at its best, the songs most played, and what else to hear.
 - Whole songs as 256 kbps AAC, and through a wrapper as ALAC: Lossless up to 24-bit/48 kHz, or Hi-Res Lossless up to 24-bit/192 kHz.
 - Lyrics that follow the song word by word, with their translation where Apple Music has one.
-- Play Next and Play Last, Favorite, adding to the library and taking out of it, adding to playlists, and AutoPlay once the queue runs out.
+- Play Next and Play Last, Favorite, adding to the library and taking out of it, adding to playlists, renaming and deleting your own playlists and taking songs out of them or moving them up and down, and AutoPlay once the queue runs out.
 - Signing in on Apple's own page, with a media-user-token, or as an account a wrapper holds.
 - English and Simplified Chinese, in Apple Music's own words.

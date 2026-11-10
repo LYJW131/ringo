@@ -1,7 +1,9 @@
 package applemusic
 
 import (
+	"errors"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,7 +19,10 @@ import (
 
 const settleWithin = 2 * time.Minute
 
-func TestLiveWrites(t *testing.T) {
+// writeSource is a source signed in to the account kept for testing, or the
+// test is skipped without one.
+func writeSource(t *testing.T) *Source {
+	t.Helper()
 	file := os.Getenv("APPLE_MUSIC_WRITE_TOKEN_FILE")
 	if file == "" {
 		t.Skip("APPLE_MUSIC_WRITE_TOKEN_FILE names the token of an account that may be written to")
@@ -27,25 +32,33 @@ func TestLiveWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := New(Options{DataDir: t.TempDir()})
-	defer s.Close()
+	t.Cleanup(func() { s.Close() })
 	s.storage.set(userTokenKey, strings.TrimSpace(string(raw)))
+	return s
+}
+
+// waitFor reads back until ok, or fails once settleWithin is up.
+func waitFor(t *testing.T, what string, ok func() bool) bool {
+	t.Helper()
+	start := time.Now()
+	for !ok() {
+		if time.Since(start) > settleWithin {
+			t.Errorf("%s: not so after %v", what, settleWithin)
+			return false
+		}
+		time.Sleep(10 * time.Second)
+	}
+	t.Logf("%s, after %v", what, time.Since(start).Round(time.Second))
+	return true
+}
+
+func TestLiveWrites(t *testing.T) {
+	s := writeSource(t)
 	found, err := s.Browse(music.PageSearch + "taylor swift")
 	if err != nil {
 		t.Fatal(err)
 	}
-	// waitFor reads back until ok, or fails once settleWithin is up.
-	waitFor := func(what string, ok func() bool) {
-		t.Helper()
-		start := time.Now()
-		for !ok() {
-			if time.Since(start) > settleWithin {
-				t.Errorf("%s: not so after %v", what, settleWithin)
-				return
-			}
-			time.Sleep(10 * time.Second)
-		}
-		t.Logf("%s, after %v", what, time.Since(start).Round(time.Second))
-	}
+	waitFor := func(what string, ok func() bool) { t.Helper(); waitFor(t, what, ok) }
 	state := func(typ, id string) (fav, lib bool) {
 		t.Helper()
 		own, fav, err := s.personal(typ, id)
@@ -113,4 +126,126 @@ func TestLiveWrites(t *testing.T) {
 		}
 		t.Logf("autoplay: %d songs, %d with a name and a catalog ID", len(next), named)
 	}
+}
+
+// One of the listener's playlists made for the test, edited and deleted:
+// three songs added, renamed, the third moved to first, one taken out, each
+// read back from Apple itself, past what the source answers of its own
+// changes; then deleted. Whatever happens, it's deleted at the end. Only the
+// test's playlist is named in what's logged.
+func TestLivePlaylistEdits(t *testing.T) {
+	s := writeSource(t)
+	found, err := s.Browse(music.PageSearch + "taylor swift")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var songs []string
+	for _, sec := range found.Sections {
+		for _, it := range sec.Items {
+			if it.Kind == music.ItemSong && isCatalogID(it.ID) && !slices.Contains(songs, it.ID) && len(songs) < 3 {
+				songs = append(songs, it.ID)
+			}
+		}
+	}
+	if len(songs) < 3 {
+		t.Fatalf("found %d songs, not 3", len(songs))
+	}
+
+	name := "[Ringo test] playlist edits " + time.Now().UTC().Format("20060102-150405")
+	const description = "Made by Ringo's TestLivePlaylistEdits, and deleted by it."
+	b, err := s.me("/library/playlists", nil, reqOpts{method: "POST", body: map[string]any{"attributes": map[string]any{"name": name, "description": description}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	made, err := first(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := made.ID
+	t.Logf("made %q, %s", name, id)
+	deleted := false
+	defer func() {
+		if deleted {
+			return
+		}
+		if _, err := s.me("/library/playlists/"+id, nil, reqOpts{method: "DELETE"}); err != nil {
+			t.Errorf("deleting the test's playlist: %v", err)
+		} else {
+			t.Log("deleted the test's playlist")
+		}
+	}()
+
+	// What Apple says of it, asked anew, without what the source keeps.
+	type said struct {
+		name, description string
+		songs             []string
+	}
+	apple := func() (said, bool) {
+		t.Helper()
+		b, err := s.me("/library/playlists/"+id, nil, reqOpts{})
+		if err != nil {
+			t.Logf("reading it back: %v", err)
+			return said{}, false
+		}
+		pl, err := first(b)
+		if err != nil {
+			return said{}, false
+		}
+		out := said{name: pl.attrs().Name, description: pl.attrs().Description.long()}
+		tracks, err := s.allPages("/v1/me/library/playlists/"+id+"/tracks", params{"limit": "100"}, 100, nil)
+		if err != nil && !errors.Is(err, music.ErrUnavailable) {
+			t.Logf("reading its songs back: %v", err)
+			return said{}, false
+		}
+		for _, tr := range tracks {
+			if tr != nil {
+				out.songs = append(out.songs, songID(tr))
+			}
+		}
+		return out, true
+	}
+	hasSongs := func(want ...string) func() bool {
+		return func() bool { got, ok := apple(); return ok && slices.Equal(got.songs, want) }
+	}
+
+	if err := s.AddToPlaylist(id, songs); err != nil {
+		t.Fatalf("adding songs: %v", err)
+	}
+	if !waitFor(t, "three songs in it", hasSongs(songs...)) {
+		t.FailNow()
+	}
+
+	renamed := name + " (renamed)"
+	if err := s.RenamePlaylist(id, renamed); err != nil {
+		t.Fatalf("renaming: %v", err)
+	}
+	if pl, err := s.Playlist(id); err != nil || pl.Name != renamed {
+		t.Errorf("the source doesn't answer with the new name at once (%v)", err)
+	}
+	waitFor(t, "its new name", func() bool { got, ok := apple(); return ok && got.name == renamed })
+	if got, ok := apple(); ok && got.description != description {
+		t.Errorf("renaming it changed its description to %q", got.description)
+	}
+
+	if err := s.MovePlaylistTrack(id, 2, 0); err != nil {
+		t.Fatalf("moving the third song to first: %v", err)
+	}
+	waitFor(t, "the third song first", hasSongs(songs[2], songs[0], songs[1]))
+
+	if err := s.RemoveFromPlaylist(id, []string{songs[0]}); err != nil {
+		t.Fatalf("taking a song out: %v", err)
+	}
+	waitFor(t, "a song taken out", hasSongs(songs[2], songs[1]))
+
+	if err := s.DeletePlaylist(id); err != nil {
+		t.Fatalf("deleting: %v", err)
+	}
+	deleted = true
+	if lists, err := s.Playlists(); err != nil || slices.ContainsFunc(lists, func(p music.Playlist) bool { return p.ID == id }) {
+		t.Errorf("the source still lists it at once (%v)", err)
+	}
+	waitFor(t, "it deleted", func() bool {
+		lists, err := s.allPages("/v1/me/library/playlists", params{"limit": "100"}, 500, nil)
+		return err == nil && !slices.ContainsFunc(lists, func(p *resource) bool { return p != nil && p.ID == id })
+	})
 }

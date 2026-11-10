@@ -142,7 +142,11 @@ func (a *app) submitName() {
 				if err != nil {
 					lib.setPlaylistName(id, old)
 					a.actionFailed(lib, err, T("Couldn't rename the playlist. Try again later."))
+					return
 				}
+				// The sidebar's list asked for before the change may have come
+				// back meanwhile: asked again, the source has the new name.
+				a.loadMine(lib)
 			})
 		}()
 		return
@@ -188,6 +192,7 @@ func (a *app) deleteChosen() {
 	}
 	pl := lib.mine[i]
 	lib.mine = slices.Delete(slices.Clone(lib.mine), i, i+1)
+	undoCards := lib.dropPlaylistCards(id)
 	// Leave no way back to its page, and leave it for the page before.
 	gone := func(r route) bool { return r.page == pagePlaylist && r.src == lib.id && r.id == id }
 	a.history = slices.DeleteFunc(a.history, gone)
@@ -204,15 +209,20 @@ func (a *app) deleteChosen() {
 		a.post(func() {
 			if err != nil {
 				lib.mine = slices.Insert(slices.Clone(lib.mine), min(i, len(lib.mine)), pl)
+				undoCards()
 				a.actionFailed(lib, err, T("Couldn't delete the playlist. Try again later."))
 				return
 			}
 			delete(lib.playlists, id)
 			a.toast = T("Playlist deleted")
+			// As after a rename: the list may have come back from before.
+			a.loadMine(lib)
 		})
 	}()
 }
 
+// setPlaylistName names the listener's playlist id wherever the app shows
+// it: the sidebar, its page, and its cards, as All Playlists has.
 func (l *library) setPlaylistName(id, name string) {
 	for i := range l.mine {
 		if l.mine[i].ID == id {
@@ -221,6 +231,55 @@ func (l *library) setPlaylistName(id, name string) {
 	}
 	if pl := l.playlists[id]; pl != nil {
 		pl.Name = name
+	}
+	for _, sec := range l.playlistSections(id) {
+		for i := range sec.Items {
+			if it := &sec.Items[i]; isPlaylistCard(it, id) {
+				it.Title = name
+				if it.Playlist != nil {
+					it.Playlist.Name = name
+				}
+			}
+		}
+	}
+}
+
+// isPlaylistCard reports whether it is a card of playlist id.
+func isPlaylistCard(it *music.Item, id string) bool {
+	return it.Kind == music.ItemPlaylist && itemID(it, it.Playlist != nil, func() string { return it.Playlist.ID }) == id
+}
+
+// playlistSections are the sections of the pages loaded with a card of
+// playlist id.
+func (l *library) playlistSections(id string) []*music.Section {
+	var out []*music.Section
+	for _, d := range l.browses {
+		if d.page == nil {
+			continue
+		}
+		for i := range d.page.Sections {
+			sec := &d.page.Sections[i]
+			if slices.ContainsFunc(sec.Items, func(it music.Item) bool { return isPlaylistCard(&it, id) }) {
+				out = append(out, sec)
+			}
+		}
+	}
+	return out
+}
+
+// dropPlaylistCards takes playlist id's cards off the pages loaded, and
+// answers what puts them back.
+func (l *library) dropPlaylistCards(id string) (undo func()) {
+	secs := l.playlistSections(id)
+	was := make([][]music.Item, len(secs))
+	for i, sec := range secs {
+		was[i] = sec.Items
+		sec.Items = slices.DeleteFunc(slices.Clone(sec.Items), func(it music.Item) bool { return isPlaylistCard(&it, id) })
+	}
+	return func() {
+		for i, sec := range secs {
+			sec.Items = was[i]
+		}
 	}
 }
 
@@ -257,6 +316,7 @@ func (a *app) removeFrom(lib *library, pid string, tr *music.Track) {
 			if err != nil {
 				if pl != nil && lib.playlists[pid] == pl {
 					pl.Tracks = before
+					a.playlistRefused(lib, pid)
 				}
 				a.actionFailed(lib, err, T("Couldn't remove it from the playlist. Try again later."))
 				return
@@ -290,11 +350,21 @@ func (a *app) moveTrack(lib *library, pid string, tr *music.Track, by int) {
 			if err != nil {
 				if lib.playlists[pid] == pl {
 					pl.Tracks = before
+					a.playlistRefused(lib, pid)
 				}
 				a.actionFailed(lib, err, T("Couldn't move the song. Try again later."))
 			}
 		})
 	}()
+}
+
+// playlistRefused asks anew for playlist pid, whose source refused a change
+// to its songs: it may have changed elsewhere since it loaded. It shows as
+// it is until the answer comes.
+func (a *app) playlistRefused(lib *library, pid string) {
+	if lib.playlists[pid] != nil && !lib.freshPl[pid] {
+		a.freshenPlaylist(lib, pid)
+	}
 }
 
 // playlistItems are the items of a song's menu that put it in the
@@ -404,7 +474,7 @@ func (a *app) playlistNameDialog(c *ui.Context) {
 }
 
 // deletePlaylistDialog asks whether to delete a playlist, which can't be
-// undone.
+// undone, as Apple Music asks it: Delete From Library, with OK and Cancel.
 func (a *app) deletePlaylistDialog(c *ui.Context) {
 	p := a.pal
 	d := &a.deleting
@@ -413,13 +483,13 @@ func (a *app) deletePlaylistDialog(c *ui.Context) {
 		panel.Width(360).Padding(24).Radius(18).Gap(8).
 			Background(p.bg).Border(1, p.hairline).Shadow(0, 24, 60, -12, ui.RGBA(0, 0, 0, 0.4))
 		dialogIn(c, backdrop, panel)
-		ui.Text(c, T("Delete Playlist")).FontSize(17).FontWeight(700)
-		ui.Text(c, Tf("Delete the playlist “%s”? This can't be undone.", d.name)).FontSize(13).TextColor(p.muted).LineHeight(1.45)
+		ui.Text(c, T("Delete From Library")).FontSize(17).FontWeight(700)
+		ui.Text(c, T("Are you sure you want to delete this playlist from your Library? This will delete it from all your devices.")).FontSize(13).TextColor(p.muted).LineHeight(1.45)
 		ui.Row(c).Gap(10).Justify(ui.End).Margin(8, 0, 0, 0).Children(func() {
 			if pillButton(c.Key("cancel"), nil, T("Cancel"), p.hover.Over(p.bg), p.text).Clicked() {
 				d.open = false
 			}
-			if pillButton(c.Key("ok"), nil, T("Delete"), p.accent, p.onAccent).Clicked() {
+			if pillButton(c.Key("ok"), nil, T("OK"), p.accent, p.onAccent).Clicked() {
 				a.deleteChosen()
 			}
 		})
