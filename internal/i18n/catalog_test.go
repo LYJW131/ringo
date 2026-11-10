@@ -191,24 +191,6 @@ func TestAgo(t *testing.T) {
 	}
 }
 
-// Counts read shortly, by how people count in the language.
-func TestCount(t *testing.T) {
-	defer SetLanguage(English)
-	for _, c := range []struct {
-		n      int
-		en, zh string
-	}{{999, "999", "999"}, {12345, "12.3K", "1.2万"}, {2500000, "2.5M", "250.0万"}, {300000000, "300.0M", "3.0亿"}} {
-		SetLanguage(English)
-		if got := Count(c.n); got != c.en {
-			t.Errorf("%d: %q", c.n, got)
-		}
-		SetLanguage(Chinese)
-		if got := Count(c.n); got != c.zh {
-			t.Errorf("%d: %q", c.n, got)
-		}
-	}
-}
-
 // Following the system picks the first language it prefers that the app has, in
 // whatever form it's named, and a language chosen wins over it.
 func TestResolve(t *testing.T) {

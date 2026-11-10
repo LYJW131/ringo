@@ -98,16 +98,6 @@ func AACKey() []byte { return bytes.Clone(aacKey) }
 //go:embed testdata
 var testdata embed.FS
 
-// Handler is NewHandler with the zero Options. It panics if the embedded
-// files can't be made into a song, which they can always be.
-func Handler() http.Handler {
-	h, err := NewHandler(Options{})
-	if err != nil {
-		panic(err)
-	}
-	return h
-}
-
 // NewHandler makes the songs and serves them. Its answers name their own
 // address from the request's Host, so it can sit behind any listener.
 func NewHandler(o Options) (http.Handler, error) {

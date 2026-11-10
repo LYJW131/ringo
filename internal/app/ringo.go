@@ -1,8 +1,6 @@
 package app
 
 import (
-	"fmt"
-	"math"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -265,29 +263,3 @@ func (a *app) keepSetting(lib *library, key, value string) {
 // historySetting is the source's setting that keeps what's played out of the
 // account's listening history when it says off.
 const historySetting = "listeningHistory"
-
-// iconRingo is the app's mark on the icons' grid: an apple cut across, whose
-// core shows as a star of five seeds' chambers.
-var iconRingo = strokeIcon(ringoMark(12, 12, 9.2, 1.9, 6.3, 1.9))
-
-// ringoMark draws the mark around (cx, cy): the apple's round edge at r, and
-// five chambers from in to out along their spokes, each as wide as twice
-// half at its middle, the first pointing up.
-func ringoMark(cx, cy, r, in, out, half float64) string {
-	n := func(v float64) string {
-		return strings.TrimSuffix(strings.TrimRight(fmt.Sprintf("%.2f", v), "0"), ".")
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s"/>`, n(cx), n(cy), n(r))
-	for k := range 5 {
-		t := (-90 + 72*float64(k)) * math.Pi / 180
-		ux, uy := math.Cos(t), math.Sin(t)
-		mid := (in + out) / 2
-		// Each side bows out through a control point beside the spoke's middle.
-		fmt.Fprintf(&b, `<path d="M%s %sQ%s %s %s %sQ%s %s %s %sZ"/>`,
-			n(cx+ux*in), n(cy+uy*in),
-			n(cx+ux*mid-uy*half*2), n(cy+uy*mid+ux*half*2), n(cx+ux*out), n(cy+uy*out),
-			n(cx+ux*mid+uy*half*2), n(cy+uy*mid-ux*half*2), n(cx+ux*in), n(cy+uy*in))
-	}
-	return b.String()
-}

@@ -28,40 +28,27 @@ var (
 	iconSearch    = strokeIcon(`<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>`)
 	iconFilter    = strokeIcon(`<path d="M4 7h16M7 12h10M10 17h4"/>`)
 	iconHome      = strokeIcon(`<path d="M12 3 4 9v11a1 1 0 0 0 1 1h4v-6h6v6h4a1 1 0 0 0 1-1V9z"/>`)
-	iconCalendar  = strokeIcon(`<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M8 2.5v4"/><path d="M16 2.5v4"/><path d="M3 10h18"/>`)
-	iconAlbum     = strokeIcon(`<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>`)
-	iconPlaylist  = strokeIcon(`<path d="M3 6h13"/><path d="M3 12h13"/><path d="M3 18h9"/><path d="M21 9v9"/><circle cx="18.5" cy="18" r="2.5"/>`)
 	iconStar      = strokeIcon(`<path d="m12 3 2.7 5.8 6.3.8-4.6 4.3 1.2 6.2L12 17l-5.6 3.1 1.2-6.2L3 9.6l6.3-.8z"/>`)
 	iconStarFill  = fillIcon(`<path d="m12 3 2.7 5.8 6.3.8-4.6 4.3 1.2 6.2L12 17l-5.6 3.1 1.2-6.2L3 9.6l6.3-.8z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/>`)
 	// iconVideo marks a music video among an album's songs, as Music's
 	// screen with a note does.
-	iconVideo     = strokeIcon(`<rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8"/><path d="m10 8.5 4.5 2.5-4.5 2.5z"/>`)
-	iconFolder    = strokeIcon(`<path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`)
-	iconCharts    = strokeIcon(`<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>`)
-	iconQueue     = strokeIcon(`<path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/>`)
-	iconLyrics    = strokeIcon(`<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8"/><path d="M8 13h5"/>`)
-	iconDown      = strokeIcon(`<path d="m6 9 6 6 6-6"/>`)
-	iconBack      = strokeIcon(`<path d="m15 18-6-6 6-6"/>`)
-	iconForward   = strokeIcon(`<path d="m9 18 6-6-6-6"/>`)
-	iconNote      = strokeIcon(`<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>`)
-	iconHeart     = strokeIcon(`<path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/>`)
-	iconHeartFill = fillIcon(`<path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/>`)
-	iconUser      = strokeIcon(`<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>`)
+	iconVideo   = strokeIcon(`<rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8"/><path d="m10 8.5 4.5 2.5-4.5 2.5z"/>`)
+	iconQueue   = strokeIcon(`<path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/>`)
+	iconLyrics  = strokeIcon(`<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8"/><path d="M8 13h5"/>`)
+	iconDown    = strokeIcon(`<path d="m6 9 6 6 6-6"/>`)
+	iconBack    = strokeIcon(`<path d="m15 18-6-6 6-6"/>`)
+	iconForward = strokeIcon(`<path d="m9 18 6-6-6-6"/>`)
+	iconNote    = strokeIcon(`<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>`)
+	iconUser    = strokeIcon(`<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>`)
 )
 
 var (
 	iconRadio = strokeIcon(`<circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49"/><path d="M7.76 16.24a6 6 0 0 1 0-8.49"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 19.07a10 10 0 0 1 0-14.14"/>`)
-	iconTrash = strokeIcon(`<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>`)
-	iconThumb = strokeIcon(`<path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/>`)
 	iconPlus  = strokeIcon(`<path d="M12 5v14"/><path d="M5 12h14"/>`)
 	iconCheck = strokeIcon(`<path d="m5 12 4 4L19 6"/>`)
 	iconX     = strokeIcon(`<path d="M18 6 6 18"/><path d="m6 6 12 12"/>`)
 	iconMore  = fillIcon(`<circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/>`)
 )
-
-// iconThumbFill is iconThumb filled, its cuff and hand apart as the outline
-// draws them.
-var iconThumbFill = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M2.9 10.9h2.3v10.2H2.9z"/><path d="M9 10.4 12 2a3.13 3.13 0 0 1 3 3.88L14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H9z"/></svg>`))
 
 // The sidebar's, after Music's.
 var (

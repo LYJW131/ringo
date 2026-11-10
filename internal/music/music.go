@@ -15,10 +15,7 @@ type Artist struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	ImageURL string `json:"imageUrl,omitempty"`
-	// Following says the listener follows them, for a source with followArtist.
-	Following bool `json:"following,omitempty"`
-
-	Genre string `json:"genre,omitempty"`
+	Genre    string `json:"genre,omitempty"`
 	// Bio is what Apple Music writes of them, in paragraphs, and Born and
 	// Origin when they were born or formed and where they're from.
 	Bio    string `json:"bio,omitempty"`
@@ -358,12 +355,8 @@ type Section struct {
 	// Empty is what the section says while it holds nothing, such as "No
 	// public playlists". Without it, an empty section shows only its title.
 	Empty string `json:"empty,omitempty"`
-	// PageTitle heads the page of the section's songs that its feature card
-	// opens, such as "Daily Song Picks" for a card titled "Daily Picks".
-	// Without it, the page takes Title.
-	PageTitle string `json:"pageTitle,omitempty"`
-	// Subtitle follows the count of songs on that page, such as "Picked for
-	// your taste, new every day at 6:00".
+	// Subtitle is a line under the title. Of a section of text (ShelfText),
+	// it is the text.
 	Subtitle string `json:"subtitle,omitempty"`
 
 	// Style is how the section is laid out (the Shelf constants). With one,

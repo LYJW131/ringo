@@ -134,25 +134,3 @@ func Songs(n int) string {
 	}
 	return Tf("%d Songs", n)
 }
-
-// Count says a count shortly, as people read it in the language.
-func Count(n int) string {
-	if Language() == Chinese {
-		switch {
-		case n >= 1e8:
-			return fmt.Sprintf("%.1f亿", float64(n)/1e8)
-		case n >= 1e4:
-			return fmt.Sprintf("%.1f万", float64(n)/1e4)
-		}
-		return fmt.Sprint(n)
-	}
-	switch {
-	case n >= 1e9:
-		return fmt.Sprintf("%.1fB", float64(n)/1e9)
-	case n >= 1e6:
-		return fmt.Sprintf("%.1fM", float64(n)/1e6)
-	case n >= 1e4:
-		return fmt.Sprintf("%.1fK", float64(n)/1e3)
-	}
-	return fmt.Sprint(n)
-}
