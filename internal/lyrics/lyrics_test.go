@@ -78,3 +78,23 @@ func TestLang(t *testing.T) {
 		}
 	}
 }
+
+// Words the source timed are told from those that share their line's time,
+// and the words sung behind a line come with it.
+func TestFromSourceSung(t *testing.T) {
+	lines := FromSource(&music.Lyrics{Lines: []music.LyricLine{
+		{Start: 1000, End: 3000, Other: true,
+			Words:      []music.LyricWord{{Start: 1000, End: 2000, Text: "Hello "}, {Start: 2000, End: 3000, Text: "world"}},
+			Background: []music.LyricWord{{Start: 2500, End: 2900, Text: "yeah"}}},
+		{Start: 4000, End: 6000, Text: "Line two"},
+	}})
+	if len(lines) != 2 {
+		t.Fatalf("lines: %+v", lines)
+	}
+	if l := lines[0]; !l.Sung || !l.Other || len(l.Behind) != 1 || l.Behind[0].Start != 2500*time.Millisecond {
+		t.Errorf("a line the source timed word by word: %+v", l)
+	}
+	if l := lines[1]; l.Sung || len(l.Words) != 2 {
+		t.Errorf("a line with no words of its own: %+v", l)
+	}
+}

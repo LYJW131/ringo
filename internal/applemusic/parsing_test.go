@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"slices"
 	"testing"
+
+	"ringo/internal/music"
 )
 
 // What the source reads without asking Apple: TTML lyrics, cover templates
@@ -26,6 +28,10 @@ func TestTTML(t *testing.T) {
 	}
 	if !slices.Equal(words, []string{"Hello ", "world"}) {
 		t.Errorf("words: %q", words)
+	}
+	// The backing vocals are apart from the line, without their brackets.
+	if l.Text != "Hello world" || len(l.Background) != 1 || l.Background[0] != (music.LyricWord{Start: 2500, End: 2900, Text: "yeah"}) {
+		t.Errorf("first line: %q, behind it %+v", l.Text, l.Background)
 	}
 	if parsed.Lines[1].Start != 62250 || parsed.Lines[1].Text != "Line & two" {
 		t.Errorf("second line: %+v", parsed.Lines[1])
@@ -134,5 +140,31 @@ func TestNamedArtistToTheLetter(t *testing.T) {
 	}
 	if typ, of, name, ok := artistOfParts("of:albums:42:A: B"); !ok || typ != "albums" || of != "42" || name != "A: B" {
 		t.Errorf("parts %q %q %q %v", typ, of, name, ok)
+	}
+}
+
+// A duet's other singer has the lines Apple gives another person than the
+// first its head names, not those of a group, which everyone sings; and a
+// line of nothing but backing vocals stays a line.
+func TestTTMLSingers(t *testing.T) {
+	ttml := `<tt><head><metadata><ttm:agent type="person" xml:id="v1"/><ttm:agent type="person" xml:id="v2"/><ttm:agent type="group" xml:id="v1000"/></metadata></head><body><div>` +
+		`<p begin="1" end="2" ttm:agent="v1"><span begin="1" end="2">Mine</span></p>` +
+		`<p begin="3" end="4" ttm:agent="v2"><span begin="3" end="4">Yours</span></p>` +
+		`<p begin="5" end="6" ttm:agent="v1000"><span begin="5" end="6">Ours</span></p>` +
+		`<p begin="7" end="8" ttm:agent="v1"><span ttm:role="x-bg"><span begin="7" end="7.5">(Ooh</span> <span begin="7.5" end="8">ooh)</span></span></p>` +
+		`</div></body></tt>`
+	parsed := parseTTML(ttml, "en")
+	if parsed == nil || len(parsed.Lines) != 4 {
+		t.Fatalf("lines: %+v", parsed)
+	}
+	var other []bool
+	for _, l := range parsed.Lines {
+		other = append(other, l.Other)
+	}
+	if !slices.Equal(other, []bool{false, true, false, false}) {
+		t.Errorf("the other singer's lines: %v", other)
+	}
+	if l := parsed.Lines[3]; l.Text != "(Ooh ooh)" || len(l.Words) != 2 || len(l.Background) != 0 {
+		t.Errorf("a line of backing vocals: %+v", l)
 	}
 }

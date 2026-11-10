@@ -18,6 +18,13 @@ type Line struct {
 	Text        string
 	Translation string
 	Words       []Word
+	// Sung says the words' times are the source's, not shared out among
+	// them by SpreadWords: how long each is held is then known.
+	Sung bool
+	// Other says the line is the other singer's, of a duet.
+	Other bool
+	// Behind are the words sung behind the line, by the backing vocals.
+	Behind []Word
 }
 
 // A Word is a word of a line, or a character of Chinese or Japanese,
@@ -36,9 +43,13 @@ func FromSource(l *music.Lyrics) []Line {
 	ms := func(n int64) time.Duration { return time.Duration(n) * time.Millisecond }
 	out := make([]Line, 0, len(l.Lines))
 	for _, sl := range l.Lines {
-		line := Line{At: ms(sl.Start), End: ms(sl.End), Text: strings.TrimSpace(sl.Text), Translation: sl.Translation}
+		line := Line{At: ms(sl.Start), End: ms(sl.End), Text: strings.TrimSpace(sl.Text), Translation: sl.Translation, Other: sl.Other}
 		for _, w := range sl.Words {
 			line.Words = append(line.Words, Word{Text: w.Text, Start: ms(w.Start), End: ms(w.End)})
+		}
+		line.Sung = len(line.Words) > 0
+		for _, w := range sl.Background {
+			line.Behind = append(line.Behind, Word{Text: w.Text, Start: ms(w.Start), End: ms(w.End)})
 		}
 		if line.Text == "" {
 			for _, w := range sl.Words {

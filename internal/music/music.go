@@ -396,6 +396,11 @@ type LyricLine struct {
 	Text        string      `json:"text,omitempty"` // its words joined, if left out
 	Translation string      `json:"translation,omitempty"`
 	Words       []LyricWord `json:"words,omitempty"`
+	// Other says the line is the other singer's, of a duet.
+	Other bool `json:"other,omitempty"`
+	// Background are the words sung behind the line, by the backing
+	// vocals, which aren't among its Words or in its Text.
+	Background []LyricWord `json:"background,omitempty"`
 }
 
 // LyricWord is a word of a line, as it's sung.

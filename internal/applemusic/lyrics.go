@@ -71,6 +71,7 @@ var (
 	textBlock        = regexp.MustCompile(`<text\b([^>]*)>([\s\S]*?)</text>`)
 	paragraph        = regexp.MustCompile(`<p\b([^>]*)>([\s\S]*?)</p>`)
 	background       = regexp.MustCompile(`<span\b[^>]*ttm:role="x-bg"[^>]*>([\s\S]*?)</span>\s*</span>|<span\b[^>]*ttm:role="x-bg"[^>]*>([\s\S]*?)</span>`)
+	agentTag         = regexp.MustCompile(`<ttm:agent\b([^>]*)>`)
 	wordSpan         = regexp.MustCompile(`<span\b([^>]*)>([^<]*)</span>(\s*)`)
 )
 
@@ -130,35 +131,39 @@ func parseTTML(ttml, language string) *music.Lyrics {
 		// As JavaScript's slice(-1) does: only the last character is left.
 		b = ttml[len(ttml)-1:]
 	}
+	singers := singersOf(ttml)
 	var lines []music.LyricLine
 	for _, m := range paragraph.FindAllStringSubmatch(b, -1) {
 		key := attr(m[1], "itunes:key")
 		inner := m[2]
-		// Background vocals are spans inside a span: leave them in the
-		// text, in brackets, without timing each word twice.
+		// Background vocals are spans inside a span: kept apart from the
+		// line's own words, which they're sung behind.
+		var behind []music.LyricWord
+		for _, bg := range background.FindAllStringSubmatch(inner, -1) {
+			if bg[1] != "" {
+				behind = append(behind, timedWords(bg[1]+"</span>")...)
+			} else if text := strings.TrimSpace(stripTags(bg[2])); text != "" {
+				behind = append(behind, music.LyricWord{Text: text})
+			}
+		}
 		main := background.ReplaceAllString(inner, "")
-		var words []music.LyricWord
-		for _, w := range wordSpan.FindAllStringSubmatch(main, -1) {
-			begin := attr(w[1], "begin")
-			if begin == "" {
+		words := timedWords(main)
+		text := strings.TrimSpace(spaces.ReplaceAllString(stripTags(main), " "))
+		if text == "" {
+			// A line of nothing but backing vocals is theirs, as written.
+			if text = strings.TrimSpace(spaces.ReplaceAllString(stripTags(inner), " ")); text == "" {
 				continue
 			}
-			text := unescapeXML(w[2])
-			if w[3] != "" {
-				text += " "
-			}
-			words = append(words, music.LyricWord{Start: milliseconds(begin), End: milliseconds(attr(w[1], "end")), Text: text})
-		}
-		text := strings.TrimSpace(spaces.ReplaceAllString(stripTags(inner), " "))
-		if text == "" {
-			continue
+			words, behind = behind, nil
 		}
 		line := music.LyricLine{Start: milliseconds(attr(m[1], "begin")), End: milliseconds(attr(m[1], "end")), Text: text}
-		if len(words) > 0 {
-			last := &words[len(words)-1]
-			last.Text = strings.TrimRight(last.Text, " \t\r\n")
-			line.Words = words
+		line.Words, line.Background = words, unbracketed(behind, line.Start, line.End)
+		agent := attr(m[1], "ttm:agent")
+		if singers.first == "" {
+			// A head that names no singers: the first to sing is the first.
+			singers.first = agent
 		}
+		line.Other = singers.other(agent)
 		if key != "" && translations[key] != "" {
 			line.Translation = translations[key]
 		}
@@ -169,4 +174,72 @@ func parseTTML(ttml, language string) *music.Lyrics {
 		return nil
 	}
 	return &music.Lyrics{Lines: lines}
+}
+
+// timedWords are the words of a line's spans that say when they're sung, a
+// space after each that has one after it, but not after the last.
+func timedWords(spans string) []music.LyricWord {
+	var words []music.LyricWord
+	for _, w := range wordSpan.FindAllStringSubmatch(spans, -1) {
+		begin := attr(w[1], "begin")
+		if begin == "" {
+			continue
+		}
+		text := unescapeXML(w[2])
+		if w[3] != "" {
+			text += " "
+		}
+		words = append(words, music.LyricWord{Start: milliseconds(begin), End: milliseconds(attr(w[1], "end")), Text: text})
+	}
+	if len(words) > 0 {
+		last := &words[len(words)-1]
+		last.Text = strings.TrimRight(last.Text, " \t\r\n")
+	}
+	return words
+}
+
+// unbracketed are the words sung behind a line without the brackets Apple
+// writes them in, which Apple Music doesn't show: its smaller type says
+// what they are. Words with no times of their own share the line's.
+func unbracketed(words []music.LyricWord, start, end int64) []music.LyricWord {
+	if len(words) == 0 {
+		return nil
+	}
+	first, last := &words[0], &words[len(words)-1]
+	first.Text = strings.TrimLeft(first.Text, "(（")
+	last.Text = strings.TrimRight(last.Text, ")）")
+	for i := range words {
+		if w := &words[i]; w.Start == 0 && w.End == 0 {
+			w.Start, w.End = start, end
+		}
+	}
+	return words
+}
+
+// singers tells the lines of a duet's other singer from the rest: the
+// song's first singer is the one its head names first, and a group, as
+// everyone in the chorus, sings on that singer's side.
+type singers struct {
+	first  string
+	groups map[string]bool
+}
+
+func singersOf(ttml string) singers {
+	s := singers{groups: map[string]bool{}}
+	for _, m := range agentTag.FindAllStringSubmatch(ttml, -1) {
+		id, _ := attribute(m[1], "xml:id")
+		switch {
+		case id == "":
+		case attr(m[1], "type") != "person":
+			s.groups[id] = true
+		case s.first == "":
+			s.first = id
+		}
+	}
+	return s
+}
+
+// other reports whether agent, who sings a line, is the other singer.
+func (s singers) other(agent string) bool {
+	return agent != "" && s.first != "" && agent != s.first && !s.groups[agent]
 }
