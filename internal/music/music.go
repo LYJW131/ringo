@@ -100,7 +100,41 @@ type Track struct {
 	// which the source's catalog doesn't have: it plays, and goes on their
 	// playlists, but deleted from the library it couldn't be added back.
 	Uploaded bool `json:"uploaded,omitempty"`
+	// Origin is where it was played from, set as it's queued: the source
+	// says it to whoever it tells what plays (Recorder). Pages leave it out.
+	Origin Origin `json:"origin,omitzero"`
 }
+
+// OriginKind is what a song is played from.
+type OriginKind int
+
+const (
+	// FromNothing is a song picked from a list that isn't a thing of its own,
+	// such as search results, or Home's shelves.
+	FromNothing OriginKind = iota
+	FromAlbum
+	FromPlaylist
+	FromStation
+	FromArtist
+)
+
+// Origin is where a song is played from: the album, playlist, station or
+// artist it was started from, as Apple Music's own players tell it of
+// what they play.
+type Origin struct {
+	Kind OriginKind `json:"kind,omitempty"`
+	// ID is the thing's own, as its page has it: an album's catalog ID or
+	// its library's, a playlist's of either, a station's, an artist's.
+	ID string `json:"id,omitempty"`
+	// CatalogID is the catalog's ID of a playlist from the listener's library,
+	// where it has one.
+	CatalogID string `json:"catalogId,omitempty"`
+	// Version is a catalog playlist's version, which changes as it does.
+	Version string `json:"version,omitempty"`
+}
+
+// Same says two songs were played from the same thing.
+func (o Origin) Same(other Origin) bool { return o.Kind == other.Kind && o.ID == other.ID }
 
 // ArtistNames joins the track's artists as the credits read.
 func (t *Track) ArtistNames() string {
@@ -124,6 +158,11 @@ type Playlist struct {
 	Saved       bool    `json:"saved,omitempty"` // saved from someone else
 	Fixed       bool    `json:"fixed,omitempty"` // the listener's, but kept by the source: liked songs, say
 	Tracks      []Track `json:"tracks,omitempty"`
+	// CatalogID is the catalog's ID of one from the listener's library, where
+	// it has one, and Version a catalog playlist's version, which changes as
+	// it does. They're for Origin.
+	CatalogID string `json:"catalogId,omitempty"`
+	Version   string `json:"version,omitempty"`
 
 	// OwnerPage is the Browse page of who made it, such as a curator's.
 	OwnerPage string `json:"ownerPage,omitempty"`
@@ -437,10 +476,84 @@ var Qualities = []string{"high", "lossless", "hires"}
 // IsLossless says whether a quality is one of the ALAC levels.
 func IsLossless(quality string) bool { return quality == "lossless" || quality == "hires" }
 
+// RepeatMode is whether the queue plays again, as the player keeps it.
+type RepeatMode int
+
+const (
+	RepeatOff RepeatMode = iota
+	RepeatAll
+	RepeatOne
+)
+
+// Mode is how the player is set to play, which Recorder is told with
+// what it's told.
+type Mode struct {
+	Shuffle  bool
+	Repeat   RepeatMode
+	Autoplay bool
+}
+
+// PlayAction is what happened to the song that plays.
+type PlayAction int
+
+const (
+	// Started: the song begins, from Position.
+	Started PlayAction = iota
+	// Resumed: it plays on from Position after a pause.
+	Resumed
+	// Stopped: it plays no more, for Why, at Position.
+	Stopped
+	// Sought: it jumped from From to Position, and plays on from there.
+	Sought
+)
+
+// StopReason is why a song stopped.
+type StopReason int
+
+const (
+	StopPaused StopReason = iota
+	// StopEnded: it played to its end.
+	StopEnded
+	// StopNext and StopPrev: the listener skipped on to the next song, or
+	// back to the one before.
+	StopNext
+	StopPrev
+	// StopChanged: the listener chose something else to play, from another
+	// album or playlist, or a song of their own pick.
+	StopChanged
+	// StopQuit: the app is closing.
+	StopQuit
+	// StopOther: the source is to hear no more of it, as when the listener
+	// turns their history off.
+	StopOther
+)
+
+// PlayEvent is something that happened to the song that plays, as the
+// player knows it, for a Recorder.
+type PlayEvent struct {
+	Action PlayAction
+	Track  Track
+	// Position is where the song is in the song itself, not by the clock.
+	Position time.Duration
+	// From is where a Sought one jumped from.
+	From time.Duration
+	Why  StopReason
+	Mode Mode
+}
+
 // A Recorder is a source that wants to know what's played, for its Recent.
-// A source that keeps that itself, as a service does, needn't be one.
+// A source that keeps that itself, as a service does, needn't be one. It's
+// told on the main thread, in the order things happen, and answers at once:
+// what takes a while is its own to do after.
 type Recorder interface {
-	Played(track Track)
+	Played(ev PlayEvent)
+}
+
+// A Flusher is a Recorder that can be waited on, for what it's still to
+// send as the app quits.
+type Flusher interface {
+	// Flush returns once what the source was told is sent, or after d.
+	Flush(d time.Duration)
 }
 
 // Source is where music comes from. Everything but Info and Can may take a

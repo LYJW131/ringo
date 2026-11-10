@@ -116,6 +116,10 @@ type playParams struct {
 	Kind        string     `json:"kind,omitempty"`
 	CatalogID   flexString `json:"catalogId,omitempty"`
 	ReportingID string     `json:"reportingId,omitempty"`
+	// GlobalID is a library playlist's catalog ID, as CatalogID is a library
+	// song's, and VersionHash a catalog playlist's version.
+	GlobalID    flexString `json:"globalId,omitempty"`
+	VersionHash string     `json:"versionHash,omitempty"`
 	// Reporting is false for a song the listener uploaded, whose plays Apple
 	// isn't told of.
 	Reporting *bool `json:"reporting,omitempty"`
@@ -610,7 +614,7 @@ func (s *Source) toPlaylist(item *resource) music.Playlist {
 	if description == "" {
 		description = a.EditorialNotes.brief()
 	}
-	return music.Playlist{
+	out := music.Playlist{
 		ID:          item.ID,
 		Name:        a.Name,
 		ImageURL:    image,
@@ -625,6 +629,16 @@ func (s *Source) toPlaylist(item *resource) music.Playlist {
 		VideoURL:    motion(a, squareMove...),
 		URL:         a.URL,
 	}
+	if play := a.PlayParams; play != nil {
+		out.Version = play.VersionHash
+		if library {
+			out.CatalogID = string(play.CatalogID)
+			if out.CatalogID == "" {
+				out.CatalogID = string(play.GlobalID)
+			}
+		}
+	}
+	return out
 }
 
 func (s *Source) toPlaylists(items []*resource) []music.Playlist {

@@ -371,7 +371,7 @@ func TestAutoplay(t *testing.T) {
 	}
 	tt := ui.NewTester(a.view, 1180, 900)
 	tt.Frame()
-	a.pl.PlayQueue(queue, 0)
+	a.pl.PlayQueue(queue, 0, music.Origin{})
 	tt.Frame()
 	if ids := wait(t, asked, "songs to go on with"); !slices.Equal(ids, []string{"q1", "q2"}) {
 		t.Fatalf("asked with %q", ids)
@@ -392,7 +392,7 @@ func TestAutoplay(t *testing.T) {
 	a.settings.Autoplay = false
 	a.pl.Cue(queue)
 	tt.Frame()
-	a.pl.PlayQueue(queue, 1)
+	a.pl.PlayQueue(queue, 1, music.Origin{})
 	tt.Frame()
 	tt.Advance(time.Second)
 	tt.Frame()

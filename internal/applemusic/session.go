@@ -41,6 +41,7 @@ const (
 	coversKey      = "covers"
 	qualityKey     = "quality"
 	losslessKey    = "lossless"
+	buildKey       = "webBuild"
 )
 
 // Tokens. The developer token is the web player's own, read out of its
@@ -50,7 +51,21 @@ const (
 var (
 	scriptPath = regexp.MustCompile(`/assets/index[~-][^"'\s]+\.js`)
 	jwtPattern = regexp.MustCompile(`eyJ[\w-]{10,}\.[\w-]+\.[\w-]+`)
+	// The web player's own version, which sits beside its token in the script.
+	buildPattern = regexp.MustCompile(`"(\d+\.\d+\.\d+-external)"`)
 )
+
+// defaultBuild is the web player's version as it was on 2026-11-10, for
+// before the script has been read, or when it didn't show one.
+const defaultBuild = "2644.9.0-external"
+
+// webBuild is the web player's version, as the plays reported say it.
+func (s *Source) webBuild() string {
+	if b := s.storage.getString(buildKey); b != "" {
+		return b
+	}
+	return defaultBuild
+}
 
 func jwtExpiry(jwt string) time.Time {
 	parts := strings.Split(jwt, ".")
@@ -99,6 +114,9 @@ func (s *Source) developerToken(fresh bool) (string, error) {
 		if found := jwtPattern.FindString(js); found != "" {
 			s.devToken = found
 			s.storage.set(devTokenKey, found)
+			if m := buildPattern.FindStringSubmatch(js); m != nil {
+				s.storage.set(buildKey, m[1])
+			}
 			return found, nil
 		}
 	}

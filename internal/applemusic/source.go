@@ -152,16 +152,23 @@ type Source struct {
 	subMu      sync.Mutex
 	subscribed *bool
 
-	actMu      sync.Mutex
-	durations  *omap[int64]
-	nowPlaying *nowPlaying
-	// guid is who plays, the same while the source runs, as a MusicKit instance's is.
-	guid string
+	// What the player said, and what's left to tell Apple of it (actMu):
+	// the song that plays, what the event before was of (for a start's hint),
+	// and the events in the order to send them, by one drain at a time.
+	actMu     sync.Mutex
+	durations *omap[int64]
+	reported  told
+	hasLast   bool
+	last      music.Origin
+	outbox    []playEvent
+	sending   bool
+	flushed   []chan struct{}
 }
 
 var (
 	_ music.Source     = (*Source)(nil)
 	_ music.Recorder   = (*Source)(nil)
+	_ music.Flusher    = (*Source)(nil)
 	_ music.Favorer    = (*Source)(nil)
 	_ music.Keeper     = (*Source)(nil)
 	_ music.Autoplayer = (*Source)(nil)
@@ -200,7 +207,6 @@ func New(o Options) *Source {
 		runs:        newOmap[[]string](),
 		stationAt:   newOmap[time.Time](),
 		durations:   newOmap[int64](),
-		guid:        uuid(),
 	}
 }
 

@@ -76,7 +76,7 @@ func init() {
 					a.volume = 0
 					a.pl.SetVolume(0)
 					if d := a.library.albums[id]; d != nil && d.album != nil && len(d.album.Tracks) > 0 {
-						a.pl.PlayQueue(d.album.Tracks, 0)
+						a.pl.PlayQueue(d.album.Tracks, 0, music.Origin{})
 					}
 				})
 				time.Sleep(8 * time.Second)

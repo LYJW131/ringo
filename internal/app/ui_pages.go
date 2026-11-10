@@ -405,10 +405,10 @@ func (a *app) playButtons(c *ui.Context, tracks []music.Track) {
 		if a.pl.Shuffle() {
 			a.pl.ToggleShuffle()
 		}
-		a.pl.PlayQueue(tracks, firstPlayable(tracks))
+		a.pl.PlayQueue(tracks, firstPlayable(tracks), a.pageOrigin())
 	}
 	if pillButton(c.Key("shuffle"), iconShuffle, T("Shuffle"), p.hover.Over(p.bg), p.text).Clicked() {
-		a.pl.PlayShuffled(tracks)
+		a.pl.PlayShuffled(tracks, a.pageOrigin())
 	}
 }
 

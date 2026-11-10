@@ -474,7 +474,7 @@ func (a *app) openItem(secs []music.Section, s, i int) {
 		// A video plays as its song does, its sound alone.
 		t := a.sectionTracks(secs, s)
 		if at := t.at[i]; at >= 0 && !t.tracks[at].Unavailable {
-			a.pl.PlayTrack(t.tracks, at)
+			a.pl.PlayTrack(t.tracks, at, a.pageOrigin())
 		}
 	case music.ItemLink:
 		switch {
@@ -529,7 +529,7 @@ func (a *app) playItem(it *music.Item) func() {
 // hasn't.
 func (a *app) playAlbum(lib *library, id string) {
 	if d := lib.albums[id]; d != nil && d.album != nil {
-		a.pl.PlayQueue(d.album.Tracks, firstPlayable(d.album.Tracks))
+		a.pl.PlayQueue(d.album.Tracks, firstPlayable(d.album.Tracks), albumOrigin(id))
 		return
 	}
 	go func() {
@@ -542,7 +542,7 @@ func (a *app) playAlbum(lib *library, id string) {
 			if d := lib.albums[id]; d == nil || d.album == nil {
 				lib.albums[id] = &albumData{album: al}
 			}
-			a.pl.PlayQueue(al.Tracks, firstPlayable(al.Tracks))
+			a.pl.PlayQueue(al.Tracks, firstPlayable(al.Tracks), albumOrigin(id))
 		})
 	}()
 }

@@ -71,7 +71,7 @@ func TestTimedLyricsReachTheStage(t *testing.T) {
 	}
 	tr := song("7", "宝船")
 	tr.Source = "fake"
-	a.pl.PlayQueue([]music.Track{tr}, 0)
+	a.pl.PlayQueue([]music.Track{tr}, 0, music.Origin{})
 	until(t, ch, func() bool { _, loaded := a.pl.Lyrics(); return loaded })
 	if lines, _ := a.pl.Lyrics(); len(lines) != 2 || lines[0].Text != "hello world" {
 		t.Fatalf("lines %+v", lines)

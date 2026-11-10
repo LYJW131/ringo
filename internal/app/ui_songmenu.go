@@ -19,7 +19,7 @@ func (a *app) playRow(tracks []music.Track, i int) {
 		a.toast = T("This song isn't available in your country or region")
 		return
 	}
-	a.pl.PlayTrack(tracks, i)
+	a.pl.PlayTrack(tracks, i, a.pageOrigin())
 }
 
 // songMenu is three dots that open the menu of tr.
@@ -66,10 +66,10 @@ func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 		}
 		if !tr.Unavailable {
 			if m.Item(T("Play Next")).Chosen() {
-				a.enqueue([]music.Track{*tr}, true, tr.Name)
+				a.enqueue([]music.Track{*tr}, true, tr.Name, music.Origin{})
 			}
 			if m.Item(T("Play Last")).Chosen() {
-				a.enqueue([]music.Track{*tr}, false, tr.Name)
+				a.enqueue([]music.Track{*tr}, false, tr.Name, music.Origin{})
 			}
 			m.Separator()
 		}

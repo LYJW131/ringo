@@ -299,7 +299,7 @@ func (a *app) artistButtons(c *ui.Context, lib *library, d *artistData, color ui
 			if a.pl.Shuffle() {
 				a.pl.ToggleShuffle()
 			}
-			a.pl.PlayQueue(songs, firstPlayable(songs))
+			a.pl.PlayQueue(songs, firstPlayable(songs), artistOrigin(ar.ID))
 		}
 	}
 	a.favoriteButton(c.Key("favorite"), lib, music.ItemArtist, ar.ID, ar.Favorite, 20, color)

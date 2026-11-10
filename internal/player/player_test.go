@@ -17,7 +17,7 @@ import (
 
 func TestPlayEmptyQueue(t *testing.T) {
 	p := &Player{at: -1}
-	p.PlayQueue(nil, 0) // an empty playlist's play button
+	p.PlayQueue(nil, 0, music.Origin{}) // an empty playlist's play button
 	if p.Current() != nil {
 		t.Error("playing from an empty queue")
 	}
@@ -308,7 +308,7 @@ func settle(t *testing.T, ch chan func(), p *Player) {
 func TestPickedTrackStays(t *testing.T) {
 	p, ch, q := pickyQueue(t)
 	defer p.stop()
-	p.PlayTrack(q, 1)
+	p.PlayTrack(q, 1, music.Origin{})
 	settle(t, ch, p)
 	if p.Current().ID != "b" || p.Playing() || p.Err() == "" {
 		t.Fatalf("on %s, playing %v, err %q", p.Current().ID, p.Playing(), p.Err())
@@ -328,7 +328,7 @@ func TestPickedTrackStays(t *testing.T) {
 func TestPrevSkipsBack(t *testing.T) {
 	p, ch, q := pickyQueue(t)
 	defer p.stop()
-	p.PlayTrack(q, 2)
+	p.PlayTrack(q, 2, music.Origin{})
 	settle(t, ch, p)
 	p.Prev()
 	settle(t, ch, p)
@@ -418,11 +418,11 @@ func ids(p *Player) []string {
 func TestPlayNextAndLast(t *testing.T) {
 	p, ch, q := pickyQueue(t)
 	defer p.stop()
-	p.PlayQueue([]music.Track{q[0], q[2]}, 0)
+	p.PlayQueue([]music.Track{q[0], q[2]}, 0, music.Origin{})
 	settle(t, ch, p)
 	gen, out := p.gen, p.out
-	p.PlayNext([]music.Track{{ID: "x", Source: "s"}, {ID: "y", Source: "s"}})
-	p.PlayLast([]music.Track{{ID: "z", Source: "s"}})
+	p.PlayNext([]music.Track{{ID: "x", Source: "s"}, {ID: "y", Source: "s"}}, music.Origin{})
+	p.PlayLast([]music.Track{{ID: "z", Source: "s"}}, music.Origin{})
 	if got := strings.Join(ids(p), " "); got != "a x y c z" {
 		t.Errorf("the queue plays %s", got)
 	}
@@ -441,7 +441,7 @@ func TestPlayNextShuffled(t *testing.T) {
 	p.Cue([]music.Track{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}})
 	p.at, p.track = 2, &p.queue[2]
 	p.ToggleShuffle()
-	p.PlayNext([]music.Track{{ID: "n"}})
+	p.PlayNext([]music.Track{{ID: "n"}}, music.Origin{})
 	order, at := p.PlayOrder()
 	if p.Queue()[order[at]].ID != "3" || p.Queue()[order[at+1]].ID != "n" {
 		t.Fatalf("shuffled, the queue plays %v from %d", ids(p), at)

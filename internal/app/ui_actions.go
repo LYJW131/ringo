@@ -120,35 +120,36 @@ func (a *app) setInLibrary(lib *library, kind, id string, on bool) {
 		})
 }
 
-// enqueue plays tracks after the song playing, if next, or after the rest
-// of the queue, which go on as they were; what says what they are, for the
-// toast. With nothing playing, they play now.
-func (a *app) enqueue(tracks []music.Track, next bool, what string) {
+// enqueue plays tracks, which from is where they're played from, after the
+// song playing, if next, or after the rest of the queue, which go on as they
+// were; what says what they are, for the toast. With nothing playing, they
+// play now.
+func (a *app) enqueue(tracks []music.Track, next bool, what string, from music.Origin) {
 	tracks = playable(tracks)
 	if len(tracks) == 0 {
 		return
 	}
 	pl := a.pl
 	if pl.Current() == nil {
-		pl.PlayQueue(tracks, 0)
+		pl.PlayQueue(tracks, 0, from)
 		return
 	}
 	if next {
-		pl.PlayNext(tracks)
+		pl.PlayNext(tracks, from)
 		a.toast = Tf("“%s” will play next", what)
 	} else {
-		pl.PlayLast(tracks)
+		pl.PlayLast(tracks, from)
 		a.toast = Tf("“%s” will play last", what)
 	}
 }
 
 // tracksOf gives the songs of an album or a playlist to then, loading them
-// first if they haven't.
-func (a *app) tracksOf(lib *library, kind, id string, then func([]music.Track)) {
+// first if they haven't, and where they're played from.
+func (a *app) tracksOf(lib *library, kind, id string, then func([]music.Track, music.Origin)) {
 	switch kind {
 	case music.ItemAlbum:
 		if d := lib.albums[id]; d != nil && d.album != nil {
-			then(d.album.Tracks)
+			then(d.album.Tracks, albumOrigin(id))
 			return
 		}
 		go func() {
@@ -158,12 +159,12 @@ func (a *app) tracksOf(lib *library, kind, id string, then func([]music.Track)) 
 					a.actionFailed(lib, err, T("Couldn't load this album"))
 					return
 				}
-				then(al.Tracks)
+				then(al.Tracks, albumOrigin(id))
 			})
 		}()
 	case music.ItemPlaylist:
 		if pl := lib.playlists[id]; pl != nil {
-			then(pl.Tracks)
+			then(pl.Tracks, playlistOrigin(pl))
 			return
 		}
 		go func() {
@@ -173,7 +174,7 @@ func (a *app) tracksOf(lib *library, kind, id string, then func([]music.Track)) 
 					a.actionFailed(lib, err, T("Couldn't load this playlist"))
 					return
 				}
-				then(pl.Tracks)
+				then(pl.Tracks, playlistOrigin(pl))
 			})
 		}()
 	}
@@ -203,10 +204,10 @@ func (a *app) listItems(m *ui.Menu, lib *library, kind, id, name, url string, sa
 		m.Separator()
 	}
 	if m.Item(T("Play Next")).Chosen() {
-		a.tracksOf(lib, kind, id, func(tracks []music.Track) { a.enqueue(tracks, true, name) })
+		a.tracksOf(lib, kind, id, func(tracks []music.Track, from music.Origin) { a.enqueue(tracks, true, name, from) })
 	}
 	if m.Item(T("Play Last")).Chosen() {
-		a.tracksOf(lib, kind, id, func(tracks []music.Track) { a.enqueue(tracks, false, name) })
+		a.tracksOf(lib, kind, id, func(tracks []music.Track, from music.Origin) { a.enqueue(tracks, false, name, from) })
 	}
 	if more != nil {
 		more()
@@ -268,10 +269,10 @@ func (a *app) playlistItemsOf(lib *library, pl music.Playlist) func(m *ui.Menu) 
 		if pl.Mine || pl.Fixed || a.ownList(pl.ID) {
 			// Their own is in their library already, for good.
 			if m.Item(T("Play Next")).Chosen() {
-				a.tracksOf(lib, music.ItemPlaylist, pl.ID, func(tracks []music.Track) { a.enqueue(tracks, true, pl.Name) })
+				a.tracksOf(lib, music.ItemPlaylist, pl.ID, func(tracks []music.Track, from music.Origin) { a.enqueue(tracks, true, pl.Name, from) })
 			}
 			if m.Item(T("Play Last")).Chosen() {
-				a.tracksOf(lib, music.ItemPlaylist, pl.ID, func(tracks []music.Track) { a.enqueue(tracks, false, pl.Name) })
+				a.tracksOf(lib, music.ItemPlaylist, pl.ID, func(tracks []music.Track, from music.Origin) { a.enqueue(tracks, false, pl.Name, from) })
 			}
 			a.shareAndFavorite(m, lib, music.ItemPlaylist, pl.ID, pl.URL, pl.Favorite)
 			if mine != nil && (lib.can("renamePlaylist") || lib.can("deletePlaylist")) {

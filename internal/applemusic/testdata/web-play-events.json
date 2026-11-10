@@ -1,0 +1,149 @@
+{
+  "events": {
+    "album end": {
+      "build-version": "AppleMusic/1.0 macOS/10.15.7 model/MacIntel build/2644.9.0-external",
+      "container-ids": {
+        "album-adam-id": "1440763349"
+      },
+      "container-type": 3,
+      "developer-token": "<redacted>",
+      "end-position-in-milliseconds": 40000,
+      "end-reason-type": 3,
+      "event-type": 0,
+      "feature-name": "new / album_detail",
+      "ids": {
+        "subscription-adam-id": "1440763351"
+      },
+      "internal-build": false,
+      "media-duration-in-milliseconds": 328208,
+      "media-type": 0,
+      "milliseconds-since-play": 1,
+      "offline": false,
+      "persistent-id": "7a61d4f6d0d19857",
+      "play-mode": {
+        "auto-play-mode": 1,
+        "repeat-play-mode": 1,
+        "shuffle-play-mode": 1
+      },
+      "private-enabled": false,
+      "sb-enabled": true,
+      "siri-initiated": false,
+      "source-type": 16,
+      "start-position-in-milliseconds": 0,
+      "store-front": "jp",
+      "type": 1,
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+      "user-token": "<redacted>",
+      "utc-offset-in-seconds": 32400
+    },
+    "album start": {
+      "build-version": "AppleMusic/1.0 macOS/10.15.7 model/MacIntel build/2644.9.0-external",
+      "container-ids": {
+        "album-adam-id": "1440763349"
+      },
+      "container-type": 3,
+      "developer-token": "<redacted>",
+      "event-reason-hint-type": 1,
+      "event-type": 1,
+      "feature-name": "new / album_detail",
+      "ids": {
+        "subscription-adam-id": "1440763351"
+      },
+      "internal-build": false,
+      "media-duration-in-milliseconds": 328208,
+      "media-type": 0,
+      "milliseconds-since-play": 0,
+      "offline": false,
+      "persistent-id": "be8d0bbffc53258d",
+      "play-mode": {
+        "auto-play-mode": 1,
+        "repeat-play-mode": 1,
+        "shuffle-play-mode": 1
+      },
+      "private-enabled": false,
+      "sb-enabled": true,
+      "siri-initiated": false,
+      "source-type": 16,
+      "start-position-in-milliseconds": 0,
+      "store-front": "jp",
+      "type": 1,
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+      "user-token": "<redacted>",
+      "utc-offset-in-seconds": 32400
+    },
+    "playlist end": {
+      "build-version": "AppleMusic/1.0 macOS/10.15.7 model/MacIntel build/2644.9.0-external",
+      "container-ids": {
+        "global-playlist-id": "pl.fc2f59c513644e81b8c40ffd3e339134",
+        "playlist-version-hash": "8d98649cb54b2deb0113374371a11177b8e5afde6c48d0b74714a6c947803e37"
+      },
+      "container-type": 2,
+      "developer-token": "<redacted>",
+      "end-position-in-milliseconds": 14000,
+      "end-reason-type": 17,
+      "event-type": 0,
+      "feature-name": "new / playlist_detail",
+      "ids": {
+        "subscription-adam-id": "1886240225"
+      },
+      "internal-build": false,
+      "media-duration-in-milliseconds": 230901,
+      "media-type": 0,
+      "milliseconds-since-play": 0,
+      "offline": false,
+      "persistent-id": "9a99eb880d37671b",
+      "play-mode": {
+        "auto-play-mode": 1,
+        "repeat-play-mode": 1,
+        "shuffle-play-mode": 1
+      },
+      "private-enabled": false,
+      "sb-enabled": true,
+      "siri-initiated": false,
+      "source-type": 16,
+      "start-position-in-milliseconds": 0,
+      "store-front": "jp",
+      "type": 1,
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+      "user-token": "<redacted>",
+      "utc-offset-in-seconds": 32400
+    },
+    "playlist start": {
+      "build-version": "AppleMusic/1.0 macOS/10.15.7 model/MacIntel build/2644.9.0-external",
+      "container-ids": {
+        "global-playlist-id": "pl.fc2f59c513644e81b8c40ffd3e339134",
+        "playlist-version-hash": "8d98649cb54b2deb0113374371a11177b8e5afde6c48d0b74714a6c947803e37"
+      },
+      "container-type": 2,
+      "developer-token": "<redacted>",
+      "event-reason-hint-type": 1,
+      "event-type": 1,
+      "feature-name": "new / playlist_detail",
+      "ids": {
+        "subscription-adam-id": "1886240225"
+      },
+      "internal-build": false,
+      "media-duration-in-milliseconds": 230901,
+      "media-type": 0,
+      "milliseconds-since-play": 0,
+      "offline": false,
+      "persistent-id": "c66b9280eb3668e7",
+      "play-mode": {
+        "auto-play-mode": 1,
+        "repeat-play-mode": 1,
+        "shuffle-play-mode": 1
+      },
+      "private-enabled": false,
+      "sb-enabled": true,
+      "siri-initiated": false,
+      "source-type": 16,
+      "start-position-in-milliseconds": 0,
+      "store-front": "jp",
+      "type": 1,
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+      "user-token": "<redacted>",
+      "utc-offset-in-seconds": 32400
+    }
+  },
+  "note": "Events the web player at music.apple.com sent to universal-activity-service.itunes.apple.com/play, captured 2026-11-10 (Singapore time) in a headless Chrome on the japanese storefront, one POST body's data[0] each. The tokens were replaced with <redacted> when captured; the song and album are public catalog items."
+}

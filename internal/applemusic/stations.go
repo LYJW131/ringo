@@ -53,6 +53,9 @@ func (s *Source) stationNext(id string) ([]music.Track, error) {
 		return nil, err
 	}
 	songs := s.songsOf(b.Data)
+	for i := range songs {
+		songs[i].Origin = music.Origin{Kind: music.FromStation, ID: id}
+	}
 	s.stationSongs(id, songs)
 	return songs, nil
 }

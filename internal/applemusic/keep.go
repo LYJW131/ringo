@@ -118,6 +118,13 @@ func (s *Source) autoplay(ids []string) ([]music.Track, error) {
 	}
 	songs := b.Results.Tracks
 	tracks := s.songsOf(songs)
+	if st := b.Results.Station; st != nil && st.ID != "" {
+		// What goes on is played from the station Apple made.
+		from := music.Origin{Kind: music.FromStation, ID: st.ID}
+		for i := range tracks {
+			tracks[i].Origin = from
+		}
+	}
 	s.listed(tracks, nil)
 	return tracks, nil
 }

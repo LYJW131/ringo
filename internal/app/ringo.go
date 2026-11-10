@@ -244,6 +244,10 @@ func (a *app) keepSetting(lib *library, key, value string) {
 	if lib.src.Setting(key) == value {
 		return
 	}
+	if key == historySetting && strings.EqualFold(strings.TrimSpace(value), "off") {
+		// What plays is told to be over while the source still hears of it.
+		a.pl.StopTelling()
+	}
 	go func() {
 		err := lib.src.SetSetting(key, value)
 		a.post(func() {

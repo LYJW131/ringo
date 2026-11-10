@@ -76,7 +76,7 @@ func eventually(t *testing.T, what string, cond func() bool) {
 // address fetched once, as a plugin's may answer only one request.
 func TestNextSongComesInAhead(t *testing.T) {
 	p, ch, src, q := servedQueue(t, "a", "b")
-	p.PlayQueue(q, 0)
+	p.PlayQueue(q, 0, music.Origin{})
 	settle(t, ch, p)
 	eventually(t, "the next song didn't come in ahead", func() bool { return src.count(src.fetched, "/b") == 1 })
 	p.Next()
@@ -93,7 +93,7 @@ func TestNextSongComesInAhead(t *testing.T) {
 // after it, and the first again only with the queue repeating.
 func TestAheadFollowsWhatsNext(t *testing.T) {
 	p, ch, src, q := servedQueue(t, "a", "b", "c")
-	p.PlayQueue(q, 0)
+	p.PlayQueue(q, 0, music.Origin{})
 	settle(t, ch, p)
 	p.Jump(2)
 	settle(t, ch, p)

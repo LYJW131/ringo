@@ -15,12 +15,13 @@ import (
 	"mygo-music/internal/music"
 )
 
-type RepeatMode int
+// RepeatMode is music's, which the source is told it in.
+type RepeatMode = music.RepeatMode
 
 const (
-	RepeatOff RepeatMode = iota
-	RepeatAll
-	RepeatOne
+	RepeatOff = music.RepeatOff
+	RepeatAll = music.RepeatAll
+	RepeatOne = music.RepeatOne
 )
 
 // Player plays a queue of tracks, from whichever source each is of. Its
@@ -40,6 +41,9 @@ type Player struct {
 	// Normalize reports whether to even out the loudness of tracks, as
 	// the settings say.
 	Normalize func() bool
+	// Autoplay, if set, reports whether AutoPlay is on, as the settings
+	// say, for what the source is told of how it plays.
+	Autoplay func() bool
 	// Cache keeps the songs played, if set.
 	Cache *Cache
 	// Changed, if set, hears that what plays, where it is or whether it
@@ -97,7 +101,10 @@ type Player struct {
 	after func(d time.Duration, fn func())
 	now   func() time.Time
 
-	recorded string // the track last told its source it played
+	// told says the current track's source was told it plays, and not yet
+	// that it stopped: so that what stops is told once, and what never
+	// started isn't told of.
+	told bool
 
 	ahead *ahead // the next track's audio, asked for before its turn
 }
@@ -163,9 +170,12 @@ func (p *Player) announce(t *music.Track, artwork []byte) {
 }
 
 func (p *Player) ended() {
+	// At its end, as it ends, not as the next one starts.
+	p.stopped(music.StopEnded)
 	if p.repeat == RepeatOne {
 		p.out.Seek(0)
 		p.out.Play()
+		p.started(music.Started, 0)
 		return
 	}
 	if p.at+1 >= len(p.order) && p.awaitMore() {
@@ -179,24 +189,34 @@ func (p *Player) ended() {
 	p.Next()
 }
 
-// PlayQueue replaces the queue with tracks and plays the one at start, or the
-// first after it that can play.
-func (p *Player) PlayQueue(tracks []music.Track, start int) {
-	p.playQueue(tracks, start, forward)
+// PlayQueue replaces the queue with tracks, which from is where they're
+// played from, and plays the one at start, or the first after it that can
+// play.
+func (p *Player) PlayQueue(tracks []music.Track, start int, from music.Origin) {
+	p.playQueue(stamped(tracks, from), start, forward)
 }
 
 // PlayTrack replaces the queue with tracks and plays the one at i, the
 // listener's pick: one that can't play stays, saying why, rather than another
 // playing in its place.
-func (p *Player) PlayTrack(tracks []music.Track, i int) {
-	p.playQueue(tracks, i, stay)
+func (p *Player) PlayTrack(tracks []music.Track, i int, from music.Origin) {
+	p.playQueue(stamped(tracks, from), i, stay)
 }
 
 // PlayShuffled replaces the queue with tracks in a random order, any of them
 // first, and plays it with shuffle on.
-func (p *Player) PlayShuffled(tracks []music.Track) {
+func (p *Player) PlayShuffled(tracks []music.Track, from music.Origin) {
 	p.shuffle = true
-	p.playQueue(tracks, -1, forward)
+	p.playQueue(stamped(tracks, from), -1, forward)
+}
+
+// stamped copies tracks as played from from.
+func stamped(tracks []music.Track, from music.Origin) []music.Track {
+	out := append([]music.Track(nil), tracks...)
+	for i := range out {
+		out[i].Origin = from
+	}
+	return out
 }
 
 // playQueue plays tracks from start; a start below 0, when shuffled, lets
@@ -205,9 +225,10 @@ func (p *Player) playQueue(tracks []music.Track, start, dir int) {
 	if len(tracks) == 0 {
 		return
 	}
+	p.stopped(music.StopChanged)
 	p.endRadio()
 	start = min(start, len(tracks)-1)
-	p.queue = append([]music.Track(nil), tracks...)
+	p.queue = tracks
 	p.order = make([]int, len(p.queue))
 	for i := range p.order {
 		p.order[i] = i
@@ -221,14 +242,15 @@ func (p *Player) playQueue(tracks []music.Track, start, dir int) {
 
 // PlayRadio plays tracks in their order, then goes on with those feed
 // gives as the queue nears its end, until something else is played. The
-// radio's name says which it is. feed calls got on the main thread.
+// radio's name says which it is. feed calls got on the main thread. The
+// tracks, and what feed gives, say what they're played from themselves.
 func (p *Player) PlayRadio(name string, tracks []music.Track, feed func(got func([]music.Track))) {
 	if len(tracks) == 0 {
 		return
 	}
 	shuffle := p.shuffle
 	p.shuffle = false
-	p.PlayQueue(tracks, 0)
+	p.playQueue(append([]music.Track(nil), tracks...), 0, forward)
 	p.shuffle = shuffle
 	p.AttachRadio(name, feed)
 }
@@ -369,16 +391,17 @@ func (p *Player) appendTracks(tracks []music.Track) {
 // come, and PlayLast after the rest of the queue: what plays plays on. With
 // nothing queued, they play now. Shuffled, they still play next, and
 // shuffle off, they're where they were put.
-func (p *Player) PlayNext(tracks []music.Track) { p.insert(tracks, true) }
+func (p *Player) PlayNext(tracks []music.Track, from music.Origin) { p.insert(tracks, true, from) }
 
-func (p *Player) PlayLast(tracks []music.Track) { p.insert(tracks, false) }
+func (p *Player) PlayLast(tracks []music.Track, from music.Origin) { p.insert(tracks, false, from) }
 
-func (p *Player) insert(tracks []music.Track, next bool) {
+func (p *Player) insert(tracks []music.Track, next bool, from music.Origin) {
 	if len(tracks) == 0 {
 		return
 	}
+	tracks = stamped(tracks, from)
 	if p.at < 0 || len(p.order) == 0 {
-		p.PlayQueue(tracks, 0)
+		p.playQueue(tracks, 0, forward)
 		return
 	}
 	// Into the queue after the current track, or at its end; the order
@@ -490,6 +513,7 @@ func (p *Player) Next() {
 	if len(p.order) == 0 {
 		return
 	}
+	p.stopped(music.StopNext)
 	at := p.at + 1
 	if at >= len(p.order) {
 		if p.feed != nil || p.feeding || p.mayAskMore() {
@@ -510,6 +534,7 @@ func (p *Player) Prev() {
 	if len(p.order) == 0 {
 		return
 	}
+	p.stopped(music.StopPrev)
 	at := p.at - 1
 	if at < 0 {
 		at = len(p.order) - 1
@@ -523,6 +548,7 @@ func (p *Player) Prev() {
 func (p *Player) Jump(i int) {
 	for k, v := range p.order {
 		if v == i {
+			p.stopped(music.StopChanged)
 			p.loadSkipping(k, 0, stay, true, 0)
 			return
 		}
@@ -546,6 +572,7 @@ func (p *Player) TogglePlay() {
 	out := p.out
 	if p.playing {
 		p.playing = false
+		p.stopped(music.StopPaused)
 		p.fade.fade(0, fadeOut, func() {
 			p.post(func() {
 				if p.out == out && !p.playing {
@@ -558,13 +585,16 @@ func (p *Player) TogglePlay() {
 		return
 	}
 	p.playing = true
-	p.record()
+	// Played again from its start, if it had ended, is a new play.
+	action := music.Resumed
 	if !p.seeking && !out.Playing() {
 		if out.Position() >= out.Duration()-time.Second {
 			out.Seek(0)
+			action = music.Started
 		}
 		out.Play()
 	}
+	p.started(action, p.Position())
 	p.fade.fade(1, fadeIn, nil)
 	p.sync()
 }
@@ -583,6 +613,10 @@ func (p *Player) Seek(t time.Duration) {
 		return
 	}
 	out := p.out
+	if p.told {
+		// From where it is, which a seek still on its way has moved.
+		p.tell(music.PlayEvent{Action: music.Sought, From: p.Position(), Position: t})
+	}
 	// One past what has come in waits for it: a frame once that would show.
 	p.after(seekGap+starvedAfter+20*time.Millisecond, func() { p.post(func() {}) })
 	// Paused, it jumps at once; but a seek on its way paused it only for
@@ -707,27 +741,65 @@ func (p *Player) sourceOf(t *music.Track) music.Source {
 	return p.Source(t.Source)
 }
 
-// record tells the source of the current track, if it wants to know, that it
-// plays, once for each time it's played.
-func (p *Player) record() {
-	if p.track == nil || !p.playing {
-		return
+// recorder returns the source of the current track, if it wants to know
+// what's played.
+func (p *Player) recorder() music.Recorder {
+	if p.track == nil {
+		return nil
 	}
-	src, ok := p.sourceOf(p.track).(music.Recorder)
-	key := p.track.Source + "\x00" + p.track.ID
-	if !ok || key == p.recorded {
-		return
-	}
-	p.recorded = key
-	t := *p.track
-	go src.Played(t)
+	rec, _ := p.sourceOf(p.track).(music.Recorder)
+	return rec
 }
+
+// mode is how the player is set to play.
+func (p *Player) mode() music.Mode {
+	return music.Mode{Shuffle: p.shuffle, Repeat: p.repeat, Autoplay: p.Autoplay != nil && p.Autoplay()}
+}
+
+// tell tells the source of the current track what happens to it, with where
+// in it that is, as the player has it and not by the clock.
+func (p *Player) tell(ev music.PlayEvent) {
+	rec := p.recorder()
+	if rec == nil {
+		return
+	}
+	ev.Track, ev.Mode = *p.track, p.mode()
+	rec.Played(ev)
+}
+
+// started tells the source the current track plays, from pos.
+func (p *Player) started(action music.PlayAction, pos time.Duration) {
+	if p.track == nil || !p.playing || p.recorder() == nil {
+		return
+	}
+	p.told = true
+	p.tell(music.PlayEvent{Action: action, Position: pos})
+}
+
+// stopped tells the source the current track no longer plays, if it was told
+// that it does.
+func (p *Player) stopped(why music.StopReason) {
+	if !p.told {
+		return
+	}
+	p.told = false
+	p.tell(music.PlayEvent{Action: music.Stopped, Position: p.Position(), Why: why})
+}
+
+// Exit tells the source what plays that the app is closing, before it does.
+func (p *Player) Exit() { p.stopped(music.StopQuit) }
+
+// StopTelling tells the source what plays is done with, though it plays on,
+// and tells it no more of it: for a listener who turns their history off.
+func (p *Player) StopTelling() { p.stopped(music.StopOther) }
 
 // loadSkipping loads the track at order[at], to play or not, from from,
 // skipping those that cannot play the way dir goes: skipped of them so far.
 func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duration) {
 	t := p.queue[p.order[at]]
 	src := p.sourceOf(&t)
+	// Whatever was playing is over; those who ask for another say why first.
+	p.stopped(music.StopChanged)
 	p.stop()
 	p.gen++
 	gen := p.gen
@@ -737,7 +809,6 @@ func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duratio
 	p.awaiting = false
 	p.lyrics, p.lyricsLoaded = nil, false
 	p.pending = from
-	p.recorded = ""
 	p.announce(&t, nil)
 	p.refill()
 
@@ -781,6 +852,7 @@ func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duratio
 					}
 				})
 			})
+			from := p.pending
 			if p.pending > 0 {
 				p.out.Seek(p.pending)
 				p.pending = 0
@@ -788,7 +860,7 @@ func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duratio
 			if p.playing {
 				p.out.Play()
 				p.fade.fade(1, fadeIn, nil)
-				p.record()
+				p.started(music.Started, from)
 			}
 			p.sync()
 			p.getAhead(quality)

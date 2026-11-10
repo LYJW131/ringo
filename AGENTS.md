@@ -35,7 +35,7 @@ What only Apple can answer is tested live, and skipped without its variable:
 | `LIVE=1` | The catalog's pages, signed out, in two storefronts |
 | `APPLE_MUSIC_TOKEN_FILE` | Signed in, reading only: the account, a song decrypted, lyrics, Home, the library's pages |
 | `APPLE_MUSIC_WRAPPER` with it | A song played lossless through that wrapper |
-| `APPLE_MUSIC_WRITE_TOKEN_FILE` | Favorites, the library and autoplay, on an account kept for testing |
+| `APPLE_MUSIC_WRITE_TOKEN_FILE` | Favorites, the library and autoplay, and an album and a playlist reported as played, on an account kept for testing |
 | Both token files, and `APPLE_MUSIC_WRAPPER` | Two accounts added, switched between and removed, and one the wrapper holds switched to: reading only, the second file as a second account |
 
 To look at the app with what Apple really answers, build it and run it with `MM_SHOTS` set to a directory: it walks its pages, saves a picture of each there, plays a song without sound and quits (`internal/app/debug_shots.go`). The sidebar is transparent in those pictures, as the window's material shows through it: lay them over a dark color before judging them.

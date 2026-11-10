@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sync/atomic"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -259,6 +260,21 @@ func (a *app) sourceByID(id string) music.Source {
 	return nil
 }
 
+// sendAtQuit is how long the app waits as it quits for what its sources
+// were told of what plays to be sent.
+const sendAtQuit = 2 * time.Second
+
+// flushSources waits, up to d in all, for the sources to send what they were
+// told, which for Apple is the end of the song that plays.
+func (a *app) flushSources(d time.Duration) {
+	until := time.Now().Add(d)
+	for _, lib := range a.libs {
+		if f, ok := lib.src.(music.Flusher); ok {
+			f.Flush(time.Until(until))
+		}
+	}
+}
+
 // closeSources stops what the source has running, which ends with the app.
 func (a *app) closeSources() {
 	for _, lib := range a.libs {
@@ -299,6 +315,7 @@ func Run() error {
 		a.pl.Failed = a.sourceFailed
 		a.pl.Quality = func() string { return a.settings.quality() }
 		a.pl.Normalize = func() bool { return a.settings.Normalize }
+		a.pl.Autoplay = func() bool { return a.settings.Autoplay }
 		a.pl.Cache = newSongCache(a.settings.CacheMB)
 		a.pl.Changed = a.keepSession
 		a.pl.More = a.autoplay
@@ -363,6 +380,9 @@ func Run() error {
 		a.settings.Volume = a.volume
 		a.settings.save()
 		a.saveSession()
+		// The end of what plays is sent before the app is, if Apple is quick.
+		a.pl.Exit()
+		a.flushSources(sendAtQuit)
 	})
 	// Windows leaves an icon in the notification area after its app until
 	// the pointer passes over it.

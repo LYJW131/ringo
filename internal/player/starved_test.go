@@ -54,7 +54,7 @@ func TestSeekPastWhatsInLoads(t *testing.T) {
 	p.now = func() time.Time { return time.Unix(0, clock.Load()) }
 	p.Source = func(string) music.Source { return onServer{url: srv.URL} }
 	defer p.stop()
-	p.PlayQueue([]music.Track{{ID: "a", Source: "s", Duration: 5000}}, 0)
+	p.PlayQueue([]music.Track{{ID: "a", Source: "s", Duration: 5000}}, 0, music.Origin{})
 	settle(t, ch, p)
 
 	p.Seek(4 * time.Second)
