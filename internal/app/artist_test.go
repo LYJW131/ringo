@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -100,6 +101,42 @@ func TestGroupFormed(t *testing.T) {
 		settled(tt)
 		if _, ok := tt.Find("Formed"); ok != group {
 			t.Errorf("a group %v reads Formed %v: %q", group, ok, tt.Texts())
+		}
+	}
+}
+
+// With MM_FRAMES set, saves an artist's page headed by their picture
+// moving (its still, as tests don't decode video), by their round photo, and
+// by nothing, in the light and the dark, wide and narrow, to set beside
+// Music on the Mac's (.work/apple-app/artist).
+func TestArtistFrames(t *testing.T) {
+	dir := framesDir(t)
+	heads := []struct {
+		name string
+		set  func(ar *music.Artist)
+	}{
+		{"video", func(ar *music.Artist) {
+			ar.WideURL, ar.VideoURL = "wide:2:{w}x{h}", "motion"
+			ar.Colors = music.Colors{BG: "202a3a", Text1: "ffffff"}
+		}},
+		{"photo", func(ar *music.Artist) { ar.Colors = music.Colors{BG: "6a4a35", Text1: "ffffff"} }},
+		{"bare", func(ar *music.Artist) { ar.ImageURL, ar.Bio = "", "" }},
+	}
+	for _, head := range heads {
+		for _, w := range []int{1180, 860} {
+			for _, dark := range []bool{false, true} {
+				a := artistApp(false)
+				head.set(&a.artists["159260351"].page.Artist)
+				shelfArt(a)
+				tt := ui.NewTester(a.view, w, 900)
+				tt.SetDark(dark)
+				settled(tt)
+				name := fmt.Sprintf("artist-%s-%d", head.name, w)
+				if dark {
+					name += "-dark"
+				}
+				saveFrame(t, dir, name+".png", tt.Image())
+			}
 		}
 	}
 }

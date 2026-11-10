@@ -337,7 +337,7 @@ func (s *Source) viewSection(b *body, v *relationship, style string) (music.Sect
 func artistParams() params {
 	return params{
 		"views":                         "canvas,top-songs",
-		"extend":                        "artistBio,bornOrFormed,editorialArtwork,editorialVideo,extendedAssetUrls,hasBiographyContent,hero,isGroup,keyColor,origin,plainEditorialNotes",
+		"extend":                        "artistBio,bornOrFormed,editorialArtwork,editorialVideo,extendedAssetUrls,hasBiographyContent,isGroup,keyColor,origin,plainEditorialNotes",
 		"art[url]":                      "c,f",
 		"include":                       "default-playable-content",
 		"include[canvas-shelves]":       "contents,children",

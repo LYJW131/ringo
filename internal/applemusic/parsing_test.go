@@ -91,17 +91,18 @@ func TestSongs(t *testing.T) {
 	}
 }
 
-// An artist's page plays their picture moving as the web player picks it,
-// the fullscreen one over the wide one, and with no still made for the head
-// takes the video's first frame for it.
+// An artist's page plays their picture moving as Music on the Mac does,
+// the wide one, where the fullscreen one was played, which is another
+// film; its first frame is the still until it plays.
 func TestArtistMotion(t *testing.T) {
 	a := toArtist(resourceOf(t, `{"id": "1", "type": "artists", "attributes": {"name": "Paper Sails",
 		"artwork": {"url": "https://example.test/img/photo/{w}x{h}bb.{f}"},
+		"editorialArtwork": {"bannerUber": {"url": "https://example.test/img/banner/{w}x{h}{c}.{f}"}},
 		"editorialVideo": {
-			"motionArtistWide16x9": {"video": "https://example.test/hls/wide/master.m3u8"},
+			"motionArtistWide16x9": {"video": "https://example.test/hls/wide/master.m3u8", "previewFrame": {"url": "https://example.test/img/wideframe/{w}x{h}{c}.{f}"}},
 			"motionArtistFullscreen16x9": {"video": "https://example.test/hls/full/master.m3u8", "previewFrame": {"url": "https://example.test/img/fullframe/{w}x{h}{c}.{f}"}},
 			"motionArtistSquare1x1": {"video": "https://example.test/hls/square/master.m3u8"}}}}`))
-	if a.VideoURL != "https://example.test/hls/full/master.m3u8" || a.WideURL != "https://example.test/img/fullframe/{w}x{h}{c}.{f}" {
+	if a.VideoURL != "https://example.test/hls/wide/master.m3u8" || a.WideURL != "https://example.test/img/wideframe/{w}x{h}{c}.{f}" {
 		t.Errorf("video %q over %q", a.VideoURL, a.WideURL)
 	}
 }

@@ -386,13 +386,13 @@ func TestArtistPage(t *testing.T) {
 		}
 	}
 	a := page.Artist
-	if len(page.Tracks) == 0 || a.Bio == "" || a.Born == "" || a.Origin == "" || !strings.Contains(a.WideURL, "{w}") || a.Colors.BG == "" || a.Genre == "" || a.Group {
+	if len(page.Tracks) == 0 || a.Bio == "" || a.Born == "" || a.Origin == "" || a.Colors.BG == "" || a.Genre == "" || a.Group {
 		t.Errorf("artist %+v, %d top songs", a, len(page.Tracks))
 	}
-	// Their square photo, cut wide around them by a crop Apple made for it:
-	// cut from its middle, it showed only their body.
-	if !strings.HasSuffix(a.WideURL, "/{w}x{h}vb.{f}") {
-		t.Errorf("the head's picture is %q", a.WideURL)
+	// Without a video, Music on the Mac heads their page with their round
+	// photo, though Apple has banners of them: the banner was shown.
+	if a.WideURL != "" || a.VideoURL != "" {
+		t.Errorf("the head's picture is %q, moving %q", a.WideURL, a.VideoURL)
 	}
 }
 

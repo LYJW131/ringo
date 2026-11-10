@@ -141,7 +141,13 @@ func (a *app) artistPage(c *ui.Context) {
 	}
 	secs := d.secs
 	rows := a.artistRows(c, secs)
-	a.detailList(c, len(rows)+1, d.page.Artist.Colors, func(i int) {
+	// Tinted from their photo where it heads the page; their picture
+	// moving fades into the page as it is.
+	tint := d.page.Artist.Colors
+	if d.page.Artist.WideURL != "" {
+		tint = music.Colors{}
+	}
+	a.detailList(c, len(rows)+1, tint, func(i int) {
 		if i == 0 {
 			a.artistHeader(c, d)
 			return
@@ -234,69 +240,91 @@ func (a *app) latestCard(c *ui.Context, secs []music.Section) {
 	})
 }
 
-// wideHeaderHeight is the height of the picture heading an artist's page,
-// at most.
-const wideHeaderHeight = 400
+// The head of an artist's page, as Music on the Mac has it. Where Apple
+// made their picture moving, it plays across the page from its top edge,
+// sixteen to nine, fading into the page, their name and the buttons in the
+// middle over its foot. Others have their round photo over their name, on
+// the page tinted from the photo (detailList), though Apple has banners of
+// many of them.
+const (
+	// artistHeadMax is how much of the window's height the moving head
+	// takes at most, so a wide window still shows the page under it.
+	artistHeadMax = 0.75
+	// artistPlaySize and artistButtonSize are the round buttons under their
+	// name: the one that plays, and those beside it.
+	artistPlaySize   = 72
+	artistButtonSize = 46
+)
 
-// artistHeader heads an artist's page: their wide picture across it,
-// moving where they have a video, their name over it, or their round photo
-// over their name; and the buttons that
-// play their top songs and make them a favorite.
+// artistHeader heads an artist's page: their picture moving across it with
+// their name over its foot, or their round photo over their name; and under
+// the name, the buttons that play their top songs and make them a favorite.
 func (a *app) artistHeader(c *ui.Context, d *artistData) {
 	p := a.pal
 	ar := &d.page.Artist
 	if ar.WideURL == "" {
-		ui.Column(c).AlignItems(ui.Center).Gap(14).Margin(8, 12, 30, 12).Children(func() {
+		ui.Column(c).AlignItems(ui.Center).Margin(32, 12, 28, 12).Children(func() {
 			ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).
 				ContextMenu(a.artistItems(*ar)).Children(func() {
 				a.coverFillWith(c, ar.ImageURL, 600, artistPhotoSize/2, iconUser)
 			})
-			ui.Text(c, ar.Name).FontSize(34).FontWeight(800).LetterSpacing(-0.8).MaxLines(2).TextAlign(ui.Center)
-			ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() { a.artistButtons(c, d, p.muted) })
+			ui.Text(c, ar.Name).FontSize(40).FontWeight(800).LetterSpacing(-0.8).MaxLines(2).TextAlign(ui.Center).Margin(26, 0, 0, 0)
+			ui.Row(c).Gap(24).AlignItems(ui.Center).Margin(20, 0, 0, 0).Children(func() { a.artistButtons(c, d, false) })
 		})
 		return
 	}
 	// Across the page from edge to edge, from under the bar at its top.
 	top, _ := a.insets(c)
-	w, _ := c.Size()
+	w, wh := c.Size()
 	w -= sidebarWidth
-	h := min(w*0.42, wideHeaderHeight)
-	ink := hexColor(ar.Colors.Text1, white)
-	head := ui.Box(c).Height(h).Margin(-(top + pageGap), 12-pagePad, 30, 12-pagePad).Background(hexColor(ar.Colors.BG, p.hover)).
+	h := min(w*9/16, wh*artistHeadMax)
+	head := ui.Box(c).Height(h).Margin(-(top + pageGap), 12-pagePad, 6, 12-pagePad).Background(hexColor(ar.Colors.BG, p.hover)).
 		ContextMenu(a.artistItems(*ar))
 	head.Children(func() {
-		// As wide as the head is at its tallest, which Apple crops around
-		// the artist; wider, the head cuts it from nearer its top, where
-		// their face is.
-		bmp := bitmap(a.art.get(sized(music.Wide(ar.WideURL, wideArt, wideArt*21/50), wideArt), false))
+		// The video's first frame until it plays: cut as it is.
+		bmp := bitmap(a.art.get(sized(music.Wide(ar.WideURL, wideArt, wideArt*9/16), wideArt), false))
 		box := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0)
 		in := artIn(box, bmp)
 		box.Children(func() {
 			if bmp != nil && in > 0 {
-				ui.Image(c, bmp).Absolute().Top(0).Left(0).Right(0).Bottom(0).Fit(ui.Cover).ObjectPosition(0.5, 0.3).Opacity(in)
+				ui.Image(c, bmp).Absolute().Top(0).Left(0).Right(0).Bottom(0).Fit(ui.Cover).ObjectPosition(0.5, 0.4).Opacity(in)
 			}
 		})
-		a.motionOver(c, head, ar.VideoURL, w, h, motionArtist, 0, 0.5, 0.3)
-		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(h * 0.5).
+		a.motionOver(c, head, ar.VideoURL, w, h, motionArtist, 0, 0.5, 0.4)
+		// Darker toward its foot, where their name is, and then the page.
+		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(h * 0.6).
 			LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
 				{Color: ui.RGBA(0, 0, 0, 0), At: 0},
-				{Color: ui.RGBA(0, 0, 0, 0.45), At: 1},
+				{Color: ui.RGBA(0, 0, 0, 0.35), At: 0.55},
+				{Color: p.bg, At: 1},
 			}})
-		ui.Row(c).Absolute().Left(pagePad).Right(pagePad).Bottom(26).Gap(16).AlignItems(ui.Center).Children(func() {
-			a.artistButtons(c, d, ink.Alpha(0.85))
-			ui.Text(c, ar.Name).FontSize(40).FontWeight(800).LetterSpacing(-1).TextColor(ink).SingleLine().Shrink(1).MinWidth(0)
+		ui.Column(c).Absolute().Left(pagePad).Right(pagePad).Bottom(54).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, ar.Name).FontSize(40).FontWeight(800).LetterSpacing(-0.8).TextColor(white).SingleLine().
+				TextShadow(0, 1, 12, ui.RGBA(0, 0, 0, 0.35))
+			ui.Row(c).Gap(24).AlignItems(ui.Center).Margin(18, 0, 0, 0).Children(func() { a.artistButtons(c, d, true) })
 		})
 	})
 }
 
-// artistButtons play an artist's top songs and make them a favorite.
-func (a *app) artistButtons(c *ui.Context, d *artistData, color ui.Color) {
+// artistButtons play an artist's top songs and make them a favorite, round
+// and in the middle: the one that plays large and white, the others in a
+// shade. Over their picture moving, they're in its colors whatever the
+// appearance.
+func (a *app) artistButtons(c *ui.Context, d *artistData, over bool) {
 	p := a.pal
 	ar := &d.page.Artist
+	fill, ink := p.text.Alpha(0.08), p.text
+	playFill, playInk := p.text, p.bg
+	if over || p.dark {
+		fill, ink, playFill, playInk = ui.RGBA(255, 255, 255, 0.14), white, white, ui.RGB(0, 0, 0)
+	}
 	if songs := d.page.Tracks; len(songs) > 0 {
-		b := ui.ButtonBase(c.Key("play")).Size(44, 44).Radius(999).Center().Background(p.accent).TextColor(p.onAccent).
-			Label(T("Play")).FocusRing(false).Shadow(0, 4, 14, -2, ui.RGBA(0, 0, 0, 0.3))
-		b.Children(func() { ui.Icon(c, iconPlay).Size(18, 18).Margin(0, 0, 0, 2) })
+		b := ui.ButtonBase(c.Key("play")).Size(artistPlaySize, artistPlaySize).Radius(999).Center().Background(playFill).TextColor(playInk).
+			Label(T("Play")).FocusRing(false).Shadow(0, 6, 18, -4, ui.RGBA(0, 0, 0, 0.3))
+		if b.Hovered() {
+			b.Background(playFill.Mix(playInk, 0.08))
+		}
+		b.Children(func() { ui.Icon(c, iconPlay).Size(30, 30).Margin(0, 0, 0, 4) })
 		if b.Clicked() {
 			if a.pl.Shuffle() {
 				a.pl.ToggleShuffle()
@@ -304,7 +332,26 @@ func (a *app) artistButtons(c *ui.Context, d *artistData, color ui.Color) {
 			a.pl.PlayQueue(songs, firstPlayable(songs), artistOrigin(ar.ID))
 		}
 	}
-	a.favoriteButton(c.Key("favorite"), music.ItemArtist, ar.ID, ar.Favorite, 20, color)
+	on := a.library.isFavorite(music.ItemArtist, ar.ID, ar.Favorite)
+	icon, color, label := iconStar, ink, T("Favorite")
+	if on {
+		icon, color, label = iconStarFill, p.accent, T("Undo Favorite")
+	}
+	b := a.artistRound(c.Key("favorite"), label, fill)
+	b.Tooltip(label).Children(func() { ui.Icon(c, icon).Size(20, 20).TextColor(color) })
+	if b.Clicked() {
+		a.setFavorite(music.ItemArtist, ar.ID, !on)
+	}
+}
+
+// artistRound is a round button beside the one that plays an artist's top
+// songs.
+func (a *app) artistRound(c *ui.Context, label string, fill ui.Color) ui.Element {
+	b := ui.ButtonBase(c).Size(artistButtonSize, artistButtonSize).Shrink(0).Radius(999).Center().Label(label).FocusRing(false)
+	if b.Hovered() {
+		fill = fill.Mix(ui.RGB(255, 255, 255), 0.12)
+	}
+	return b.Background(fill)
 }
 
 // bioLines is how many lines of an artist's biography show, until More
