@@ -37,10 +37,11 @@ Not there yet: playing music videos, Replay, social profiles, concerts.
 
 | | |
 | --- | --- |
-| ![New](docs/screenshots/new.jpg) | ![An artist](docs/screenshots/artist.jpg) |
-| ![An album](docs/screenshots/album.jpg) | ![Search](docs/screenshots/search.jpg) |
+| ![Home](docs/screenshots/home.jpg) | ![New](docs/screenshots/new.jpg) |
+| ![An artist](docs/screenshots/artist.jpg) | ![An album](docs/screenshots/album.jpg) |
+| ![Lyrics](docs/screenshots/lyrics.jpg) | ![Search](docs/screenshots/search.jpg) |
 
-The screenshots are drawn by the tests, off screen, with blocks of color for covers and made-up data.
+The screenshots are of the real window on Linux, signed in to an account of the Japanese storefront, with the app in Simplified Chinese.
 
 ## Download
 

@@ -37,10 +37,11 @@
 
 | | |
 | --- | --- |
-| ![新发现](docs/screenshots/new.jpg) | ![艺人](docs/screenshots/artist.jpg) |
-| ![专辑](docs/screenshots/album.jpg) | ![搜索](docs/screenshots/search.jpg) |
+| ![主页](docs/screenshots/home.jpg) | ![新发现](docs/screenshots/new.jpg) |
+| ![艺人](docs/screenshots/artist.jpg) | ![专辑](docs/screenshots/album.jpg) |
+| ![歌词](docs/screenshots/lyrics.jpg) | ![搜索](docs/screenshots/search.jpg) |
 
-截图由测试离屏渲染，封面是色块，内容是示例数据。
+截图是 Linux 上的真实窗口，登录的是日本区的账户，界面语言为简体中文。
 
 ## 下载
 
