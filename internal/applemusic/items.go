@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"ringo/internal/music"
 )
@@ -28,6 +29,9 @@ func (s *Source) item(b *body, r *resource) (music.Item, bool) {
 		Colors:   colors(a.Artwork),
 		Explicit: explicit(a),
 		URL:      a.URL,
+	}
+	if t, err := time.Parse(time.RFC3339, a.DateAdded); err == nil {
+		it.Added = t
 	}
 	switch r.Type {
 	case "albums", "library-albums":

@@ -3,6 +3,7 @@ package music
 import (
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Apple Music's pages are laid out by its service: a page is sections in
@@ -98,8 +99,11 @@ type Item struct {
 	TallVideoURL string `json:"tallVideoUrl,omitempty"`
 	Colors       Colors `json:"colors,omitzero"`
 	Explicit     bool   `json:"explicit,omitempty"`
-	Page         string `json:"page,omitempty"`
-	URL          string `json:"url,omitempty"`
+	// Added is when it came into the listener's library, where the source
+	// says: Recently Added is headed by it, as Music's is.
+	Added time.Time `json:"added,omitzero"`
+	Page  string    `json:"page,omitempty"`
+	URL   string    `json:"url,omitempty"`
 
 	Track    *Track    `json:"track,omitempty"` // of ItemSong and ItemVideo
 	Album    *Album    `json:"album,omitempty"`

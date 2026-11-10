@@ -141,6 +141,8 @@ type attributes struct {
 	URL              string      `json:"url"`
 	PlayParams       *playParams `json:"playParams"`
 	ReleaseDate      string      `json:"releaseDate"`
+	// DateAdded is when a thing of the library came into it.
+	DateAdded string `json:"dateAdded"`
 	// Description is a playlist's, and a page's paragraph (a plain string).
 	Description         *notes `json:"description"`
 	EditorialNotes      *notes `json:"editorialNotes"`

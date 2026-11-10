@@ -395,7 +395,11 @@ func (a *app) pendingRow(c *ui.Context, page *music.Browse, i int) {
 // Where the page says how many items it has, blocks stand in for those to
 // come; else its foot says it is loading.
 func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, header func(c *ui.Context), d *browseData) {
-	layout := a.shelfLayout(c, page.Sections, pageID == music.PageSearchLanding)
+	secs := page.Sections
+	if pageID == music.PageRecentlyAdded {
+		secs = addedSections(secs, c.Now())
+	}
+	layout := a.shelfLayout(c, secs, pageID == music.PageSearchLanding)
 	top, bottom := a.insets(c)
 	a.underTop, a.underBottom = true, true
 	pending := 0
@@ -436,7 +440,7 @@ func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, heade
 		case i > len(layout):
 			a.pendingRow(c, page, i-len(layout)-1)
 		default:
-			a.shelfRow(c, page.Sections, layout[i-1])
+			a.shelfRow(c, secs, layout[i-1])
 		}
 	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
 	a.pageBars(c, list, rows)
