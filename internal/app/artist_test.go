@@ -249,6 +249,8 @@ func TestArtistFrames(t *testing.T) {
 			for _, dark := range []bool{false, true} {
 				a := artistApp(false)
 				head.set(&a.artists["159260351"].page.Artist)
+				// Its still: a test fetches no video.
+				a.settings.AnimatedArt = false
 				shelfArt(a)
 				tt := ui.NewTester(a.view, w, 900)
 				tt.SetDark(dark)
