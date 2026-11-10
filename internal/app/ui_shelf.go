@@ -273,6 +273,7 @@ func (a *app) shelf(c *ui.Context, secs []music.Section, s int, m shelfMetrics, 
 	sec := &secs[s]
 	st := a.shelfState(s)
 	var w, artTop, artH float32
+	rows := 0
 	switch sec.Style {
 	case music.ShelfHero:
 		_, w = m.fit(heroMin)
@@ -297,8 +298,16 @@ func (a *app) shelf(c *ui.Context, secs []music.Section, s int, m shelfMetrics, 
 		_, w = m.fit(circleMin)
 		artH = w
 	case music.ShelfTracks:
-		_, w = m.fit(tracksMin)
-		artH = tracksRows * trackCellHeight
+		rows = a.tracksRows()
+		var n int
+		n, w = m.fit(tracksMin)
+		if a.route.page == pageArtist && (len(sec.Items)+rows-1)/rows > n {
+			// A corner of the next column shows, as Top Songs has it in
+			// Music on the Mac.
+			n, _ = shelfMetrics{inner: m.inner - tracksPeek}.fit(tracksMin)
+			w = (m.inner - tracksPeek - shelfGap*float32(n)) / float32(n)
+		}
+		artH = float32(rows) * trackCellHeight
 	default:
 		_, w = m.fit(squareMin)
 		artH = w
@@ -307,7 +316,7 @@ func (a *app) shelf(c *ui.Context, secs []music.Section, s int, m shelfMetrics, 
 	// scrolled (shelfScroll) and clipped to the shelf; the tracks in columns.
 	units := len(sec.Items)
 	if sec.Style == music.ShelfTracks {
-		units = (units + tracksRows - 1) / tracksRows
+		units = (units + rows - 1) / rows
 	}
 	step := w + shelfGap
 	st.MaxX = max(0, float32(units)*step-shelfGap-m.inner)
@@ -339,7 +348,7 @@ func (a *app) shelf(c *ui.Context, secs []music.Section, s int, m shelfMetrics, 
 					for col := range units {
 						column := ui.Column(c.Key(col)).Width(w).Shrink(0)
 						column.Children(func() {
-							for i := col * tracksRows; i < min((col+1)*tracksRows, len(sec.Items)); i++ {
+							for i := col * rows; i < min((col+1)*rows, len(sec.Items)); i++ {
 								a.trackCell(c.Key(i), secs, s, i)
 							}
 						})
@@ -1000,8 +1009,17 @@ func (a *app) liveCard(c *ui.Context, secs []music.Section, s, i int, w float32)
 
 // The rows of songs.
 
-// tracksRows is how many songs a column of a tracks shelf has.
-const tracksRows = 4
+// tracksRows is how many songs a column of a tracks shelf has: three on an
+// artist's page, as Top Songs has them in Music on the Mac, four elsewhere.
+func (a *app) tracksRows() int {
+	if a.route.page == pageArtist {
+		return 3
+	}
+	return 4
+}
+
+// tracksPeek is how much of the next column of an artist's Top Songs shows.
+const tracksPeek = 36
 
 // trackCellHeight is the height of a song in a tracks shelf.
 const trackCellHeight = 52

@@ -141,6 +141,27 @@ func TestArtistFrames(t *testing.T) {
 		{"photo", func(ar *music.Artist) { ar.Colors = music.Colors{BG: "6a4a35", Text1: "ffffff"} }},
 		{"bare", func(ar *music.Artist) { ar.ImageURL, ar.Bio = "", "" }},
 	}
+	// Top Songs of eighteen, as Jay Chou's are: three to a column, the
+	// next column's corner showing.
+	for _, dark := range []bool{false, true} {
+		a := artistApp(false)
+		top := &a.artists["159260351"].page.Sections[1]
+		for len(top.Items) < 18 {
+			it := top.Items[len(top.Items)%6]
+			it.ID += fmt.Sprint("-", len(top.Items))
+			top.Items = append(top.Items, it)
+		}
+		a.artists["159260351"].secs = artistSections(a.artists["159260351"].page)
+		shelfArt(a)
+		tt := ui.NewTester(a.view, 1440, 900)
+		tt.SetDark(dark)
+		settled(tt)
+		name := "artist-top"
+		if dark {
+			name += "-dark"
+		}
+		saveFrame(t, dir, name+".png", tt.Image())
+	}
 	// And their biography over the page, in both appearances.
 	for _, dark := range []bool{false, true} {
 		a := artistApp(false)
