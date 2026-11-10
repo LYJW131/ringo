@@ -244,8 +244,10 @@ func (a *app) albumTrackRow(c *ui.Context, tracks []music.Track, i int, various 
 func (a *app) albumFoot(c *ui.Context, page *music.AlbumPage) {
 	p := a.pal
 	al := &page.Album
-	ui.Column(c).Margin(24, 20, 0, 20).Gap(3).Children(func() {
-		// As long as the lines between the songs above.
+	ui.Column(c).Margin(0, 20, 0, 20).Gap(3).Children(func() {
+		// The line under the last song, as long as those between the songs
+		// and right under it: 24 lower, it read as the head of what follows
+		// rather than the end of the list.
 		ui.Box(c).Height(0.5).Margin(0, 0, 18, 0).Background(p.hairline)
 		if al.Released != "" {
 			ui.Text(c, released(al.Released)).FontSize(12.5).TextColor(p.muted)
