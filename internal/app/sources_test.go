@@ -937,7 +937,7 @@ func TestSettingsSearch(t *testing.T) {
 // A quality kept from when there was a Standard level asks for High Quality: a
 // level the cache doesn't know would keep no song.
 func TestStandardQualityAsksForHigh(t *testing.T) {
-	for kept, want := range map[string]string{"standard": "high", "": "high", "high": "high", "lossless": "lossless"} {
+	for kept, want := range map[string]string{"standard": "high", "": "high", "high": "high", "lossless": "lossless", "hires": "hires"} {
 		if got := (settings{Quality: kept}).quality(); got != want {
 			t.Errorf("%q asks for %q, want %q", kept, got, want)
 		}

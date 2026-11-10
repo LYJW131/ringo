@@ -381,6 +381,8 @@ func TestQualityBadgeByRate(t *testing.T) {
 		{&music.Stream{Quality: "lossless", SampleRate: 96000, BitDepth: 24}, "Hi-Res Lossless"},
 		{&music.Stream{Quality: "lossless", SampleRate: 48000, BitDepth: 24}, "Lossless"},
 		{&music.Stream{Quality: "lossless"}, "Lossless"},
+		{&music.Stream{Quality: "hires", SampleRate: 44100, BitDepth: 16}, "Lossless"},
+		{&music.Stream{Quality: "hires", SampleRate: 192000, BitDepth: 24}, "Hi-Res Lossless"},
 		{&music.Stream{Quality: "high", Type: "m4a"}, ""},
 	} {
 		for _, np := range []bool{false, true} {

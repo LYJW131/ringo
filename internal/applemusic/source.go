@@ -125,7 +125,7 @@ type Source struct {
 	keptLL    *omap[keptLossless]
 	saving    func() bool
 	preparing map[string]*prepareCall
-	found     map[string]bool
+	found     map[string]string // the level each song's playlists were read at
 	wokeAt    time.Time
 
 	pfMu      sync.Mutex
@@ -186,7 +186,7 @@ func New(o Options) *Source {
 		audio:       newOmap[audioInfo](),
 		known:       newOmap[*knownQ](),
 		preparing:   map[string]*prepareCall{},
-		found:       map[string]bool{},
+		found:       map[string]string{},
 		lists:       newOmap[*songList](),
 		runs:        newOmap[[]string](),
 		stationAt:   newOmap[time.Time](),

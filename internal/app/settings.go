@@ -28,8 +28,8 @@ type settings struct {
 	// NotchGreeted says the notch showed itself, once, as the first song
 	// played (greet).
 	NotchGreeted bool `json:"notchGreeted"`
-	// Quality is what's asked of sources: high or lossless. One kept from when
-	// there was a standard level reads as high (quality).
+	// Quality is what's asked of sources: high, lossless or hires. One that
+	// isn't a level any more reads as high (quality).
 	Quality string `json:"quality"`
 	// Appearance is light, dark, or system to follow the system.
 	Appearance string `json:"appearance"`
@@ -134,6 +134,7 @@ func (s settings) applyAppearance() {
 var qualityLevels = []struct{ level, label string }{
 	{"high", N("High Quality")},
 	{"lossless", N("Lossless")},
+	{"hires", N("Hi-Res Lossless")},
 }
 
 // quality is the level asked of sources: one the settings keep that isn't a

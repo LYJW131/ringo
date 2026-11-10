@@ -507,7 +507,8 @@ func (a *app) radioChip(c *ui.Context, name string) {
 
 // qualityBadge marks a lossless stream, as it plays, with the badge of an
 // album's page (traitBadge): Hi-Res Lossless past 48 kHz, as Apple Music
-// has it, and Lossless up to that, or where the rate isn't known. Its
+// has it, and Lossless up to that, or where the rate isn't known, whichever
+// level it was asked at. Its
 // tooltip says what the stream is. AAC has none.
 func qualityBadge(c *ui.Context, st *music.Stream, color ui.Color) {
 	if label := qualityLabel(st); label != "" {
@@ -519,7 +520,7 @@ func qualityBadge(c *ui.Context, st *music.Stream, color ui.Color) {
 // badge: lossless, or Hi-Res above 48 kHz.
 func qualityLabel(st *music.Stream) string {
 	switch {
-	case st == nil || st.Quality != "lossless":
+	case st == nil || !music.IsLossless(st.Quality):
 		return ""
 	case st.SampleRate > 48000:
 		return traitHiRes

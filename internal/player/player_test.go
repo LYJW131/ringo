@@ -207,6 +207,33 @@ func TestCache(t *testing.T) {
 	}
 }
 
+// A song kept at Hi-Res Lossless plays for a request at Lossless or below,
+// and one kept at Lossless does not for a request at Hi-Res Lossless: it
+// would play without the rates past 48 kHz that were asked for.
+func TestCacheServesTheLevelsBelow(t *testing.T) {
+	c := NewCache(t.TempDir(), 1000)
+	keep := func(id, quality string) {
+		st := &music.Stream{Quality: quality, Type: "m4a"}
+		f := c.part(st)
+		f.Write(make([]byte, 100))
+		f.Close()
+		c.keep("src", id, quality, st, f.Name(), 100)
+	}
+	keep("hi", "hires")
+	keep("lo", "lossless")
+	for _, want := range []struct {
+		id, quality string
+		found       bool
+	}{
+		{"hi", "high", true}, {"hi", "lossless", true}, {"hi", "hires", true},
+		{"lo", "high", true}, {"lo", "lossless", true}, {"lo", "hires", false},
+	} {
+		if got := c.has("src", want.id, want.quality); got != want.found {
+			t.Errorf("song kept as %s, asked for at %s: found %v", map[string]string{"hi": "hires", "lo": "lossless"}[want.id], want.quality, got)
+		}
+	}
+}
+
 // Leaving a radio keeps the song playing and those before it, drops those
 // it queued after, and asks it for no more.
 func TestEndRadio(t *testing.T) {

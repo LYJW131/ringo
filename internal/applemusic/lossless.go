@@ -13,8 +13,9 @@ import (
 	"mygo-music/internal/music"
 )
 
-// Lossless: Apple's ALAC, up to 24-bit/192 kHz, when the app's quality is
-// Lossless and the listener has a wrapper. The wrapper, a wrapper-manager
+// Lossless: Apple's ALAC when the app's quality is Lossless, up to 24-bit/48
+// kHz, or Hi-Res Lossless, up to 24-bit/192 kHz, and the listener has a
+// wrapper. The wrapper, a wrapper-manager
 // holding their Apple Music account, gives the playlist and the FairPlay key
 // templates; amhelper fetches the audio from Apple, decrypts it and serves it
 // on this machine as a fragmented MP4 the app plays as it comes. Without a
@@ -106,21 +107,36 @@ func (s *Source) audioOf(id string) (*audioInfo, error) {
 	return nil, nil
 }
 
-// playlistQuery is how amhelper is to find the song's playlist.
-func playlistQuery(a *audioInfo) string {
-	if a == nil || a.master == "" {
-		return ""
+// lossless48 is the most Lossless plays: 48 kHz, as Apple Music has it.
+const lossless48 = 48000
+
+// playlistQuery is how amhelper is to find the song's playlist at a level.
+// Lossless has no use for the wrapper's own playlist, which is only for the
+// rates past 48 kHz that the catalog's may leave out, so it asks for the
+// catalog's and caps the rate; Hi-Res Lossless asks for the most there is.
+func playlistQuery(a *audioInfo, level string) string {
+	p := params{}
+	if a != nil && a.master != "" {
+		p["master"] = a.master
+		if a.hiRes && level == "hires" {
+			p["device"] = "1"
+		}
 	}
-	p := params{"master": a.master}
-	if a.hiRes {
-		p["device"] = "1"
+	if level == "lossless" {
+		p["maxRate"] = strconv.Itoa(lossless48)
 	}
 	return query(p)
 }
 
 // knownQ is what prepare found, so that a song is asked about once: its
-// quality and how it was found. A song without ALAC is known as nil.
+// quality and how it was found. A song without ALAC is known as nil, at
+// whatever level: Apple's lossless songs all have ALAC within 48 kHz, so one
+// with none at Hi-Res Lossless has none at Lossless either.
 type knownQ struct {
+	// Level is the one it was found at, which is what the stream it makes
+	// says it is (music.Stream.Quality). What was found at another level is
+	// asked again: a song found at Hi-Res Lossless is not within 48 kHz.
+	Level      string `json:"level"`
 	SampleRate int    `json:"sampleRate"`
 	BitDepth   int    `json:"bitDepth"`
 	Bandwidth  int    `json:"bandwidth"`
@@ -179,6 +195,16 @@ func (s *Source) flushKnown() {
 	}
 }
 
+// knownAt is what's known of the song at the level, if it is: a song known
+// to have no ALAC is, and one found at another level isn't. Under s.llMu.
+func (s *Source) knownAt(id, level string) (*knownQ, bool) {
+	q, ok := s.known.get(id)
+	if ok && q != nil && q.Level != level {
+		return nil, false
+	}
+	return q, ok
+}
+
 func (s *Source) rememberKnown(id string, q *knownQ) {
 	s.llMu.Lock()
 	defer s.llMu.Unlock()
@@ -193,17 +219,22 @@ func (s *Source) rememberKnown(id string, q *knownQ) {
 
 type prepareCall struct {
 	done  chan struct{}
+	level string
 	ahead bool
 	q     *knownQ
 	err   error
 }
 
-// preparedOrPreparing says whether the song is ready to play lossless, has none, or is being asked about.
-func (s *Source) preparedOrPreparing(id string) bool {
+// preparedOrPreparing says whether the song is ready to play lossless at the level, has none, or is being asked about.
+func (s *Source) preparedOrPreparing(id, level string) bool {
 	s.llMu.Lock()
 	defer s.llMu.Unlock()
 	s.loadKnown()
-	return s.known.has(id) || s.preparing[id] != nil
+	if _, known := s.knownAt(id, level); known {
+		return true
+	}
+	cur := s.preparing[id]
+	return cur != nil && cur.level == level
 }
 
 // prepare asks amhelper to work the song out: its ALAC and the keys, which
@@ -211,23 +242,23 @@ func (s *Source) preparedOrPreparing(id string) bool {
 // for a song the listener hasn't played yet, waits behind the songs they
 // play; played while it's worked out ahead, it's asked for again, which
 // amhelper takes as the same, now theirs.
-func (s *Source) prepare(id string, ahead bool) (*knownQ, error) {
+func (s *Source) prepare(id, level string, ahead bool) (*knownQ, error) {
 	s.llMu.Lock()
 	s.loadKnown()
-	if q, ok := s.known.get(id); ok {
+	if q, ok := s.knownAt(id, level); ok {
 		s.llMu.Unlock()
 		return q, nil
 	}
-	if cur := s.preparing[id]; cur != nil && (ahead || !cur.ahead) {
+	if cur := s.preparing[id]; cur != nil && cur.level == level && (ahead || !cur.ahead) {
 		s.llMu.Unlock()
 		<-cur.done
 		return cur.q, cur.err
 	}
-	c := &prepareCall{done: make(chan struct{}), ahead: ahead}
+	c := &prepareCall{done: make(chan struct{}), level: level, ahead: ahead}
 	s.preparing[id] = c
 	s.llMu.Unlock()
 
-	c.q, c.err = s.prepareNow(id, ahead)
+	c.q, c.err = s.prepareNow(id, level, ahead)
 	s.llMu.Lock()
 	if s.preparing[id] == c {
 		delete(s.preparing, id)
@@ -237,7 +268,7 @@ func (s *Source) prepare(id string, ahead bool) (*knownQ, error) {
 	return c.q, c.err
 }
 
-func (s *Source) prepareNow(id string, ahead bool) (*knownQ, error) {
+func (s *Source) prepareNow(id, level string, ahead bool) (*knownQ, error) {
 	var (
 		wg sync.WaitGroup
 		a  *audioInfo
@@ -256,7 +287,7 @@ func (s *Source) prepareNow(id string, ahead bool) (*knownQ, error) {
 		s.rememberKnown(id, nil)
 		return nil, nil
 	}
-	q := playlistQuery(a)
+	q := playlistQuery(a, level)
 	u := base + "/prepare/" + id + q
 	if ahead {
 		if q != "" {
@@ -286,7 +317,7 @@ func (s *Source) prepareNow(id string, ahead bool) (*knownQ, error) {
 		}
 		return nil, errors.New("amhelper: " + why)
 	}
-	found := &knownQ{SampleRate: b.SampleRate, BitDepth: b.BitDepth, Bandwidth: b.Bandwidth, Query: q}
+	found := &knownQ{Level: level, SampleRate: b.SampleRate, BitDepth: b.BitDepth, Bandwidth: b.Bandwidth, Query: q}
 	s.rememberKnown(id, found)
 	return found, nil
 }
@@ -295,21 +326,26 @@ func (s *Source) prepareNow(id string, ahead bool) (*knownQ, error) {
 // keys, so that when it's played only the keys are waited for. Only for a
 // song the catalog said has ALAC (learnAudio).
 func (s *Source) find(id string) {
+	level, ok := s.losslessTier()
+	if !ok {
+		return
+	}
 	s.llMu.Lock()
 	s.loadKnown()
 	a, ok := s.audio.get(id)
-	if !ok || !a.lossless || s.known.has(id) || s.preparing[id] != nil || s.found[id] {
+	_, known := s.knownAt(id, level)
+	if !ok || !a.lossless || known || s.preparing[id] != nil || s.found[id] == level {
 		s.llMu.Unlock()
 		return
 	}
 	if len(s.found) >= foundMost {
-		s.found = map[string]bool{}
+		s.found = map[string]string{}
 	}
-	s.found[id] = true
+	s.found[id] = level
 	s.llMu.Unlock()
 	failed := true
 	if base, err := s.helperBase(); err == nil {
-		q := playlistQuery(&a)
+		q := playlistQuery(&a, level)
 		sep := "?"
 		if q != "" {
 			sep = "&"
@@ -359,11 +395,11 @@ func (s *Source) wakeWrapper() {
 
 // losslessStream is the song as ALAC, or nil when it should play as AAC: no
 // wrapper, no ALAC of it, or the wrapper failing.
-func (s *Source) losslessStream(id string) (*music.Stream, error) {
+func (s *Source) losslessStream(id, level string) (*music.Stream, error) {
 	if !s.hasWrapper() {
 		return nil, nil
 	}
-	q, err := s.prepare(id, false)
+	q, err := s.prepare(id, level, false)
 	if err != nil {
 		if errors.Is(err, music.ErrSetup) {
 			return nil, err
@@ -378,6 +414,6 @@ func (s *Source) losslessStream(id string) (*music.Stream, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &music.Stream{URL: base + "/song/" + id + ".m4a" + q.Query, Type: "m4a", Quality: "lossless", BitRate: q.Bandwidth,
+	return &music.Stream{URL: base + "/song/" + id + ".m4a" + q.Query, Type: "m4a", Quality: q.Level, BitRate: q.Bandwidth,
 		SampleRate: q.SampleRate, BitDepth: q.BitDepth}, nil
 }

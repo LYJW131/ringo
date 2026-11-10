@@ -54,7 +54,7 @@ Lossless and Hi-Res Lossless play through a [wrapper-manager](https://github.com
 
 1. Run one and log an Apple Music account in to it.
 2. Fill in **Wrapper Address** in Settings › Playback, and **Wrapper Key** if the wrapper is behind a gateway that asks for one.
-3. Set Streaming to Lossless in Settings › Playback.
+3. Set Streaming to Lossless (up to 24-bit/48 kHz) or Hi-Res Lossless (up to 24-bit/192 kHz) in Settings › Playback.
 
 Without a wrapper, or where a song has no lossless audio, it plays as AAC. Anyone who can reach the wrapper's port can use the accounts it holds: don't expose one without a key to the internet.
 

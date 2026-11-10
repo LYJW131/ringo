@@ -393,8 +393,8 @@ func (s *Source) stream(id, quality string) (*music.Stream, error) {
 		s.qualityMu.Unlock()
 		s.storage.set(qualityKey, quality)
 	}
-	if quality == "lossless" {
-		lossless, err := s.losslessStream(id)
+	if music.IsLossless(quality) {
+		lossless, err := s.losslessStream(id, quality)
 		if err != nil {
 			return nil, err
 		}

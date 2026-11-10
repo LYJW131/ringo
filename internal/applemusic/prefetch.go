@@ -16,8 +16,17 @@ import (
 // open, so that the song they pick next starts sooner.
 const warmEvery = 40 * time.Second
 
-// lossless says songs play lossless: the app last asked for it and there's a wrapper to ask.
-func (s *Source) lossless() bool { return s.wantedQuality() == "lossless" && s.hasWrapper() }
+// losslessTier is the level songs play at and whether that's lossless: the
+// app last asked for Lossless or Hi-Res Lossless and there's a wrapper to ask.
+func (s *Source) losslessTier() (string, bool) {
+	q := s.wantedQuality()
+	return q, music.IsLossless(q) && s.hasWrapper()
+}
+
+func (s *Source) lossless() bool {
+	_, ok := s.losslessTier()
+	return ok
+}
 
 // While the listener browses, the wrapper is woken ahead of the song they'll
 // pick (lossless.go). While songs play it's left alone: the songs coming up
@@ -227,7 +236,7 @@ const (
 
 func (s *Source) ready(id string) bool {
 	if s.lossless() {
-		return s.preparedOrPreparing(id)
+		return s.preparedOrPreparing(id, s.wantedQuality())
 	}
 	return s.resolvedOrResolving(id)
 }
@@ -364,8 +373,8 @@ func (s *Source) pump() {
 		s.pfMu.Lock()
 		s.startedAt = append(s.startedAt, s.clk.Now())
 		s.pfMu.Unlock()
-		if s.lossless() {
-			s.prepare(id, true)
+		if tier, ok := s.losslessTier(); ok {
+			s.prepare(id, tier, true)
 		} else if s.signedIn() {
 			s.resolve(id)
 		}

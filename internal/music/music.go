@@ -279,8 +279,14 @@ type Link struct {
 // Stream is audio the app plays itself: what a source of PlaybackStream
 // answers for a track.
 type Stream struct {
-	URL     string `json:"url"`
-	Type    string `json:"type"` // mp3, flac, ogg, wav, m4a or aac
+	URL  string `json:"url"`
+	Type string `json:"type"` // mp3, flac, ogg, wav, m4a or aac
+	// Quality is the level of Qualities that the stream satisfies, which is
+	// the one it was asked for when it plays as that, or "high" where it fell
+	// back to AAC: a song asked for at Hi-Res Lossless is "hires" even if it
+	// only has 44.1 kHz. The cache keeps a song under it, and offers it for
+	// that level and the ones below, so a song kept as "hires" serves a
+	// request for "lossless" too, and not the other way round.
 	Quality string `json:"quality,omitempty"`
 	BitRate int    `json:"bitRate,omitempty"`
 	// SampleRate, in Hz, and BitDepth are the lossless audio's, where the
@@ -371,8 +377,12 @@ func Reason(err error) string {
 }
 
 // Qualities are the levels of audio the listener can ask a source for, worst
-// first, as Apple Music names them: High Quality and Lossless.
-var Qualities = []string{"high", "lossless"}
+// first, as Apple Music names them: High Quality (AAC, 256 kbps), Lossless
+// (ALAC, up to 24-bit/48 kHz) and Hi-Res Lossless (ALAC, up to 24-bit/192 kHz).
+var Qualities = []string{"high", "lossless", "hires"}
+
+// IsLossless says whether a quality is one of the ALAC levels.
+func IsLossless(quality string) bool { return quality == "lossless" || quality == "hires" }
 
 // A Recorder is a source that wants to know what's played, for its Recent.
 // A source that keeps that itself, as a service does, needn't be one.

@@ -226,8 +226,9 @@ func sectionsOr(b *music.Browse) string {
 }
 
 // With APPLE_MUSIC_WRAPPER too, the address of a wrapper that holds an
-// account, a song asked for lossless comes as ALAC through it, rather than
-// falling back to AAC.
+// account, a song asked for at Lossless and at Hi-Res Lossless comes as ALAC
+// through it, rather than falling back to AAC: Lossless within 48 kHz, and
+// Hi-Res Lossless at no lower a rate than that.
 func TestLiveLossless(t *testing.T) {
 	file, wrapper := os.Getenv("APPLE_MUSIC_TOKEN_FILE"), os.Getenv("APPLE_MUSIC_WRAPPER")
 	if file == "" || wrapper == "" {
@@ -245,26 +246,37 @@ func TestLiveLossless(t *testing.T) {
 	if id == "" {
 		id = "1783644604"
 	}
-	t0 := time.Now()
-	st, err := s.Stream(id, "lossless")
-	if err != nil {
-		t.Fatal(err)
+	streams := map[string]*music.Stream{}
+	for _, level := range []string{"lossless", "hires"} {
+		t0 := time.Now()
+		st, err := s.Stream(id, level)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st.Quality != level {
+			t.Fatalf("the song asked for at %s came as %q", level, st.Quality)
+		}
+		streams[level] = st
+		res, err := http.Get(st.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The start of it is enough to tell it's there: a whole song is tens of megabytes.
+		b, err := io.ReadAll(io.LimitReader(res.Body, 2<<20))
+		res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.StatusCode != 200 || len(b) < 100_000 || !strings.Contains(string(b[:64]), "ftyp") {
+			t.Fatalf("%s: HTTP %d, %d bytes", level, res.StatusCode, len(b))
+		}
+		t.Logf("%s in %d ms: %d Hz, %d bit (served as %s Hz, %s bit)", level, time.Since(t0).Milliseconds(), st.SampleRate, st.BitDepth,
+			res.Header.Get("X-Sample-Rate"), res.Header.Get("X-Bit-Depth"))
 	}
-	if st.Quality != "lossless" {
-		t.Fatalf("the song came as %q, not lossless", st.Quality)
+	if r := streams["lossless"].SampleRate; r <= 0 || r > 48000 {
+		t.Errorf("Lossless came at %d Hz, want up to 48000", r)
 	}
-	res, err := http.Get(st.URL)
-	if err != nil {
-		t.Fatal(err)
+	if hi, lo := streams["hires"].SampleRate, streams["lossless"].SampleRate; hi < lo {
+		t.Errorf("Hi-Res Lossless came at %d Hz, below Lossless's %d", hi, lo)
 	}
-	defer res.Body.Close()
-	// The start of it is enough to tell it's there: a whole song is tens of megabytes.
-	b, err := io.ReadAll(io.LimitReader(res.Body, 2<<20))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.StatusCode != 200 || len(b) < 100_000 || !strings.Contains(string(b[:64]), "ftyp") {
-		t.Fatalf("HTTP %d, %d bytes", res.StatusCode, len(b))
-	}
-	t.Logf("lossless in %d ms: %s Hz, %s bit", time.Since(t0).Milliseconds(), res.Header.Get("X-Sample-Rate"), res.Header.Get("X-Bit-Depth"))
 }

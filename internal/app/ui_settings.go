@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mygo-music/internal/i18n"
+	"mygo-music/internal/music"
 )
 
 // openSettings shows the settings window, opening it the first time.
@@ -471,10 +472,14 @@ func (a *app) settingsPages(c *ui.Context, p palette) []settingsPage {
 	playback := settingsPage{id: "playback", title: T("Playback"), icon: iconVolume}
 	playback.groups = append(playback.groups, settingsGroup{T("Audio Quality"), func(row settingsRow, block settingsBlock) {
 		desc := T("AAC, 256 kbps. From the next song on")
-		if s.quality() == "lossless" {
-			desc = T("ALAC, up to 24-bit/192 kHz. From the next song on")
+		if music.IsLossless(s.quality()) {
+			if s.quality() == "hires" {
+				desc = T("ALAC, up to 24-bit/192 kHz. From the next song on")
+			} else {
+				desc = T("ALAC, up to 24-bit/48 kHz. From the next song on")
+			}
 			if strings.TrimSpace(a.library.src.Setting("wrapper")) == "" {
-				desc += "\n" + T("Lossless plays through a wrapper. Until its address is filled in below, songs play in High Quality.")
+				desc += "\n" + T("Lossless and Hi-Res Lossless play through a wrapper. Until its address is filled in below, songs play in High Quality.")
 			}
 		}
 		row(T("Streaming"), desc, func() {
