@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -537,5 +538,96 @@ func TestQueueRemovesASong(t *testing.T) {
 	}
 	if slices.Contains(tt.Menu(), "Remove from Up Next") {
 		t.Errorf("a playlist's song offers to leave the queue: %q", tt.Menu())
+	}
+}
+
+// queueNames lists the queue's names, in the order they play.
+func queueNames(a *app) string {
+	var names []string
+	order, _ := a.pl.PlayOrder()
+	for _, i := range order {
+		names = append(names, a.pl.Queue()[i].Name)
+	}
+	return strings.Join(names, " ")
+}
+
+// queueDrag presses the row named from, moves it to the middle of the row
+// named over (in steps, giving up with Escape if esc) and lets go.
+func queueDrag(tt *ui.Tester, from, over string, esc bool) {
+	f, _ := tt.Find(from)
+	o, _ := tt.Find(over)
+	x, y := f.X+f.W/2, f.Y+f.H/2
+	tt.Press(x, y)
+	tt.Frame()
+	for k := 1; k <= 4; k++ {
+		tt.Move(x, y+(o.Y+o.H*0.25-y)*float32(k)/4)
+		tt.Frame()
+	}
+	if esc {
+		tt.Key(0, ui.KeyEscape)
+		tt.Frame()
+	}
+	tt.Release(x, o.Y+o.H*0.25)
+	tt.Frame()
+	tt.Frame()
+}
+
+func dragQueue(t *testing.T) (*app, *ui.Tester) {
+	t.Helper()
+	a := newTestApp()
+	var tracks []music.Track
+	for i := range 8 {
+		tracks = append(tracks, song(fmt.Sprint(i+1), fmt.Sprintf("歌%02d", i)))
+	}
+	a.pl.Cue(tracks)
+	a.nowPlaying, a.npPane = true, paneQueue
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	tt.Frame()
+	return a, tt
+}
+
+// Dragging a song of the queue, still to play, up to above another puts it
+// there in the order the queue plays.
+func TestQueueDragReorders(t *testing.T) {
+	a, tt := dragQueue(t)
+	queueDrag(tt, "歌05", "歌02", false)
+	if got := queueNames(a); got != "歌00 歌01 歌05 歌02 歌03 歌04 歌06 歌07" {
+		t.Errorf("the queue plays %s", got)
+	}
+	if a.pl.Current().Name != "歌00" {
+		t.Errorf("playing %q", a.pl.Current().Name)
+	}
+}
+
+// Giving up a drag with Escape leaves the order as it was, and a drag onto or
+// from before the song playing moves nothing.
+func TestQueueDragGivenUpOrBeforeCurrent(t *testing.T) {
+	a, tt := dragQueue(t)
+	const same = "歌00 歌01 歌02 歌03 歌04 歌05 歌06 歌07"
+	queueDrag(tt, "歌05", "歌02", true)
+	if got := queueNames(a); got != same {
+		t.Errorf("after Escape the queue plays %s", got)
+	}
+	queueDrag(tt, "歌00", "歌04", false)
+	if got := queueNames(a); got != same {
+		t.Errorf("dragging the song playing, the queue plays %s", got)
+	}
+}
+
+// Pressing a song of the queue and letting go where it was, with no drag, plays
+// it, as it always has.
+func TestQueueClickStillPlays(t *testing.T) {
+	a, tt := dragQueue(t)
+	f, _ := tt.Find("歌03")
+	x, y := f.X+f.W/2, f.Y+f.H/2
+	tt.Press(x, y)
+	tt.Frame()
+	tt.Move(x+1, y+1)
+	tt.Release(x+1, y+1)
+	tt.Frame()
+	tt.Frame()
+	if a.pl.Current().Name != "歌03" || queueNames(a) != "歌00 歌01 歌02 歌03 歌04 歌05 歌06 歌07" {
+		t.Errorf("playing %q, the queue plays %s", a.pl.Current().Name, queueNames(a))
 	}
 }

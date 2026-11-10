@@ -693,6 +693,19 @@ func (a *app) queuePane(c *ui.Context) {
 		}
 		a.queueAt = at
 	}
+	// A row dragged to a place among those still to play moves there; one
+	// dragged to or from any other, or past the end, goes back where it was,
+	// as the list shows nothing of: the player, which says no, is the rule.
+	a.queueList.Reorder = func(rows []int, to int) {
+		if len(rows) != 1 || rows[0] >= len(order) {
+			return
+		}
+		from, to := rows[0], min(to, len(order))
+		if to > from {
+			to--
+		}
+		pl.Move(order[from], to)
+	}
 	a.queueList.Key = func(row int) any {
 		if row >= len(order) {
 			return "autoplay"

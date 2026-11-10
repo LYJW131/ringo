@@ -459,6 +459,36 @@ func (p *Player) Remove(i int) bool {
 	return true
 }
 
+// Move puts the queue's track i at place at in the order it plays, the places
+// of the rest after it giving way, if it hasn't played and the place is after
+// the track playing. It reports whether anything moved. Shuffled, only the
+// order changes, and the queue is as it was given when shuffle goes off; not
+// shuffled, the queue is the order, and moves with it.
+func (p *Player) Move(i, at int) bool {
+	k := p.orderAt(i)
+	if k <= p.at || at <= p.at || at >= len(p.order) || at == k {
+		return false
+	}
+	// New slices, not the old ones changed: Session may hold them.
+	order := slices.Clone(p.order)
+	order = slices.Insert(slices.Delete(order, k, k+1), at, i)
+	if p.shuffle {
+		p.order = order
+	} else {
+		queue := make([]music.Track, len(order))
+		for j, v := range order {
+			queue[j] = p.queue[v]
+		}
+		p.queue = queue
+		p.order = make([]int, len(queue))
+		for j := range p.order {
+			p.order[j] = j
+		}
+	}
+	p.afterReorder()
+	return true
+}
+
 // orderAt returns where the queue's track i is in the order, or -1.
 func (p *Player) orderAt(i int) int {
 	for k, v := range p.order {
