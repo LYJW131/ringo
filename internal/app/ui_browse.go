@@ -384,7 +384,7 @@ func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, heade
 		rows++
 	}
 	lib := a.library
-	ui.List(c.Key(a.route), &a.trackList, rows, func(i int) {
+	list := ui.List(c.Key(a.route), &a.trackList, rows, func(i int) {
 		if i == 0 {
 			ui.Column(c).PaddingX(12).Children(func() {
 				a.startMark(c)
@@ -416,6 +416,7 @@ func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, heade
 			a.shelfRow(c, page.Sections, layout[i-1])
 		}
 	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
+	a.pageBars(c, list, rows)
 	if d != nil && d.next.more && !d.next.loading && d.next.err == "" && a.wantsMore(page, len(layout)+1) {
 		a.loadNext(lib, d)
 	}

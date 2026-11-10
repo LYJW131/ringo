@@ -690,9 +690,14 @@ func (a *app) lyricsPane(c *ui.Context, tr *music.Track, h float32) {
 	if pl.Playing() && cur+1 < len(lines) {
 		c.After(lines[cur+1].At - pos + 20*time.Millisecond)
 	}
+	// The lines follow the song by themselves, which isn't the listener
+	// scrolling them: only where they are before the glide moves them is.
+	a.bars.note(c, "lyrics", barPlace{of: a.lyricTrack, y: a.lyricScroll.Y, last: -1})
 	lag := a.lyricGlide.step(c, &a.lyricScroll)
+	a.bars.settle("lyrics", barPlace{of: a.lyricTrack, y: a.lyricScroll.Y, last: -1})
 
 	scroll := ui.Scroll(c.Key("lyrics")).Grow(1).TrackScroll(&a.lyricScroll).Padding(0, 8, h*0.5, 0)
+	a.bars.show(c, scroll, "lyrics")
 	a.timedLines(c, scroll, lines, pos, cur, lag, linesStyle{size: 30, weight: 800, lineHeight: 1.25}, nil)
 }
 
@@ -703,7 +708,9 @@ func (a *app) lyricsPane(c *ui.Context, tr *music.Track, h float32) {
 // foot is the room left under the last line.
 func (a *app) stillLines(c *ui.Context, lines []lyrics.Line, st linesStyle, foot float32) {
 	lang := lyrics.Lang(lines)
-	ui.Scroll(c.Key("still-lyrics")).Grow(1).TrackScroll(&a.lyricScroll).Padding(0, 8, foot, 0).Children(func() {
+	scroll := ui.Scroll(c.Key("still-lyrics")).Grow(1).TrackScroll(&a.lyricScroll).Padding(0, 8, foot, 0)
+	a.bars.quiet(c, scroll, "still-lyrics", barPlace{of: a.lyricTrack, y: a.lyricScroll.Y, last: -1})
+	scroll.Children(func() {
 		for i, l := range lines {
 			ui.Column(c.Key(i)).AlignItems(ui.Start).Padding(7, 12).Gap(4).Children(func() {
 				ui.Text(c, l.Text).Lang(lang).FontSize(st.size).FontWeight(st.weight).LineHeight(st.lineHeight).LetterSpacing(-0.3).TextColor(white.Alpha(0.86))
@@ -904,7 +911,7 @@ func (a *app) queuePane(c *ui.Context) {
 		}
 		return order[row]
 	}
-	ui.List(c.Key("queue"), &a.queueList, len(order)+1, func(r int) {
+	queue := ui.List(c.Key("queue"), &a.queueList, len(order)+1, func(r int) {
 		if r == len(order) {
 			a.autoplaySwitch(c)
 			return
@@ -935,4 +942,10 @@ func (a *app) queuePane(c *ui.Context) {
 			pl.Jump(i)
 		}
 	}).Grow(1).Padding(8, 0, 40, 0).Gap(2)
+	// Following the track playing isn't the listener scrolling: what it
+	// shows then is another thing (queueAt).
+	w, h := c.Size()
+	place := barPlace{of: [4]float32{float32(len(order)), float32(a.queueAt), w, h}}
+	place.first, place.last = a.queueList.Visible()
+	a.bars.quiet(c, queue, "queue", place)
 }

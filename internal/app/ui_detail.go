@@ -43,7 +43,7 @@ func (a *app) detailList(c *ui.Context, n int, tint music.Colors, row func(i int
 					{Color: a.pal.bg, At: 1},
 				}})
 		}
-		ui.List(c.Key(a.route), &a.trackList, n, func(i int) {
+		list := ui.List(c.Key(a.route), &a.trackList, n, func(i int) {
 			ui.Column(c).Children(func() {
 				if i == 0 {
 					a.startMark(c)
@@ -55,6 +55,7 @@ func (a *app) detailList(c *ui.Context, n int, tint music.Colors, row func(i int
 			})
 		}).Absolute().Top(0).Left(0).Right(0).Bottom(0).
 			Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
+		a.pageBars(c, list, n)
 	})
 }
 

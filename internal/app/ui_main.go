@@ -20,6 +20,7 @@ func (a *app) view(c *ui.Context) {
 	p := a.pal
 	useAccent(&t, p)
 	t.Selection = p.accent.Alpha(0.3)
+	a.bars.frame(&t)
 	c.SetTheme(&t)
 
 	a.shortcuts(c)
@@ -327,6 +328,7 @@ func (a *app) startMark(c *ui.Context) {
 		top, _ := a.insets(c)
 		a.underTop = b.Y < top+pageGap-0.5
 		a.marked = true
+		a.markY, a.markBuilt = b.Y, true
 	}
 }
 

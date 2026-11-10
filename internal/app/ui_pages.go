@@ -55,7 +55,9 @@ func (a *app) homePage(c *ui.Context) {
 		return
 	}
 	top, bottom := a.insets(c)
-	ui.Scroll(c.Key(a.route)).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad-12, bottom+48, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
+	scroll := ui.Scroll(c.Key(a.route)).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad-12, bottom+48, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
+	a.pageBars(c, scroll, -1)
+	scroll.Children(func() {
 		a.startMark(c)
 		defer a.endMark(c)
 		ui.Box(c).PaddingX(12).Children(func() { a.heading(c, T("Home"), "") })
@@ -566,7 +568,7 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 	// scrolled away from its start or end has content under the bars.
 	a.underTop, a.underBottom = true, true
 	rows := len(tracks) + 1 + len(footer)
-	ui.List(c.Key(a.route), &a.trackList, rows, func(i int) {
+	list := ui.List(c.Key(a.route), &a.trackList, rows, func(i int) {
 		if i == 0 {
 			ui.Column(c).Children(func() {
 				a.startMark(c)
@@ -583,6 +585,7 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 		}
 		a.trackRow(c, tracks, i-1, covers, pid)
 	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
+	a.pageBars(c, list, rows)
 }
 
 // sameTrack reports whether two tracks are one: IDs are their source's.

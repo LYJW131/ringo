@@ -148,6 +148,7 @@ func (a *app) settingsView(c *ui.Context) {
 	t := *c.Theme()
 	p := paletteFor(&t)
 	useAccent(&t, p)
+	a.settingsBars.frame(&t)
 	c.SetTheme(&t)
 	c.Root().Background(p.bg)
 	c.OnShortcut(ui.Cmd, ui.KeyW, func() { a.settingsWin.Close() })
@@ -180,11 +181,14 @@ func (a *app) settingsView(c *ui.Context) {
 		// scrolls goes under a hard edge there, showing only once there's something under it.
 		pad := max(24, topBar(c)+6)
 		ui.Box(c).Grow(1).MinWidth(0).Children(func() {
-			ui.Scroll(c.Key(current.id+"\x00"+query)).Fill().Padding(pad, 28, 32, 28).Gap(8).Children(func() {
+			scroll := ui.Scroll(c.Key(current.id+"\x00"+query)).Fill().Padding(pad, 28, 32, 28).Gap(8)
+			scroll.Children(func() {
 				mark := ui.Box(c.Key("start-mark")).Height(0).Bounds()
 				if mark.W > 0 {
 					a.settingsUnderTop = mark.Y < pad-0.5
 				}
+				w, h := c.Size()
+				a.settingsBars.quiet(c, scroll, "settings", barPlace{of: [3]any{current.id, query, [2]float32{w, h}}, mark: mark.Y, marked: mark.W > 0, last: -1})
 				if query == "" {
 					a.settingsPageView(c, p, current, "")
 					return

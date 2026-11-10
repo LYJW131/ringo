@@ -68,6 +68,7 @@ func (a *app) sidebar(c *ui.Context) {
 		}
 
 		nav := ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(2)
+		a.bars.quiet(c, nav, "nav", barPlace{y: a.navScroll.Y, last: -1})
 		a.navFade(nav)
 		nav.Children(func() {
 			for _, n := range a.storeItems() {

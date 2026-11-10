@@ -154,6 +154,14 @@ type app struct {
 	// marked says the page's start mark was laid out as it was built, and
 	// so underTop is where the page is.
 	marked bool
+	// markY is where the start mark was as it was last built, and
+	// markBuilt that it was since the page's scroll bars last looked
+	// (pageBars): a list that doesn't say how far it's scrolled shows it.
+	markY     float32
+	markBuilt bool
+	// bars are the main window's scroll bars, and settingsBars those of
+	// the settings' window: shown as each is scrolled.
+	bars, settingsBars barSet
 	// edgeSnap counts down the builds in which the edge over a page turned
 	// to goes where it should at once (topEdge), and topShown is how much
 	// of it last showed.
