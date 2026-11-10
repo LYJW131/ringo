@@ -2,6 +2,7 @@ package applemusic
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -405,6 +406,66 @@ func TestAlbumPage(t *testing.T) {
 	}
 	if len(titles) == 0 || titles[0] != "More By Taylor Swift" {
 		t.Errorf("shelves %q", titles)
+	}
+}
+
+// A library album has its catalog album's shelves, that album found by a
+// song of it when the library album doesn't say, as of Ao No Hako's second
+// soundtrack it didn't.
+func TestLibraryAlbumOfCatalog(t *testing.T) {
+	whole := func(count int) map[string]any {
+		return map[string]any{
+			"data": []any{map[string]any{"id": "900", "type": "albums"}},
+			"resources": map[string]any{"albums": map[string]any{
+				"900": map[string]any{"id": "900", "type": "albums",
+					"attributes": map[string]any{"name": "Whole", "trackCount": count},
+					"views": map[string]any{"more-by-artist": map[string]any{
+						"attributes": map[string]any{"title": "More By Hiroaki"},
+						"data":       []any{map[string]any{"id": "901", "type": "albums"}}}}},
+				"901": map[string]any{"id": "901", "type": "albums", "attributes": map[string]any{"name": "Another"}},
+			}},
+		}
+	}
+	song := func(n int) string {
+		return fmt.Sprintf(`{"id":"i.%d","type":"library-songs","attributes":{"name":"s%d","trackNumber":%d,"playParams":{"id":"i.%d","kind":"song","isLibrary":true,"catalogId":"8%02d"}}}`, n, n, n, n, n)
+	}
+	for _, c := range []struct {
+		name, catalog string
+		have, count   int
+	}{
+		{"said by a song", `[]`, 2, 27},
+		{"said by the album", `[{"id":"900","type":"albums"}]`, 4, 4},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			ts, a := newApple(t)
+			ts.storage.set(userTokenKey, "token")
+			var songs []string
+			for n := 26; n < 26+c.have; n++ {
+				songs = append(songs, song(n))
+			}
+			list := "[" + strings.Join(songs, ",") + "]"
+			a.routes = append(a.routes,
+				route{regexp.MustCompile(`^/v1/me/storefront$`), func(*http.Request) any { return usStorefront }},
+				route{regexp.MustCompile(`^/v1/me/library/albums/l\.part$`), func(*http.Request) any {
+					return json.RawMessage(`{"data":[{"id":"l.part","type":"library-albums","attributes":{"name":"Part","trackCount":` + fmt.Sprint(c.have) + `},"relationships":{"catalog":{"data":` + c.catalog + `},"tracks":{"data":` + list + `}}}]}`)
+				}},
+				route{regexp.MustCompile(`^/v1/me/library/albums/l\.part/tracks$`), func(*http.Request) any { return json.RawMessage(`{"data":` + list + `}`) }},
+				route{regexp.MustCompile(`^/v1/catalog/us/songs/826$`), func(*http.Request) any {
+					return json.RawMessage(`{"data":[{"id":"826","type":"songs","relationships":{"albums":{"data":[{"id":"900","type":"albums"}]}}}]}`)
+				}},
+				route{regexp.MustCompile(`^/v1/catalog/us/albums/900$`), func(*http.Request) any { return whole(c.count) }},
+			)
+			page, err := ts.Album("l.part")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(page.Sections) != 1 || page.Sections[0].Title != "More By Hiroaki" || len(page.Sections[0].Items) != 1 {
+				t.Errorf("sections %+v", page.Sections)
+			}
+			if page.Album.ID != "l.part" || len(page.Tracks) != c.have || page.Tracks[0].Number != 26 {
+				t.Errorf("album %+v, songs %+v", page.Album, page.Tracks)
+			}
+		})
 	}
 }
 

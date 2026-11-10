@@ -97,7 +97,7 @@ func markPopular(refs []*resource, songs []music.Track) {
 func (s *Source) album(id string) (*music.AlbumPage, error) {
 	s.warm()
 	if strings.HasPrefix(id, "l.") {
-		b, err := s.me("/library/albums/"+id, params{"include": "tracks"}, reqOpts{})
+		b, err := s.me("/library/albums/"+id, params{"include": "catalog,tracks"}, reqOpts{})
 		if err != nil {
 			return nil, err
 		}
@@ -105,7 +105,20 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Under a library album, Apple's app shows its catalog album's
+		// shelves: that album is asked for while the songs are.
+		var (
+			wg         sync.WaitGroup
+			whole      *body
+			wholeAlbum *resource
+		)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			whole, wholeAlbum = s.catalogAlbum(b, item)
+		}()
 		tracks, err := s.allPages("/v1/me/library/albums/"+id+"/tracks", params{"limit": "100"}, 1000, nil)
+		wg.Wait()
 		if err != nil {
 			return nil, err
 		}
@@ -116,7 +129,11 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 		for _, song := range songs {
 			a.Uploaded = a.Uploaded || song.Uploaded
 		}
-		return &music.AlbumPage{Album: a, Tracks: songs}, nil
+		page := &music.AlbumPage{Album: a, Tracks: songs}
+		if wholeAlbum != nil {
+			page.Sections = s.albumSections(whole, wholeAlbum)
+		}
+		return page, nil
 	}
 	b, own, favorite, err := s.withLibrary("albums", id, albumParams())
 	if err != nil {
@@ -148,13 +165,58 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 	if labels := b.all(item.related("record-labels").Data); a.Label == "" && len(labels) > 0 {
 		a.Label = labels[0].attrs().Name
 	}
-	page := &music.AlbumPage{Album: a, Tracks: songs}
+	return &music.AlbumPage{Album: a, Tracks: songs, Sections: s.albumSections(b, item)}, nil
+}
+
+// albumSections are the shelves that follow a catalog album's songs.
+func (s *Source) albumSections(b *body, item *resource) []music.Section {
+	var out []music.Section
 	for _, v := range albumViews {
 		if sec, ok := s.viewSection(b, item.Views[v.name], v.style); ok {
-			page.Sections = append(page.Sections, sec)
+			out = append(out, sec)
 		}
 	}
-	return page, nil
+	return out
+}
+
+// catalogAlbum is the catalog album a library album is of, asked for with
+// its shelves, or nil when it can't be told. The library album says which
+// only sometimes (of Ao No Hako's second soundtrack, in 2026-11, it
+// doesn't); its songs always say theirs, and theirs is its.
+func (s *Source) catalogAlbum(b *body, lib *resource) (*body, *resource) {
+	id := ""
+	if d := lib.related("catalog").Data; len(d) > 0 && d[0] != nil {
+		id = d[0].ID
+	}
+	if id == "" {
+		for _, song := range b.all(lib.related("tracks").Data) {
+			if sid := songID(song); isCatalogID(sid) {
+				sb, err := s.catalog("/songs/"+sid, params{"include": "albums"})
+				if err != nil {
+					return nil, nil
+				}
+				if r, err := first(sb); err == nil {
+					id = albumIDOf(r)
+				}
+				break
+			}
+		}
+	}
+	if !isCatalogID(id) {
+		return nil, nil
+	}
+	cb, err := s.catalog("/albums/"+id, albumParams())
+	if err != nil {
+		return nil, nil
+	}
+	r, err := first(cb)
+	if err != nil {
+		return nil, nil
+	}
+	if r = cb.get(r); r == nil {
+		return nil, nil
+	}
+	return cb, r
 }
 
 // viewSection is a view of a page as a shelf, titled as Apple titles it.
