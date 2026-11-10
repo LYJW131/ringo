@@ -239,8 +239,9 @@ func (a *app) latestCard(c *ui.Context, secs []music.Section) {
 // at most.
 const wideHeaderHeight = 400
 
-// artistHeader heads an artist's page: their wide picture across it, their
-// name over it, or their round photo over their name; and the buttons that
+// artistHeader heads an artist's page: their wide picture across it,
+// moving where they have a video, their name over it, or their round photo
+// over their name; and the buttons that
 // play their top songs and make them a favorite.
 func (a *app) artistHeader(c *ui.Context, lib *library, d *artistData) {
 	p := a.pal
@@ -262,8 +263,9 @@ func (a *app) artistHeader(c *ui.Context, lib *library, d *artistData) {
 	w -= sidebarWidth
 	h := min(w*0.42, wideHeaderHeight)
 	ink := hexColor(ar.Colors.Text1, white)
-	ui.Box(c).Height(h).Margin(-(top + pageGap), 12-pagePad, 30, 12-pagePad).Background(hexColor(ar.Colors.BG, p.hover)).
-		ContextMenu(a.artistItems(lib, *ar)).Children(func() {
+	head := ui.Box(c).Height(h).Margin(-(top + pageGap), 12-pagePad, 30, 12-pagePad).Background(hexColor(ar.Colors.BG, p.hover)).
+		ContextMenu(a.artistItems(lib, *ar))
+	head.Children(func() {
 		// As wide as the head is at its tallest, which Apple crops around
 		// the artist; wider, the head cuts it from nearer its top, where
 		// their face is.
@@ -275,6 +277,7 @@ func (a *app) artistHeader(c *ui.Context, lib *library, d *artistData) {
 				ui.Image(c, bmp).Absolute().Top(0).Left(0).Right(0).Bottom(0).Fit(ui.Cover).ObjectPosition(0.5, 0.3).Opacity(in)
 			}
 		})
+		a.motionOver(c, head, ar.VideoURL, w, h, motionArtist, 0, 0.5, 0.3)
 		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(h * 0.5).
 			LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
 				{Color: ui.RGBA(0, 0, 0, 0), At: 0},

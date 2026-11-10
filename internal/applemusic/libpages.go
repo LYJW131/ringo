@@ -11,12 +11,14 @@ import (
 // page at a time, as the web player lists it.
 
 // listenNowParams are the web player's for Home, of a listener who isn't
-// on the plan with voice only.
+// on the plan with voice only, and the moving pictures of what's on it,
+// which its cards three to four play.
 func listenNowParams() params {
 	return params{
 		"name":                             "listen-now",
-		"extend[playlists]":                "artistNames,editorialArtwork",
-		"extend[stations]":                 "airTime,supportsAirTimeUpdates,editorialArtwork",
+		"extend[albums]":                   "editorialVideo",
+		"extend[playlists]":                "artistNames,editorialArtwork,editorialVideo",
+		"extend[stations]":                 "airTime,supportsAirTimeUpdates,editorialArtwork,editorialVideo",
 		"meta[stations]":                   "inflectionPoints",
 		"include[albums]":                  "artists",
 		"include[library-playlists]":       "catalog",

@@ -904,7 +904,8 @@ func portraitInk(it *music.Item, ground ui.Color) ui.Color {
 }
 
 // portraitCard is a card of Home's picks, three to four. Its picture is a
-// tall one that fills it, which has its own title; or, without one, the
+// tall one that fills it, which has its own title, moving where it has a
+// video, the words and their scrim over it still; or, without one, the
 // cover over the card's own ground, the cover's color, that it fades into.
 // The words stand on its foot: why it is there, then who's on it, or else
 // its title and a line.
@@ -930,6 +931,7 @@ func (a *app) portraitCard(c *ui.Context, secs []music.Section, s, i int, w floa
 			}
 			if tall {
 				a.pictureAt(c, it, music.Wide(it.TallURL, 900, 1200), 900, portraitRadius)
+				a.motionOver(c, box, it.TallVideoURL, w, h, motionCard, portraitRadius)
 				if says {
 					// A scrim for the words, as the picture may be light
 					// at its foot.

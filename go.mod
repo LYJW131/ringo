@@ -8,6 +8,7 @@ require (
 	github.com/Eyevinn/mp4ff v0.61.0
 	github.com/ebitengine/purego v0.11.1
 	github.com/egoist/mygo v0.8.4-0.20261107140116-94f22c384d0e
+	github.com/tetratelabs/wazero v1.12.0
 	golang.org/x/image v0.46.0
 )
 

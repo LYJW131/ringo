@@ -64,6 +64,9 @@ type settings struct {
 	// AppIcon is where the app's icon shows on macOS (appIcons); elsewhere
 	// it is always in the notification area.
 	AppIcon string `json:"appIcon"`
+	// AnimatedArt plays the covers Apple Music has moving, where they show
+	// (motion.go).
+	AnimatedArt bool `json:"animatedArt"`
 	// CacheMB is how many megabytes the songs kept on disk may take; 0
 	// keeps none.
 	CacheMB int `json:"cacheMB"`
@@ -74,7 +77,7 @@ type settings struct {
 }
 
 func defaultSettings() settings {
-	return settings{Language: i18n.System, NotchActivity: true, Quality: "high", Appearance: "system", Volume: 0.8, Normalize: true, Autoplay: true, AppIcon: "dock-and-menubar", CacheMB: 2048}
+	return settings{Language: i18n.System, NotchActivity: true, Quality: "high", Appearance: "system", Volume: 0.8, Normalize: true, Autoplay: true, AnimatedArt: true, AppIcon: "dock-and-menubar", CacheMB: 2048}
 }
 
 func settingsPath() (string, error) {

@@ -420,6 +420,14 @@ func (a *app) settingsPages(c *ui.Context, p palette) []settingsPage {
 				a.keepSetting(lib, historySetting, value)
 			}
 		})
+		row(T("Animated Art"), T("Album, playlist and artist artwork that Apple Music has in motion plays on its own, without sound"), func() {
+			if ui.Switch(c.Key("animated-art"), &s.AnimatedArt).Label(T("Animated Art")).Changed() {
+				a.changed()
+				if !s.AnimatedArt {
+					a.motion.stop()
+				}
+			}
+		})
 	}})
 	// Only on macOS, the one with a notch player.
 	if a.notch != nil {

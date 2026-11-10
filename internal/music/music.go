@@ -29,7 +29,8 @@ type Artist struct {
 	Group bool `json:"group,omitempty"`
 	// WideURL is the picture that heads their page, wider than tall (Wide).
 	WideURL string `json:"wideUrl,omitempty"`
-	// VideoURL is that picture moving, an HLS stream.
+	// VideoURL is that picture moving, sixteen to nine, as the master
+	// playlist of an HLS stream: the head of their page plays it.
 	VideoURL string `json:"videoUrl,omitempty"`
 	Colors   Colors `json:"colors,omitzero"`
 	Favorite bool   `json:"favorite,omitempty"`
@@ -63,7 +64,8 @@ type Album struct {
 	Copyright  string `json:"copyright,omitempty"`
 	TrackCount int    `json:"trackCount,omitempty"`
 	Single     bool   `json:"single,omitempty"`
-	// VideoURL is its cover moving, an HLS stream.
+	// VideoURL is its cover moving, square, as the master playlist of an
+	// HLS stream: the head of its page plays it over the cover.
 	VideoURL string `json:"videoUrl,omitempty"`
 	Favorite bool   `json:"favorite,omitempty"`
 	URL      string `json:"url,omitempty"`
@@ -174,7 +176,8 @@ type Playlist struct {
 	Modified string `json:"modified,omitempty"`
 	Colors   Colors `json:"colors,omitzero"`
 	Traits   Traits `json:"traits,omitzero"`
-	// VideoURL is its cover moving, an HLS stream.
+	// VideoURL is its cover moving, square, as the master playlist of an
+	// HLS stream: the head of its page plays it over the cover.
 	VideoURL string `json:"videoUrl,omitempty"`
 	Favorite bool   `json:"favorite,omitempty"`
 	URL      string `json:"url,omitempty"`

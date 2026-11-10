@@ -138,6 +138,8 @@ type app struct {
 
 	radioStarting string // the radio asked for its first songs, or ""
 
+	motion *motionArt // the covers playing, made as the first one shows
+
 	volume     float64
 	volumeOpen bool // the volume popover of the player bar shows
 	mutedFrom  float64

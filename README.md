@@ -21,13 +21,14 @@
 - **搜索**：未输入时是类别浏览；搜索结果一页列出最佳结果、艺人、专辑、歌曲、播放列表、电台和视频。
 - **资料库**：最近添加、艺人、专辑、歌曲、专属推荐、所有播放列表，滚动到底自动加载；你的播放列表在侧栏里。
 - **专辑、艺人、播放列表页**：编辑介绍、封面取色的背景、音质标识、热门歌曲标记，以及「其他版本」「更多作品」「类似艺人」等后续内容。
+- **动态封面**：专辑和播放列表页的封面、艺人页顶部大图、主页竖版推荐卡片，Apple Music 有动态版本的就静音循环播放；可在设置里关闭，系统要求减少动态效果时只显示静态图。
 - **播放**：整首 256 kbps AAC；配置 wrapper 后可播放至高 24-bit/192 kHz 的 ALAC 无损。
 - **歌词**：逐字跟随，有翻译时一并显示。
 - **操作**：插播、最后播放、个人收藏、添加到资料库与移除、添加到歌单、新建播放列表，以及给自己的播放列表改名、从资料库删除、移除和上下移动歌曲、自动连播。
 - **桌面端该有的**：媒体键、托盘、macOS 刘海播放器、深浅色外观、会话恢复、歌曲缓存、响度均衡。
 - 简体中文和英文，用语与 Apple Music 一致。
 
-还没有的：音乐视频的播放、动态封面、Replay、社交资料、演出信息。
+还没有的：音乐视频的播放、Replay、社交资料、演出信息。
 
 ## 截图
 
@@ -90,4 +91,5 @@ go test ./...
 
 - 播放器和界面基础来自 [MyGo Music](https://github.com/egoist/mygo-music)（AGPL-3.0），界面框架是 [MyGo](https://github.com/egoist/mygo)。
 - Apple Music 部分移植自 [mygo-music-apple-music](https://github.com/LYJW131/mygo-music-apple-music)；无损部分的实现基于 [apple-music-downloader](https://github.com/AMDL-Web/apple-music-downloader)、[wrapper](https://github.com/WorldObservationLog/wrapper) 和 [Temari](https://github.com/WorldObservationLog/Temari)。
+- 动态封面用 [FFmpeg](https://ffmpeg.org) 的 H.264 解码器解码（LGPL-2.1 或更高版本），编译成 WebAssembly 后由 [wazero](https://wazero.io)（Apache-2.0）运行；`internal/video/wasm/build.sh` 用固定版本的源码重建它。
 - 品牌资产的说明见 [brand/README.md](brand/README.md)。Ringo 的名称与图形不使用 Apple 的商标；Apple Music 是 Apple Inc. 的商标。

@@ -90,12 +90,16 @@ type Item struct {
 	// cards of a portrait shelf: its own title and Apple's mark are drawn
 	// in it. Its address is asked for as Wide's is.
 	TallURL string `json:"tallUrl,omitempty"`
-	// VideoURL is its picture moving, an HLS stream.
+	// VideoURL is its picture moving, as the master playlist of an HLS
+	// stream: its cover's, square, or a hero's, wide.
 	VideoURL string `json:"videoUrl,omitempty"`
-	Colors   Colors `json:"colors,omitzero"`
-	Explicit bool   `json:"explicit,omitempty"`
-	Page     string `json:"page,omitempty"`
-	URL      string `json:"url,omitempty"`
+	// TallVideoURL is its tall picture moving, three to four, which a card
+	// of a portrait shelf plays over TallURL.
+	TallVideoURL string `json:"tallVideoUrl,omitempty"`
+	Colors       Colors `json:"colors,omitzero"`
+	Explicit     bool   `json:"explicit,omitempty"`
+	Page         string `json:"page,omitempty"`
+	URL          string `json:"url,omitempty"`
 
 	Track    *Track    `json:"track,omitempty"` // of ItemSong and ItemVideo
 	Album    *Album    `json:"album,omitempty"`

@@ -430,23 +430,39 @@ func wide(a *attributes, names ...string) (string, *artwork) {
 
 // motion is the first of the moving pictures named that there is.
 func motion(a *attributes, names ...string) string {
+	v, _ := moving(a, names...)
+	return v
+}
+
+// moving is the first of the moving pictures named that there is, with the
+// template of its first frame as a still, for where there's no still made
+// for the place it plays in.
+func moving(a *attributes, names ...string) (video, still string) {
 	for _, n := range names {
 		if v := a.EditorialVideo[n]; v != nil && v.Video != "" {
-			return v.Video
+			if v.PreviewFrame != nil {
+				still = v.PreviewFrame.URL
+			}
+			return v.Video, still
 		}
 	}
-	return ""
+	return "", ""
 }
 
 // The pictures, by what shows them: wider than tall, across a hero or a
 // page's head; taller than wide, for a card of Home's picks (superHeroTall
 // has the picture's title and Apple's mark drawn in it, staticDetailTall
-// neither); and the cover moving, square.
+// neither). And the moving ones, as the web player picks them: the cover
+// moving, square, for the head of an album's or a playlist's page; three to
+// four for a card of Home's picks; sixteen to nine across the head of an
+// artist's page, the fullscreen one first; and wide for a hero.
 var (
 	heroArt    = []string{"subscriptionHero", "superHeroWide", "storeFlowcase", "bannerUber", "epicStageWide", "centeredFullscreenBackground"}
 	tallArt    = []string{"superHeroTall", "staticDetailTall"}
 	brickArt   = []string{"subscriptionCover", "superHeroWide", "subscriptionHero", "storeFlowcase", "bannerUber"}
 	squareMove = []string{"motionDetailSquare", "motionSquareVideo1x1", "motionArtistSquare1x1"}
+	tallMove   = []string{"motionTallVideo3x4"}
+	artistMove = []string{"motionArtistFullscreen16x9", "motionArtistWide16x9"}
 	wideMove   = []string{"motionWideVideo21x9", "motionMediumVideo16x9", "motionArtistWide16x9", "motionArtistFullscreen16x9", "motionDetailTall"}
 )
 
@@ -586,7 +602,13 @@ func toArtist(item *resource) music.Artist {
 			out.WideURL, out.Colors = u, colors(w)
 		}
 	}
-	out.VideoURL = motion(a, wideMove...)
+	// The head plays their picture moving where Apple has one, its first
+	// frame the still where there's no other.
+	var still string
+	out.VideoURL, still = moving(a, artistMove...)
+	if out.WideURL == "" {
+		out.WideURL = still
+	}
 	return out
 }
 

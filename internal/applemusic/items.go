@@ -34,12 +34,14 @@ func (s *Source) item(b *body, r *resource) (music.Item, bool) {
 		album := s.toAlbum(r)
 		it.Kind, it.ID, it.Album, it.Subtitle, it.ImageURL = music.ItemAlbum, album.ID, &album, a.ArtistName, album.ImageURL
 		it.VideoURL = album.VideoURL
+		it.TallVideoURL, it.TallURL = tallMotion(a, "")
 	case "playlists", "library-playlists":
 		p := s.toPlaylist(r)
 		it.Kind, it.Playlist, it.Subtitle, it.ImageURL = music.ItemPlaylist, &p, a.CuratorName, p.ImageURL
 		it.VideoURL = p.VideoURL
 		it.Artists = a.ArtistNames
 		it.TallURL, _ = wide(a, tallArt...)
+		it.TallVideoURL, it.TallURL = tallMotion(a, it.TallURL)
 	case "artists":
 		artist := toArtist(r)
 		it.Kind, it.Artist = music.ItemArtist, &artist
@@ -65,6 +67,7 @@ func (s *Source) item(b *body, r *resource) (music.Item, bool) {
 		}
 		it.Kind, it.Station, it.Subtitle, it.WideURL = music.ItemStation, &st, st.Subtitle, st.WideURL
 		it.TallURL, _ = wide(a, tallArt...)
+		it.TallVideoURL, it.TallURL = tallMotion(a, it.TallURL)
 	case "apple-curators", "curators":
 		it.Kind, it.Page = music.ItemLink, "curator:"+r.ID
 		it.Subtitle = a.ShowHostName
@@ -82,6 +85,7 @@ func (s *Source) item(b *body, r *resource) (music.Item, bool) {
 		var w *artwork
 		it.WideURL, w = wide(a, brickArt...)
 		it.TallURL, _ = wide(a, tallArt...)
+		it.TallVideoURL, it.TallURL = tallMotion(a, it.TallURL)
 		if w != nil {
 			it.Colors = colors(w)
 		}
@@ -97,6 +101,18 @@ func (s *Source) item(b *body, r *resource) (music.Item, bool) {
 		it.Note = plain(a.PlainEditorialNotes.brief())
 	}
 	return it, true
+}
+
+// tallMotion is an item's picture three to four moving, if Apple has one,
+// and the still under it: still, the one made for the card, else the
+// video's first frame, which makes the card a tall one, as the web
+// player's is. Without a video, still is as it was.
+func tallMotion(a *attributes, still string) (string, string) {
+	v, first := moving(a, tallMove...)
+	if still == "" {
+		still = first
+	}
+	return v, still
 }
 
 // items are those of refs the app can show.

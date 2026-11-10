@@ -21,13 +21,14 @@ Written in Go, its windows drawn by [MyGo](https://github.com/egoist/mygo)'s nat
 - **Search** opens on Apple Music's categories, and lists top results, artists, albums, songs, playlists, stations and videos on one page.
 - **The library** by Recently Added, Artists, Albums, Songs, Made for You and All Playlists, loading on as it scrolls, with your playlists in the sidebar.
 - **Albums, artists and playlists** with the editors' notes, a background in the cover's colors, badges for how an album sounds at its best, the songs most played, and what else to hear.
+- **Animated Art**: where Apple Music has a cover moving, it plays without sound, over and over, at the head of an album's or a playlist's page, across the top of an artist's, and on Home's tall cards. It can be turned off in the settings, and stays still while the system asks for less motion.
 - **Playback** of whole songs as 256 kbps AAC, and lossless up to 24-bit/192 kHz ALAC with a wrapper.
 - **Lyrics** that follow the song word by word, with their translation where there is one.
 - **Play Next and Play Last, Favorite**, adding to the library and taking out of it, adding to playlists, making and editing playlists, and AutoPlay.
 - **What a desktop app has**: media keys, a tray icon, a notch player on macOS, light and dark, session restore, a song cache, loudness normalization.
 - English and Simplified Chinese, in Apple Music's own words.
 
-Not there yet: playing music videos, animated covers, Replay, social profiles, concerts.
+Not there yet: playing music videos, Replay, social profiles, concerts.
 
 ## Screenshots
 
@@ -90,4 +91,5 @@ The apps land in `build/`: a `.app` and a `.dmg` for macOS, an `.exe` and an ins
 
 - The player and the base of the interface come from [MyGo Music](https://github.com/egoist/mygo-music) (AGPL-3.0); the UI framework is [MyGo](https://github.com/egoist/mygo).
 - The Apple Music code is a port of [mygo-music-apple-music](https://github.com/LYJW131/mygo-music-apple-music); its lossless part builds on [apple-music-downloader](https://github.com/AMDL-Web/apple-music-downloader), [wrapper](https://github.com/WorldObservationLog/wrapper) and [Temari](https://github.com/WorldObservationLog/Temari).
+- Covers that move are decoded by [FFmpeg](https://ffmpeg.org)'s H.264 decoder (LGPL-2.1 or later), built as WebAssembly and run by [wazero](https://wazero.io) (Apache-2.0); `internal/video/wasm/build.sh` rebuilds it from sources at pinned versions.
 - The brand is described in [brand/README.md](brand/README.md). Ringo's name and mark use none of Apple's trademarks; Apple Music is a trademark of Apple Inc.

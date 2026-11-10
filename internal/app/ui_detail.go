@@ -93,16 +93,18 @@ func luminance(c ui.Color) float64 {
 	return 0.2126*lin(c.R) + 0.7152*lin(c.G) + 0.0722*lin(c.B)
 }
 
-// detailHeader heads an album's or a playlist's page: its cover, and beside
-// it what lines builds, its title and who made it and the rest, then the
+// detailHeader heads an album's or a playlist's page: its cover, moving
+// where it has a video, and beside it what lines builds, its title and who made it and the rest, then the
 // editors' words, notes, and the buttons that play it, with what extra adds
 // at their end. extra is told whether the row is short of room for Add to
 // Library in words, which then goes to its icon alone, as Apple Music's does.
-func (a *app) detailHeader(c *ui.Context, cover string, lines func(), notes string, tracks []music.Track, extra func(compact bool)) {
+func (a *app) detailHeader(c *ui.Context, cover, video string, lines func(), notes string, tracks []music.Track, extra func(compact bool)) {
 	p := a.pal
 	ui.Row(c).Gap(30).AlignItems(ui.End).Margin(0, 12, 28, 12).Children(func() {
-		ui.Box(c).Size(detailCover, detailCover).Radius(8).Shrink(0).Shadow(0, 14, 34, -10, p.cardShade).Border(0.5, p.hairline).Children(func() {
+		box := ui.Box(c).Size(detailCover, detailCover).Radius(8).Shrink(0).Shadow(0, 14, 34, -10, p.cardShade).Border(0.5, p.hairline)
+		box.Children(func() {
 			a.coverFill(c, cover, 600, 8)
+			a.motionOver(c, box, video, detailCover, detailCover, motionHead, 8)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(2).Children(func() {
 			lines()

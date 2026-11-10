@@ -220,6 +220,27 @@ func TestListenNowPortraits(t *testing.T) {
 	if u := a.last(`/recommendations$`); !strings.Contains(u.Query().Get("extend[playlists]"), "editorialArtwork") {
 		t.Errorf("asked %v", u)
 	}
+	// Their moving pictures, which Home sends only when asked: three to four
+	// over the card's own still, or with only a video, its first frame the
+	// still; and a playlist's cover moving, square, for its page.
+	if p := picks[1]; !strings.Contains(p.TallVideoURL, "p1motion") || !strings.Contains(p.TallURL, "p1tall") || !strings.Contains(p.VideoURL, "p1square") {
+		t.Errorf("a playlist's moving pictures: tall %q over %q, square %q", p.TallVideoURL, p.TallURL, p.VideoURL)
+	}
+	if p := picks[2]; !strings.Contains(p.TallVideoURL, "r1motion") || !strings.Contains(p.TallURL, "r1tall") {
+		t.Errorf("a station's: %q over %q", p.TallVideoURL, p.TallURL)
+	}
+	if al := seeded.Items[0]; !strings.Contains(al.TallVideoURL, "a3motion") || !strings.Contains(al.TallURL, "a3motionframe") {
+		t.Errorf("an album with only a video: %q over %q", al.TallVideoURL, al.TallURL)
+	}
+	if picks[0].TallVideoURL != "" || picks[0].TallURL != "" {
+		t.Errorf("an album without: %+v", picks[0])
+	}
+	u := a.last(`/recommendations$`).Query()
+	for _, k := range []string{"extend[albums]", "extend[playlists]", "extend[stations]"} {
+		if !strings.Contains(u.Get(k), "editorialVideo") {
+			t.Errorf("%s: %q", k, u.Get(k))
+		}
+	}
 }
 
 // Radio leads with Apple Music 1 as a hero, and what's on the air as a live shelf.

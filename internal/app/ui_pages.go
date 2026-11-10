@@ -280,7 +280,7 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 			a.traitBadges(c, pl.Traits, p.muted)
 		})
 	}
-	a.detailHeader(c, pl.ImageURL, lines, pl.Description, pl.Tracks, func(compact bool) {
+	a.detailHeader(c, pl.ImageURL, pl.VideoURL, lines, pl.Description, pl.Tracks, func(compact bool) {
 		if !pl.Mine && !pl.Fixed && !a.ownList(pl.ID) {
 			a.libraryButton(c, lib, music.ItemPlaylist, pl.ID, pl.Saved || a.isSaved(pl), false, compact)
 		}
