@@ -106,7 +106,8 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 			return nil, err
 		}
 		// Under a library album, Apple's app shows its catalog album's
-		// shelves: that album is asked for while the songs are.
+		// shelves, and Show Complete Album when the library has only some
+		// of its songs: that album is asked for while the songs are.
 		var (
 			wg         sync.WaitGroup
 			whole      *body
@@ -132,6 +133,9 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 		page := &music.AlbumPage{Album: a, Tracks: songs}
 		if wholeAlbum != nil {
 			page.Sections = s.albumSections(whole, wholeAlbum)
+			if wholeAlbum.attrs().TrackCount > len(tracks) {
+				page.Complete = wholeAlbum.ID
+			}
 		}
 		return page, nil
 	}

@@ -409,9 +409,10 @@ func TestAlbumPage(t *testing.T) {
 	}
 }
 
-// A library album has its catalog album's shelves, that album found by a
-// song of it when the library album doesn't say, as of Ao No Hako's second
-// soundtrack it didn't.
+// A library album with some of its songs has its catalog album's shelves
+// and the ID that Show Complete Album opens; found by a song of it when the
+// library album doesn't say, as of Ao No Hako's second soundtrack it didn't.
+// One with all its songs has the shelves and nothing to complete.
 func TestLibraryAlbumOfCatalog(t *testing.T) {
 	whole := func(count int) map[string]any {
 		return map[string]any{
@@ -432,9 +433,11 @@ func TestLibraryAlbumOfCatalog(t *testing.T) {
 	for _, c := range []struct {
 		name, catalog string
 		have, count   int
+		complete      string
 	}{
-		{"said by a song", `[]`, 2, 27},
-		{"said by the album", `[{"id":"900","type":"albums"}]`, 4, 4},
+		{"some, said by a song", `[]`, 2, 27, "900"},
+		{"some, said by the album", `[{"id":"900","type":"albums"}]`, 2, 27, "900"},
+		{"all", `[{"id":"900","type":"albums"}]`, 4, 4, ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			ts, a := newApple(t)
@@ -458,6 +461,9 @@ func TestLibraryAlbumOfCatalog(t *testing.T) {
 			page, err := ts.Album("l.part")
 			if err != nil {
 				t.Fatal(err)
+			}
+			if page.Complete != c.complete {
+				t.Errorf("complete %q", page.Complete)
 			}
 			if len(page.Sections) != 1 || page.Sections[0].Title != "More By Hiroaki" || len(page.Sections[0].Items) != 1 {
 				t.Errorf("sections %+v", page.Sections)

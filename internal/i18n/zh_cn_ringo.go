@@ -89,6 +89,7 @@ var ringoChinese = map[string]string{
 	"Saturday":                          "周六",
 	"Share":                             "分享",
 	"Show Album":                        "显示专辑",
+	"Show Complete Album":               "显示完整的专辑",
 	"Similar music will keep playing":   "持续播放相似的音乐",
 	"Songs you favorite will show here": "你喜爱的歌曲会显示在这里",
 	"Songs you play here show in Recently Played and count toward Apple Music Replay and recommendations, as in Apple's own apps": "在这里播放的歌曲会显示在“最近播放”中，并计入 Apple Music 音乐回忆和推荐，与 Apple 自己的 App 一样",

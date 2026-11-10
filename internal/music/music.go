@@ -198,6 +198,10 @@ type AlbumPage struct {
 	// Sections follow the songs: more by the artist, other versions, what
 	// it's featured on, and what else a listener might like.
 	Sections []Section `json:"sections,omitempty"`
+	// Complete is, for an album of the listener's library that has only
+	// some of its songs, the ID of the whole album, which Show Complete
+	// Album opens.
+	Complete string `json:"complete,omitempty"`
 }
 
 // Account is who is signed in to a source.

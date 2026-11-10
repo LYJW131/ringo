@@ -109,20 +109,48 @@ func TestAlbumUnavailableSongSaysWhy(t *testing.T) {
 func TestAlbumRowsByDisc(t *testing.T) {
 	tracks := speakNow().Tracks
 	var got []string
-	for _, r := range albumRows(tracks, 2) {
+	for _, r := range albumRows(tracks, false, 2) {
 		got = append(got, fmt.Sprint(r.kind, ":", r.i))
 	}
-	want := []string{"0:1", "1:0", "1:1", "1:2", "1:3", "0:2", "1:4", "1:5", "2:0", "3:0", "3:1"}
+	want := []string{"0:1", "1:0", "1:1", "1:2", "1:3", "0:2", "1:4", "1:5", "2:0", "4:0", "4:1"}
 	if !slices.Equal(got, want) {
 		t.Errorf("rows %q, want %q", got, want)
 	}
 	for i := range tracks {
 		tracks[i].Disc = 1
 	}
-	for _, r := range albumRows(tracks, 0) {
+	for _, r := range albumRows(tracks, false, 0) {
 		if r.kind == albumDisc {
 			t.Fatal("a disc's number on an album of one")
 		}
+	}
+}
+
+// An album of the library with some of its songs has Show Complete Album
+// after them, which opens the whole album; one with all of them hasn't.
+func TestShowCompleteAlbum(t *testing.T) {
+	a := albumApp()
+	page := a.albums["1440755169"].album
+	page.Album.ID, page.Complete = "l.part", "1440755169"
+	a.albums["l.part"] = a.albums["1440755169"]
+	delete(a.albums, "1440755169")
+	a.route = route{page: pageAlbum, src: "fake", id: "l.part"}
+	fake(a).album = func(string) (*music.AlbumPage, error) { return nil, errors.New("not now") }
+	tt := ui.NewTester(a.view, 1180, 900)
+	tt.Frame()
+	if err := tt.Click(T("Show Complete Album")); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.route != (route{page: pageAlbum, src: "fake", id: "1440755169"}) {
+		t.Fatalf("opened %+v", a.route)
+	}
+
+	b := albumApp()
+	tt = ui.NewTester(b.view, 1180, 900)
+	tt.Frame()
+	if _, ok := tt.Find(T("Show Complete Album")); ok {
+		t.Error("Show Complete Album on an album that is whole")
 	}
 }
 
@@ -558,6 +586,11 @@ func TestDetailFrames(t *testing.T) {
 		app  func() *app
 	}{
 		{"album", albumApp},
+		{"album-part", func() *app {
+			a := albumApp()
+			a.albums["1440755169"].album.Complete = "1"
+			return a
+		}},
 		{"artist-wide", func() *app { return artistApp(true) }},
 		{"artist", func() *app { return artistApp(false) }},
 		{"playlist", func() *app {
@@ -574,7 +607,7 @@ func TestDetailFrames(t *testing.T) {
 			a := c.app()
 			shelfArt(a)
 			h := 1000
-			if c.name != "playlist" && c.name != "album" {
+			if c.name != "playlist" && !strings.HasPrefix(c.name, "album") {
 				// Down to the artist's biography.
 				h = 1700
 			}
