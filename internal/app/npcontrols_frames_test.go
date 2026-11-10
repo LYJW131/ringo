@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/audio"
 	"github.com/egoist/mygo/ui"
 
 	"ringo/internal/i18n"
@@ -170,7 +171,7 @@ func TestNowPlayingControlsFrames(t *testing.T) {
 	}
 
 	// What comes and goes: no station and no badge, each badge, a song
-	// paused, shuffled and repeating, a favorite, and a title too long for
+	// shuffled and repeating, a favorite, and a title too long for
 	// its line; and a window too short for the cover to be as wide as the
 	// controls.
 	red := covers[0]
@@ -193,10 +194,9 @@ func TestNowPlayingControlsFrames(t *testing.T) {
 	a.pl.ToggleShuffle()
 	a.pl.CycleRepeat()
 	a.pl.CycleRepeat()
-	a.pl.TogglePlay()
 	a.library.liked = map[string]bool{"7": true}
 	rest(tt)
-	save("paused-shuffled-favorite", tt)
+	save("shuffled-favorite", tt)
 	long := controlsShot{from: red.from, to: red.to, st: hires, radio: "深夜电台",
 		title: "Northern Lights Over the Harbor at Night (Live at the Old Lighthouse)"}
 	_, tt = controlsApp(long)
@@ -204,6 +204,43 @@ func TestNowPlayingControlsFrames(t *testing.T) {
 	short := controlsShot{from: red.from, to: red.to, st: hires, radio: "深夜电台", stray: true, w: 1000, h: 680}
 	_, tt = controlsApp(short)
 	save("short-window", tt)
+
+	// The same controls where else they are: along the foot of the stage
+	// and of the wall, with the wall's song over it, and in the player bar,
+	// light and dark, its progress under the pointer.
+	for _, p := range []struct {
+		name string
+		pane int
+	}{{"stage", paneStage}, {"wall", paneWall}} {
+		a, tt := controlsApp(controlsShot{from: red.from, to: red.to, st: hires, radio: "深夜电台", stray: true})
+		a.npPane = p.pane
+		a.pl.ToggleShuffle()
+		tt.Frame()
+		tt.Advance(2 * time.Second)
+		bar, _ := tt.Find(T("Playback Progress"))
+		tt.Move(bar.X+bar.W*0.4, bar.Y+bar.H/2)
+		rest(tt)
+		saveFrame(t, dir, "npc-"+p.name+".png", tt.Image())
+	}
+	for _, dark := range []bool{false, true} {
+		a, tt := controlsApp(controlsShot{from: red.from, to: red.to, st: hires})
+		a.nowPlaying = false
+		a.pl.ToggleShuffle()
+		tt.SetDark(dark)
+		tt.Frame()
+		tt.Advance(2 * time.Second)
+		bar, _ := tt.Find(T("Playback Progress"))
+		for _, at := range []struct {
+			name string
+			x, y float32
+		}{{"rest", 0, 0}, {"hover", bar.X + bar.W*0.4, bar.Y + bar.H/2}} {
+			tt.Move(at.x, at.y)
+			rest(tt)
+			img := tt.Image()
+			b := img.Bounds()
+			saveFrame(t, dir, fmt.Sprintf("npc-bar-dark-%v-%s.png", dark, at.name), img.SubImage(image.Rect(b.Min.X+2*sidebarWidth, b.Max.Y-2*(playerBarHeight+16), b.Max.X, b.Max.Y)))
+		}
+	}
 
 	// Frame by frame: the pointer comes to the progress bar and drags it,
 	// and comes to the play button and presses it.
@@ -233,6 +270,13 @@ func TestNowPlayingControlsFrames(t *testing.T) {
 	tt.Move(0, 0)
 	step("scrub", 6)
 
+	// Another window, its song one that plays, for the button to pause.
+	a, tt = controlsApp(controlsShot{from: red.from, to: red.to, st: hires, radio: "深夜电台", stray: true})
+	out := audio.NewPlayer(&silence{})
+	out.SetVolume(0)
+	out.Play()
+	a.pl.Attach(out)
+	defer out.Close()
 	frame = 0
 	x, y := center(tt, T("Play/Pause"))
 	rest(tt)

@@ -177,6 +177,11 @@ func (a *app) likeCurrent() {
 // and the plus turns into its star as it is. Until its source says which it
 // is, the button holds its place empty (addsFirst).
 func (a *app) likeButton(c *ui.Context, tr *music.Track, size float32, color ui.Color) ui.Element {
+	return a.likeButtonAs(c, tr, size, color, plainLook)
+}
+
+// likeButtonAs is likeButton as look draws its buttons.
+func (a *app) likeButtonAs(c *ui.Context, tr *music.Track, size float32, color ui.Color, look buttonLook) ui.Element {
 	lib := a.library
 	a.wantLike(tr)
 	liked := a.isLiked(tr)
@@ -192,11 +197,11 @@ func (a *app) likeButton(c *ui.Context, tr *music.Track, size float32, color ui.
 	wrap := ui.Box(c).Center()
 	if !known {
 		// A place of the button's size, and nothing in it to press.
-		wrap.Size(size+16, size+16)
+		wrap.Size(size+2*look.pad, size+2*look.pad)
 		return wrap
 	}
 	var b ui.Element
-	wrap.Children(func() { b = iconButton(c, icon, size, color, label) })
+	wrap.Children(func() { b = look.icon(c, icon, size, color, label) })
 	scale := b.AnimateTo("pop", 1, ui.Animation{Spring: ui.SpringOptions{Duration: 550 * time.Millisecond, Bounce: 0.55}})
 	b.Scale(scale, scale)
 	burst := ui.Local(wrap, "burst", func() time.Time { return time.Time{} })

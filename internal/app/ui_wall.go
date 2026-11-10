@@ -160,8 +160,8 @@ func (a *app) wallSong(c *ui.Context, tr *music.Track, art *artwork, top, h floa
 			}
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, tr.Name).FontSize(26).FontWeight(800).LetterSpacing(-0.4).SingleLine().Shrink(1).MinWidth(0)
-				a.likeButton(c.Key("like"), tr, 20, white.Alpha(0.7))
-				a.songMenu(c.Key("more"), tr, 20, white.Alpha(0.7)).Margin(0, -8, 0, 0)
+				a.likeButtonAs(c.Key("like"), tr, 16, white.Alpha(0.92), glassLook).Margin(0, 0, 0, 4)
+				a.songMenuAs(c.Key("more"), tr, 16, white.Alpha(0.92), glassLook)
 			})
 			a.artistLinks(c, tr, white.Alpha(0.6), white, true).FontSize(14).SingleLine()
 			lines, _ := pl.Lyrics()
@@ -373,14 +373,15 @@ func (a *app) wallTile(c *ui.Context, tr *music.Track, i int, x float32, playing
 func (a *app) wallBar(c *ui.Context, accent ui.Color) {
 	pl := a.pl
 	a.npRise(ui.Column(c.Key("wall-bar")).Absolute().Left(0).Right(0).Bottom(0).Padding(0, 48, 24, 48).Gap(10), 3).Children(func() {
-		a.scrubber(c.Key("wall-scrub"), &a.npScrub, white.Alpha(0.18), white.Alpha(0.9), 14, accent.Mix(white, 0.35))
+		a.scrubber(c.Key("wall-scrub"), &a.npScrub, glassBar(5, 8), 16, accent.Mix(white, 0.35))
+		at := a.npScrub.at(pl)
 		ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Grow(1).Basis(0).MinWidth(0).Children(func() {
-				ui.Text(c, clock(pl.Position())).FontSize(11.5).FontFeatures("tnum").TextColor(white.Alpha(0.5))
+				scrubTime(c.Key("elapsed"), clock(at), a.npScrub.active).FontSize(11.5)
 			})
-			a.transport(c, white, white.Alpha(0.45), white, 22)
+			a.transport(c, transportLook{color: white, on: glassInk(accent), size: 22, glass: true})
 			ui.Row(c).Grow(1).Basis(0).MinWidth(0).Justify(ui.End).Children(func() {
-				ui.Text(c, "-"+clock(pl.Duration()-pl.Position())).FontSize(11.5).FontFeatures("tnum").TextColor(white.Alpha(0.5))
+				scrubTime(c.Key("left"), "-"+clock(pl.Duration()-at), a.npScrub.active).FontSize(11.5)
 			})
 		})
 	})

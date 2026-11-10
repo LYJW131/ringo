@@ -68,3 +68,14 @@ var (
 	iconSettings = strokeIcon(`<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>`)
 	iconSignOut  = strokeIcon(`<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>`)
 )
+
+// speakerBody is a speaker, filled, at the left of its icon.
+const speakerBody = `<path fill="currentColor" d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/>`
+
+// The speakers at the ends of Now Playing's volume, filled, as heavy as the
+// glyphs over them: quiet, loud, and silent.
+var (
+	iconSpeaker     = strokeIcon(speakerBody)
+	iconSpeakerLoud = strokeIcon(speakerBody + `<path stroke-width="2" d="M15.5 9.2a4.6 4.6 0 0 1 0 5.6"/><path stroke-width="2" d="M18.7 6.4a8.6 8.6 0 0 1 0 11.2"/>`)
+	iconSpeakerMute = strokeIcon(speakerBody + `<path stroke-width="2" d="m21.5 9.5-5 5"/><path stroke-width="2" d="m16.5 9.5 5 5"/>`)
+)

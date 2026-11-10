@@ -393,36 +393,44 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 					a.npCover(c, tr, art, coverSize)
 				})
 
-				a.npRise(ui.Row(c).Gap(8).AlignItems(ui.Center).Margin(36, 0, 18, 0), 1).Children(func() {
-					ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(4).Children(func() {
-						if r := a.station(); r != "" {
-							a.radioChip(c, r)
-						}
-						ui.Text(c, tr.Name).FontSize(22).FontWeight(700).LetterSpacing(-0.3).SingleLine()
-						a.artistLinks(c, tr, white.Alpha(0.6), white, true).FontSize(15).SingleLine()
+				// Every row of the column starts at the cover's left and ends
+				// at its right. The station first, over what plays, and beside
+				// that the buttons that keep it, level with its two lines.
+				a.npRise(ui.Column(c).Margin(32, 0, 14, 0), 1).Children(func() {
+					if r := a.station(); r != "" {
+						a.radioChip(c, r)
+					}
+					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+						names := ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(2).Margin(0, 6, 0, 0)
+						names.Children(func() {
+							fadingTitle(c, tr.Name, 23, 700, names.LayoutBounds().W)
+							a.artistLinks(c, tr, white.Alpha(0.62), white, true).FontSize(16).FontWeight(500).SingleLine()
+						})
+						a.likeButtonAs(c.Key("like"), tr, 16, white.Alpha(0.92), glassLook)
+						a.songMenuAs(c.Key("more"), tr, 16, white.Alpha(0.92), glassLook)
 					})
-					a.likeButton(c.Key("like"), tr, 22, white.Alpha(0.7))
-					a.songMenu(c.Key("more"), tr, 22, white.Alpha(0.7)).Margin(0, -8, 0, 0)
 				})
-				a.npRise(a.scrubber(c.Key("np-scrub"), &a.npScrub, white.Alpha(0.18), white.Alpha(0.9), 16, accent.Mix(white, 0.35)), 2)
+				// Taller than it looks, for the pointer, over the rows beside it.
+				a.npRise(a.scrubber(c.Key("np-scrub"), &a.npScrub, glassBar(6, 10), 24, accent.Mix(white, 0.35)).Margin(-3, 0), 2)
 				// As tall with the quality's badge as without it: the badge goes
 				// while the next song loads, and the column would move with it.
-				a.npRise(ui.Row(c).Height(16).AlignItems(ui.Center), 2).Children(func() {
-					ui.Text(c, clock(pl.Position())).FontSize(11).FontFeatures("tnum").TextColor(white.Alpha(0.5))
+				a.npRise(ui.Row(c).Height(18).Margin(4, 0, 0, 0).AlignItems(ui.Center), 2).Children(func() {
+					at := a.npScrub.at(pl)
+					scrubTime(c.Key("elapsed"), clock(at), a.npScrub.active).FontSize(11.5)
 					ui.Spacer(c)
-					qualityBadge(c, pl.Stream(), ui.Hex("#f5d58a"))
+					glassBadge(c, pl.Stream())
 					ui.Spacer(c)
-					status := "-" + clock(pl.Duration()-pl.Position())
+					status := "-" + clock(pl.Duration()-at)
 					if pl.Loading() {
 						status = T("Buffering…")
 					}
-					ui.Text(c, status).FontSize(11).FontFeatures("tnum").TextColor(white.Alpha(0.5))
+					scrubTime(c.Key("left"), status, a.npScrub.active).FontSize(11.5)
 				})
-				a.npRise(ui.Box(c).Margin(14, 0, 18, 0), 3).Children(func() {
-					a.transport(c, white, white.Alpha(0.45), accent, 28)
+				a.npRise(ui.Box(c).Margin(16, 0, 11, 0), 3).Children(func() {
+					a.transport(c, transportLook{color: white, on: glassInk(accent), size: 28, glass: true, spread: true})
 				})
-				a.npRise(ui.Row(c).Justify(ui.Center), 4).Children(func() {
-					a.volumeSlider(c, white.Alpha(0.7), white.Alpha(0.18), 180)
+				a.npRise(ui.Box(c), 4).Children(func() {
+					a.volumeSlider(c, glassBar(4, 7).dimmed(), white.Alpha(0.6))
 				})
 			})
 
@@ -539,21 +547,24 @@ func (a *app) choosePane(i int) {
 	}
 }
 
-// radioChip says which radio plays, over the title: a click on it, or on
-// its cross, leaves the radio, playing on the song.
+// radioChip says which radio plays, over the title, on a slip of glass: a
+// click on it, or on its cross, leaves the radio, playing on the song.
 func (a *app) radioChip(c *ui.Context, name string) {
 	exit := Tf("Leave %s", radioLabel(name))
-	chip := ui.ButtonBase(c.Key("radio-chip")).Gap(5).Padding(3, 6, 3, 8).Margin(0, 0, 4, -8).Radius(999).
+	chip := ui.ButtonBase(c.Key("radio-chip")).Height(22).Gap(5).Padding(0, 7, 0, 8).Margin(0, 0, 8, 0).Radius(999).
 		AlignItems(ui.Center).AlignSelf(ui.Start).FocusRing(false).Label(exit).Tooltip(exit)
-	bg, fg, cross := ui.Transparent, white.Alpha(0.6), float32(0.5)
-	if chip.Hovered() {
-		bg, fg, cross = white.Alpha(0.12), white.Alpha(0.85), 1
+	tint, fg, cross := ui.Transparent, white.Alpha(0.78), float32(0.55)
+	switch {
+	case chip.Pressed():
+		tint, fg, cross = glassPress, white, 1
+	case chip.Hovered():
+		tint, fg, cross = glassHover, white, 1
 	}
-	chip.Background(chip.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond})).TextColor(fg)
+	glassOn(c, chip, tint, true).TextColor(chip.AnimateColor("fg", fg, ui.Animation{Duration: hoverFade}))
 	chip.Children(func() {
 		ui.Icon(c, iconRadio).Size(12, 12)
-		ui.Text(c, radioLabel(name)).FontSize(11.5).FontWeight(700).LetterSpacing(0.3)
-		ui.Icon(c, iconX).Size(11, 11).Opacity(cross)
+		ui.Text(c, radioLabel(name)).FontSize(11.5).FontWeight(600).LetterSpacing(0.2).SingleLine()
+		ui.Icon(c, iconX).Size(10, 10).Opacity(cross)
 	})
 	if chip.Clicked() {
 		a.exitRadio()
@@ -614,7 +625,7 @@ func streamSpec(st *music.Stream) string {
 func (a *app) stageBar(c *ui.Context, tr *music.Track, art *artwork, accent ui.Color) {
 	pl := a.pl
 	ui.Column(c).Padding(0, 48, 28, 48).Gap(10).Children(func() {
-		a.npRise(a.scrubber(c.Key("stage-scrub"), &a.npScrub, white.Alpha(0.18), white.Alpha(0.9), 14, accent.Mix(white, 0.35)), 2)
+		a.npRise(a.scrubber(c.Key("stage-scrub"), &a.npScrub, glassBar(5, 8), 16, accent.Mix(white, 0.35)), 2)
 		ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Grow(1).Basis(0).MinWidth(0).Gap(12).AlignItems(ui.Center).Children(func() {
 				if bmp := bitmap(art); bmp != nil {
@@ -629,13 +640,15 @@ func (a *app) stageBar(c *ui.Context, tr *music.Track, art *artwork, accent ui.C
 						ui.Text(c, tr.Name).FontSize(14).FontWeight(700).SingleLine()
 						a.artistLinks(c, tr, white.Alpha(0.55), white).FontSize(12).SingleLine()
 					})
-					a.likeButton(c.Key("like"), tr, 17, white.Alpha(0.6))
-					a.songMenu(c.Key("more"), tr, 17, white.Alpha(0.6)).Margin(0, 0, 0, -10)
+					a.likeButtonAs(c.Key("like"), tr, 14, white.Alpha(0.92), glassLook)
+					a.songMenuAs(c.Key("more"), tr, 14, white.Alpha(0.92), glassLook).Margin(0, 0, 0, -4)
 				})
 			})
-			a.npRise(ui.Row(c), 3).Children(func() { a.transport(c, white, white.Alpha(0.45), white, 22) })
+			a.npRise(ui.Row(c), 3).Children(func() {
+				a.transport(c, transportLook{color: white, on: glassInk(accent), size: 22, glass: true})
+			})
 			a.npRise(ui.Row(c).Grow(1).Basis(0).MinWidth(0).Justify(ui.End), 4).Children(func() {
-				ui.Text(c, clock(pl.Position())+" / "+clock(pl.Duration())).FontSize(11.5).FontFeatures("tnum").TextColor(white.Alpha(0.5))
+				scrubTime(c.Key("times"), clock(a.npScrub.at(pl))+" / "+clock(pl.Duration()), a.npScrub.active).FontSize(11.5)
 			})
 		})
 	})

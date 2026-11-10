@@ -23,12 +23,22 @@ type scrubState struct {
 
 func secs(s float64) time.Duration { return time.Duration(s * float64(time.Second)) }
 
+// at returns where the bar says the song is: where it is dragged to, while
+// it is, and where the song plays otherwise.
+func (st *scrubState) at(pl *player.Player) time.Duration {
+	if st.active {
+		return secs(min(st.v, pl.Duration().Seconds()))
+	}
+	return pl.Position()
+}
+
 // scrubber shows how far the track is, and seeks where it is dragged or
-// clicked: the bar thickens under the pointer, and its knob shows. With a
-// smoke color, the bar is a comet while music plays: what has played is a
-// streak brightening to the playhead, which glows and trails smoke that
-// rises and fades, thicker as the music is louder.
-func (a *app) scrubber(c *ui.Context, st *scrubState, track, fill ui.Color, height float32, smoke ui.Color) ui.Element {
+// clicked: a tube part full, which thickens and brightens under the
+// pointer and while it is dragged. With a smoke color, the bar is a comet
+// while music plays: what has played is a streak brightening to the
+// playhead, which glows and trails smoke that rises and fades, thicker as
+// the music is louder.
+func (a *app) scrubber(c *ui.Context, st *scrubState, look barLook, height float32, smoke ui.Color) ui.Element {
 	pl := a.pl
 	dur := pl.Duration().Seconds()
 	if !st.active && !st.held {
@@ -58,20 +68,7 @@ func (a *app) scrubber(c *ui.Context, st *scrubState, track, fill ui.Color, heig
 	case s.Changed():
 		pl.Seek(secs(min(st.v, max(0, dur-1))))
 	}
-	hot := s.Hovered() || pressed
-	thick := float32(4)
-	if hot {
-		thick = 6
-	}
-	// Quick out of the blocks: a spring starts still, and the knob showed
-	// only a few frames after the pointer came.
-	grow := ui.Animation{Duration: 140 * time.Millisecond, Ease: ui.EaseOut}
-	thick = s.AnimateTo("thick", thick, grow)
-	knob := float32(0)
-	if hot {
-		knob = 1
-	}
-	knob = s.AnimateTo("knob", knob, grow)
+	thick, grown := look.grown(s, s.Hovered() || pressed)
 	// The smoke settles away as the music pauses, and while dragging.
 	smoking := float32(0)
 	if smoke.A > 0 && a.settings.Smoke && pl.Playing() && !pl.Loading() && !st.active {
@@ -87,18 +84,27 @@ func (a *app) scrubber(c *ui.Context, st *scrubState, track, fill ui.Color, heig
 		if dur > 0 {
 			frac = float32(min(1, max(0, at/dur)))
 		}
-		y := r.Y + (r.H-thick)/2
+		bar := ui.Rect{X: r.X, Y: r.Y + (r.H-thick)/2, W: r.W, H: thick}
 		head, cy := r.X+r.W*frac, r.Y+r.H/2
-		p.Fill(ui.Rect{X: r.X, Y: y, W: r.W, H: thick}, track, thick/2)
-		// What has downloaded, a shade lighter.
-		if got, ok := pl.Downloaded(); ok && float32(got) < 1 {
-			p.Fill(ui.Rect{X: r.X, Y: y, W: r.W * float32(got), H: thick}, track, thick/2)
-		}
-		played := ui.Rect{X: r.X, Y: y, W: max(thick, head-r.X), H: thick}
+		fill := look.fill.Mix(look.bright, grown)
+		p.Fill(bar, look.track, thick/2)
+		// What fills it is cut straight where it ends, within the track's
+		// round ends.
+		p.Clip(bar, thick/2, func() {
+			// What has downloaded, a shade lighter.
+			if got, ok := pl.Downloaded(); ok && float32(got) < 1 {
+				p.Fill(ui.Rect{X: bar.X, Y: bar.Y, W: bar.W * float32(got), H: thick}, look.track, 0)
+			}
+			played := ui.Rect{X: bar.X, Y: bar.Y, W: head - bar.X, H: thick}
+			if smoking > 0.01 {
+				// A streak of light, brightest at the head.
+				p.FillGradient(played, ui.LinearGradient{Angle: 90, Oklab: true,
+					From: fill.Mix(smoke, smoking).Alpha(0.3), To: fill.Mix(smoke, 0.8*smoking)}, 0)
+			} else {
+				p.Fill(played, fill, 0)
+			}
+		})
 		if smoking > 0.01 {
-			// A streak of light, brightest at the head.
-			p.FillGradient(played, ui.LinearGradient{Angle: 90, Oklab: true,
-				From: fill.Mix(smoke, smoking).Alpha(0.3), To: fill.Mix(smoke, 0.8*smoking)}, thick/2)
 			lv, live := pl.Levels()
 			st.level.step(p.Now(), lv, live)
 			bass := st.level.group(0, 6)
@@ -108,13 +114,6 @@ func (a *app) scrubber(c *ui.Context, st *scrubState, track, fill ui.Color, heig
 			p.Shadow(ui.Rect{X: head, Y: cy}, 0, 0, 0, glow, 2.5+2.5*bass, smoke.Alpha(0.95*smoking))
 			core := thick * (1 + 0.25*bass)
 			p.Fill(ui.Rect{X: head - core/2, Y: cy - core/2, W: core, H: core}, white.Mix(smoke, 0.15).Alpha(smoking), core/2)
-		} else {
-			p.Fill(played, fill, thick/2)
-		}
-		if knob > 0.01 {
-			k := 12 * knob
-			p.Shadow(ui.Rect{X: head - k/2, Y: r.Y + (r.H-k)/2, W: k, H: k}, k/2, 0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.3))
-			p.Fill(ui.Rect{X: head - k/2, Y: r.Y + (r.H-k)/2, W: k, H: k}, fill, k/2)
 		}
 		switch {
 		case smoking > 0.01 && (pl.Playing() || smoking < 1):
@@ -286,13 +285,16 @@ func volumeIcon(v float64) *ui.SVG {
 	}
 }
 
-// muteButton is the speaker, which mutes and unmutes.
+// muteButton is the speaker at the quiet end of the volume, which mutes
+// and unmutes: a glyph, level with the edge of what is over it, its disc
+// reaching past it.
 func (a *app) muteButton(c *ui.Context, color ui.Color) {
-	icon := iconVolume
+	const size, pad = 17, 5.5
+	icon := iconSpeaker
 	if a.volume == 0 {
-		icon = iconMute
+		icon = iconSpeakerMute
 	}
-	if iconButton(c.Key("mute"), icon, 16, color, T("Mute")).Clicked() {
+	if glyphButton(c.Key("mute"), icon, size, pad, color, T("Mute")).Margin(0, 0, 0, -pad).Clicked() {
 		if a.volume > 0 {
 			a.mutedFrom, a.volume = a.volume, 0
 		} else {
@@ -302,59 +304,19 @@ func (a *app) muteButton(c *ui.Context, color ui.Color) {
 	}
 }
 
-// volumeSlider is a slim slider with the speaker before it, which mutes.
-func (a *app) volumeSlider(c *ui.Context, color, track ui.Color, width float32) {
-	ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+// volumeSlider is the volume across its place, as Apple Music's is under
+// what plays: a bar between a quiet speaker, which mutes, and a loud one.
+func (a *app) volumeSlider(c *ui.Context, look barLook, color ui.Color) {
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		a.muteButton(c, color)
-		s := ui.SliderBase(c.Key("volume"), &a.volume, 0, 1).Width(width).Height(16).FocusRing(false).Label(T("Volume"))
+		s := ui.SliderBase(c.Key("volume"), &a.volume, 0, 1).Grow(1).Basis(0).Height(22).FocusRing(false).Label(T("Volume"))
 		if s.Changed() {
 			a.pl.SetVolume(a.volume)
 		}
-		hot := s.Hovered() || s.Pressed()
-		thick := float32(4)
-		if hot {
-			thick = 5
-		}
-		thick = s.AnimateTo("thick", thick, ui.Snappy)
+		thick, grown := look.grown(s, s.Hovered() || s.Pressed())
 		v := float32(a.volume)
-		s.Draw(func(p *ui.Painter, r ui.Rect) {
-			y := r.Y + (r.H-thick)/2
-			p.Fill(ui.Rect{X: r.X, Y: y, W: r.W, H: thick}, track, thick/2)
-			p.Fill(ui.Rect{X: r.X, Y: y, W: max(thick, r.W*v), H: thick}, color, thick/2)
-		})
-	})
-}
-
-// transport is the row of controls: shuffle, previous, play, next, repeat.
-func (a *app) transport(c *ui.Context, color, dim, on ui.Color, size float32) {
-	pl := a.pl
-	ui.Row(c).Gap(size * 0.5).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-		shuffle := dim
-		if pl.Shuffle() {
-			shuffle = on
-		}
-		if iconButton(c.Key("shuffle"), iconShuffle, size*0.62, shuffle, T("Shuffle")).Clicked() {
-			pl.ToggleShuffle()
-		}
-		if iconButton(c.Key("prev"), iconPrev, size*0.85, color, T("Previous")).Clicked() {
-			pl.Prev()
-		}
-		if playButton(c.Key("play"), pl.Playing(), size*1.25, color).Clicked() {
-			pl.TogglePlay()
-		}
-		if iconButton(c.Key("next"), iconNext, size*0.85, color, T("Next")).Clicked() {
-			pl.Next()
-		}
-		repeat, ricon := dim, iconRepeat
-		switch pl.Repeat() {
-		case player.RepeatAll:
-			repeat = on
-		case player.RepeatOne:
-			repeat, ricon = on, iconRepeat1
-		}
-		if iconButton(c.Key("repeat"), ricon, size*0.62, repeat, T("Repeat")).Clicked() {
-			pl.CycleRepeat()
-		}
+		s.Draw(func(p *ui.Painter, r ui.Rect) { look.draw(p, r, thick, v, grown) })
+		ui.Icon(c, iconSpeakerLoud).Size(17, 17).Margin(0, 0, 0, 2).TextColor(color)
 	})
 }
 
@@ -517,10 +479,10 @@ func (a *app) playerBar(c *ui.Context) {
 
 		// Controls over the progress.
 		ui.Column(c).Width(mid).Shrink(0).Gap(0).AlignItems(ui.Stretch).Children(func() {
-			a.transport(c, p.text, p.muted, p.accent, 18)
+			a.transport(c, transportLook{color: p.text, dim: p.muted, on: p.accent, size: 18})
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Margin(-4, 0, 0, 0).Children(func() {
 				ui.Text(c, clock(pl.Position())).FontSize(10.5).FontFeatures("tnum").TextColor(p.faint).Width(34).TextAlign(ui.End)
-				a.scrubber(c.Key("bar-scrub"), &a.barScrub, p.press, p.text.Alpha(0.75), 14, p.accent).Grow(1)
+				a.scrubber(c.Key("bar-scrub"), &a.barScrub, barLook{track: p.press, fill: p.text.Alpha(0.75), bright: p.text, thin: 4, thick: 7}, 14, p.accent).Grow(1)
 				ui.Text(c, clock(pl.Duration())).FontSize(10.5).FontFeatures("tnum").TextColor(p.faint).Width(34)
 			})
 		})

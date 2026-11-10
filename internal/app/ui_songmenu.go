@@ -27,6 +27,13 @@ func (a *app) songMenu(c *ui.Context, tr *music.Track, size float32, color ui.Co
 	return a.songMenuIn(c, tr, "", size, color)
 }
 
+// songMenuAs is songMenu as look draws its buttons.
+func (a *app) songMenuAs(c *ui.Context, tr *music.Track, size float32, color ui.Color, look buttonLook) ui.Element {
+	b := look.icon(c, iconMore, size, color, T("More"))
+	b.Menu(a.songItems(tr, ""))
+	return b
+}
+
 // songMenuIn is songMenu for a song listed in playlist pid, whose menu can
 // take it out of there, as its row's right click does.
 func (a *app) songMenuIn(c *ui.Context, tr *music.Track, pid string, size float32, color ui.Color) ui.Element {
