@@ -190,6 +190,8 @@ func newPace(t *testing.T, latency time.Duration) *pace {
 	}
 	f.browse = func(page string) (*music.Browse, error) {
 		p.answer("browse")
+		// A list of the library is itself however it's sorted.
+		page, _ = music.ParseLibraryPage(page)
 		if page == music.PageLibrarySongs {
 			return &music.Browse{Sections: []music.Section{{Style: music.ShelfList, Items: paceSongs(0, 30)}}}, nil
 		}

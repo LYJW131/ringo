@@ -896,6 +896,7 @@ func TestSettingsSidebarOpensPages(t *testing.T) {
 // and turning it off again for the level alone.
 func TestDolbyAtmosSettingAsksForItsVersion(t *testing.T) {
 	a := newTestApp()
+	a.settings.Quality = "high"
 	a.settingsPage = "playback"
 	tt := ui.NewTester(a.settingsView, 780, 900)
 	tt.Frame()

@@ -23,10 +23,15 @@ var libraryWords = map[string]struct{ all, find string }{
 	music.PageLibrarySongs:  {N("All Songs"), N("Find in Songs")},
 }
 
-// librarySorts are the ways a list sorts, as Apple's library can.
-var librarySorts = []struct{ key, label string }{
-	{"", N("Title")},
-	{music.LibrarySortAdded, N("Recently Added")},
+// librarySorts are the ways a list sorts, as Apple's library can, and the
+// way round each starts when it's chosen: titles from A, and what was added
+// last first.
+var librarySorts = []struct {
+	key, label string
+	descending bool
+}{
+	{"", N("Title"), false},
+	{music.LibrarySortAdded, N("Recently Added"), true},
 }
 
 // findPause is how long the field waits after a key before it looks.
@@ -39,14 +44,22 @@ type libraryFind struct {
 	at                        time.Time
 }
 
-// libraryPage is the page of base the sidebar opens: shown as it was last.
+// libraryDefault is how a list shows until the listener says how: what was
+// added last first, which is what they're likeliest to have come for.
+var libraryDefault = music.LibraryView{Sort: music.LibrarySortAdded, Descending: true}
+
+// libraryPage is the page of base the sidebar opens: shown as it was last,
+// or as libraryDefault.
 func (a *app) libraryPage(base string) string {
 	if id := a.settings.LibraryViews[base]; id != "" {
 		if b, _ := music.ParseLibraryPage(id); b == base {
 			return id
 		}
 	}
-	return base
+	if _, sorts := libraryWords[base]; !sorts {
+		return base
+	}
+	return music.LibraryPage(base, libraryDefault)
 }
 
 // sameLibraryPage says two pages are of one list, however each is shown.
@@ -57,15 +70,15 @@ func sameLibraryPage(x, y string) bool {
 }
 
 // showLibrary shows base as v in place of the page shown, keeping how it
-// sorts and filters for the next time it opens.
+// sorts and filters for the next time it opens, unless that's libraryDefault.
 func (a *app) showLibrary(base string, v music.LibraryView) {
 	kept := v
 	kept.Term = ""
-	if id := music.LibraryPage(base, kept); id != base {
+	if kept != libraryDefault {
 		if a.settings.LibraryViews == nil {
 			a.settings.LibraryViews = map[string]string{}
 		}
-		a.settings.LibraryViews[base] = id
+		a.settings.LibraryViews[base] = music.LibraryPage(base, kept)
 	} else {
 		delete(a.settings.LibraryViews, base)
 	}
@@ -112,7 +125,7 @@ func (a *app) libraryMenu(c *ui.Context, base string, v music.LibraryView, all s
 		m.Submenu(T("Sort Options"), func(m *ui.Menu) {
 			for _, s := range librarySorts {
 				if m.Item(T(s.label)).Checked(v.Sort == s.key).Chosen() {
-					with(func(n *music.LibraryView) { n.Sort = s.key })
+					with(func(n *music.LibraryView) { n.Sort, n.Descending = s.key, s.descending })
 				}
 			}
 			m.Separator()

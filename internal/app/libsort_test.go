@@ -33,11 +33,15 @@ func libraryAppWith(ch chan func()) *app {
 	return a
 }
 
-// The menu of the library's Albums sorts it by when albums were added, the
-// other way, and to favorites only, each its own page; how is kept, and the
-// sidebar opens Albums that way again.
+// The library's Albums opens with what was added last first. Its menu sorts
+// it by title, which starts from A, the other way, and to favorites only,
+// each its own page; how is kept, by title from A too, and the sidebar opens
+// Albums that way again. Sorted by when added again, it's as it first opened.
 func TestLibrarySortOptions(t *testing.T) {
 	a := libraryApp()
+	if a.route.id != "library:albums?sort=-dateAdded" {
+		t.Fatalf("opened as %q", a.route.id)
+	}
 	tt := ui.NewTester(a.view, 1180, 800)
 	settled(tt)
 	choose := func(path ...string) {
@@ -50,13 +54,13 @@ func TestLibrarySortOptions(t *testing.T) {
 		}
 		tt.Frame()
 	}
-	choose(T("Sort Options"), T("Recently Added"))
-	if a.route.id != "library:albums?sort=dateAdded" {
-		t.Fatalf("by when added: %q", a.route.id)
+	choose(T("Sort Options"), T("Title"))
+	if a.route.id != music.PageLibraryAlbums || a.settings.LibraryViews[music.PageLibraryAlbums] != music.PageLibraryAlbums {
+		t.Fatalf("by title, which starts from A: %q, kept %q", a.route.id, a.settings.LibraryViews)
 	}
 	choose(T("Sort Options"), T("Descending"))
 	choose(T("Favorites Only"))
-	want := "library:albums?favorites=1&sort=-dateAdded"
+	want := "library:albums?favorites=1&sort=-name"
 	if a.route.id != want || a.settings.LibraryViews[music.PageLibraryAlbums] != want {
 		t.Fatalf("shown %q, kept %q", a.route.id, a.settings.LibraryViews)
 	}
@@ -70,10 +74,9 @@ func TestLibrarySortOptions(t *testing.T) {
 		t.Fatalf("opened again as %q", a.route.id)
 	}
 	choose(T("All Albums"))
-	choose(T("Sort Options"), T("Title"))
-	choose(T("Sort Options"), T("Ascending"))
-	if a.route.id != music.PageLibraryAlbums || a.settings.LibraryViews[music.PageLibraryAlbums] != "" {
-		t.Fatalf("back to as Apple keeps it: %q, kept %q", a.route.id, a.settings.LibraryViews)
+	choose(T("Sort Options"), T("Recently Added"))
+	if _, kept := a.settings.LibraryViews[music.PageLibraryAlbums]; a.route.id != "library:albums?sort=-dateAdded" || kept {
+		t.Fatalf("back to how it opens: %q, kept %q", a.route.id, a.settings.LibraryViews)
 	}
 }
 
@@ -81,7 +84,7 @@ func TestLibrarySortOptions(t *testing.T) {
 // sorted, and its clear button brings the whole list back at once.
 func TestLibraryFind(t *testing.T) {
 	a := libraryApp()
-	a.settings.LibraryViews = map[string]string{music.PageLibraryAlbums: "library:albums?sort=-dateAdded"}
+	a.settings.LibraryViews = map[string]string{music.PageLibraryAlbums: "library:albums?sort=dateAdded"}
 	a.open(route{page: pageBrowse, id: a.libraryPage(music.PageLibraryAlbums)})
 	tt := ui.NewTester(a.view, 1180, 800)
 	settled(tt)
@@ -90,22 +93,22 @@ func TestLibraryFind(t *testing.T) {
 	}
 	tt.Type("jay")
 	tt.Frame()
-	if a.route.id != "library:albums?sort=-dateAdded" {
+	if a.route.id != "library:albums?sort=dateAdded" {
 		t.Fatalf("looked before the pause: %q", a.route.id)
 	}
 	tt.Advance(time.Second)
 	tt.Frame()
-	if a.route.id != "library:albums?sort=-dateAdded&term=jay" {
+	if a.route.id != "library:albums?sort=dateAdded&term=jay" {
 		t.Fatalf("looking: %q", a.route.id)
 	}
-	if a.settings.LibraryViews[music.PageLibraryAlbums] != "library:albums?sort=-dateAdded" {
+	if a.settings.LibraryViews[music.PageLibraryAlbums] != "library:albums?sort=dateAdded" {
 		t.Errorf("the word was kept: %q", a.settings.LibraryViews)
 	}
 	if err := tt.Click(T("Clear")); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.route.id != "library:albums?sort=-dateAdded" {
+	if a.route.id != "library:albums?sort=dateAdded" {
 		t.Fatalf("cleared: %q", a.route.id)
 	}
 }

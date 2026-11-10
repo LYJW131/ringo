@@ -260,22 +260,22 @@ func TestKeptPagesLeaveOutWhatWasLookedFor(t *testing.T) {
 	}
 }
 
-// A list of the library that was last sorted another way is asked for ahead
-// sorted that way, the page the sidebar opens. It was asked for as Apple keeps
-// it, so the sidebar's page still had to load.
+// A list of the library is asked for ahead sorted as it was last, the page
+// the sidebar opens, and one never sorted with what was added last first. It
+// was asked for as Apple keeps it, so the sidebar's page still had to load.
 func TestWarmLibraryListsAsLastSorted(t *testing.T) {
 	a := newTestApp()
 	a.library.account = &music.Account{ID: "1"}
-	a.settings.LibraryViews = map[string]string{music.PageLibraryAlbums: "library:albums?sort=-dateAdded"}
+	a.settings.LibraryViews = map[string]string{music.PageLibraryAlbums: "library:albums?favorites=1"}
 	keys := map[string]bool{}
 	for _, j := range a.warmJobs(a.library) {
 		keys[j.key] = true
 	}
-	if !keys["browse:library:albums?sort=-dateAdded"] || keys["browse:"+music.PageLibraryAlbums] {
+	if !keys["browse:library:albums?favorites=1"] || keys["browse:"+music.PageLibraryAlbums] {
 		t.Errorf("Albums asked for ahead as %v", keys)
 	}
-	if !keys["browse:"+music.PageLibrarySongs] {
-		t.Errorf("Songs, never sorted, not asked for as Apple keeps it: %v", keys)
+	if !keys["browse:library:songs?sort=-dateAdded"] || keys["browse:"+music.PageLibrarySongs] {
+		t.Errorf("Songs, never sorted, asked for ahead as %v", keys)
 	}
 }
 
