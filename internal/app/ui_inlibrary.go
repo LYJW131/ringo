@@ -14,7 +14,7 @@ import (
 // added before it's a favorite: the plus that adds it while it isn't in the
 // library, and its star once it is (likeButton).
 
-// keptSong is a song or a music video to ask about.
+// keptSong is a song, a music video or an album to ask about.
 type keptSong struct{ kind, id string }
 
 // songInLibrary reports whether tr is in the listener's library, and
@@ -163,4 +163,20 @@ func (a *app) addsFirst(tr *music.Track, liked bool) (add, known bool) {
 		return false, true
 	}
 	return known && !in, known
+}
+
+// albumInLibrary reports whether the album id is in the listener's library,
+// and whether that's known: as the listener made it in the app, or as its
+// source answered, asked as songs are, once. Not known, it isn't drawn as
+// either, so an album that is doesn't show the plus.
+func (a *app) albumInLibrary(id string) (in, known bool) {
+	lib := a.library
+	key := itemKey(music.ItemAlbum, id)
+	if on, ok := lib.kept[key]; ok {
+		return on, true
+	}
+	if !lib.askedKept[key] {
+		lib.wantKept = append(lib.wantKept, keptSong{music.ItemAlbum, id})
+	}
+	return false, false
 }

@@ -254,13 +254,14 @@ func (s *Source) inLibrary(typ, id string) *resource {
 	return own
 }
 
-// inLibraryOf says which songs or music videos of ids are in the library, a
-// hundred to a request, as the web player asks for its rows' "in library"
-// state: the catalog's resources by ID, with nothing but inLibrary. Those
-// that aren't come with it false, or without it, and those the storefront
-// doesn't have don't come at all. The library's own IDs are in it.
+// inLibraryOf says which songs, music videos or albums of ids are in the
+// library, a hundred to a request, as the web player asks for its rows' "in
+// library" state: the catalog's resources by ID, with nothing but
+// inLibrary. Those that aren't come with it false, or without it, and those
+// the storefront doesn't have don't come at all. The library's own IDs are
+// in it.
 func (s *Source) inLibraryOf(kind string, ids []string) (map[string]bool, error) {
-	if kind != music.ItemSong && kind != music.ItemVideo {
+	if kind != music.ItemSong && kind != music.ItemVideo && kind != music.ItemAlbum {
 		return nil, fail("unsupported", "")
 	}
 	typ := catalogTypes[kind]
@@ -270,7 +271,7 @@ func (s *Source) inLibraryOf(kind string, ids []string) (map[string]bool, error)
 		switch {
 		case isCatalogID(id):
 			ask = append(ask, id)
-		case isLibrarySong(id):
+		case isLibrarySong(id), kind == music.ItemAlbum && strings.HasPrefix(id, "l."):
 			out[id] = true
 		}
 	}

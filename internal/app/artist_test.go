@@ -124,6 +124,47 @@ func TestArtistBiography(t *testing.T) {
 	}
 }
 
+// An artist's latest release has the plus that adds it to the library once
+// the library says it isn't there, as in Music on the Mac; the plus adds the
+// album without opening it, and goes.
+func TestLatestReleaseAdds(t *testing.T) {
+	a := artistApp(false)
+	ch := posts(a)
+	a.accountAsked = true
+	asked := make(chan string, 8)
+	fake(a).inLibrary = func(kind string, ids []string) (map[string]bool, error) {
+		asked <- kind
+		return map[string]bool{}, nil
+	}
+	added := make(chan string, 4)
+	fake(a).addToLibrary = func(kind, id string, on bool) error { added <- kind + ":" + id; return nil }
+	tt := ui.NewTester(a.view, 1180, 900)
+	settled(tt)
+	if _, ok := tt.Find("Add to Library"); ok {
+		t.Fatal("a plus before the library said")
+	}
+	// Asked with the page's songs and videos, in no order.
+	for wait(t, asked, "the album") != music.ItemAlbum {
+	}
+	until(t, ch, func() bool { _, known := a.albumInLibrary("pz"); return known })
+	settled(tt)
+	before := a.route
+	if err := tt.Click("Add to Library"); err != nil {
+		t.Fatalf("no plus: %v", err)
+	}
+	if got := wait(t, added, "the album added"); got != "album:pz" {
+		t.Errorf("added %s", got)
+	}
+	if a.route != before {
+		t.Errorf("the plus opened %+v", a.route)
+	}
+	until(t, ch, func() bool { return a.library.inLibrary(music.ItemAlbum, "pz", false) })
+	settled(tt)
+	if _, ok := tt.Find("Add to Library"); ok {
+		t.Error("the plus stayed once the album was added")
+	}
+}
+
 // With MM_FRAMES set, saves an artist's page headed by their picture
 // moving (its still, as tests don't decode video), by their round photo, and
 // by nothing, in the light and the dark, wide and narrow, to set beside
@@ -142,7 +183,7 @@ func TestArtistFrames(t *testing.T) {
 		{"bare", func(ar *music.Artist) { ar.ImageURL, ar.Bio = "", "" }},
 	}
 	// Top Songs of eighteen, as Jay Chou's are: three to a column, the
-	// next column's corner showing.
+	// next column's corner showing; beside them the latest release's plus.
 	for _, dark := range []bool{false, true} {
 		a := artistApp(false)
 		top := &a.artists["159260351"].page.Sections[1]
@@ -152,6 +193,8 @@ func TestArtistFrames(t *testing.T) {
 			top.Items = append(top.Items, it)
 		}
 		a.artists["159260351"].secs = artistSections(a.artists["159260351"].page)
+		// The latest release not in the library: its plus.
+		a.library.kept[itemKey(music.ItemAlbum, "pz")] = false
 		shelfArt(a)
 		tt := ui.NewTester(a.view, 1440, 900)
 		tt.SetDark(dark)

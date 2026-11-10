@@ -181,3 +181,28 @@ func TestInLibraryOf(t *testing.T) {
 		t.Errorf("asked %d times, for %q", len(queries), queries)
 	}
 }
+
+// Whether an album is in the library is asked of the catalog as a song's
+// is, for the plus by an artist's latest release.
+func TestAlbumInLibraryOf(t *testing.T) {
+	ts := newTestSource(t, func(r *http.Request) *http.Response {
+		q := r.URL.Query()
+		if r.URL.Path != "/v1/catalog/us" || q.Get("fields[albums]") != "inLibrary" {
+			return answer(404, "")
+		}
+		var data []any
+		for _, id := range strings.Split(q.Get("ids[albums]"), ",") {
+			data = append(data, map[string]any{"id": id, "type": "albums", "attributes": map[string]any{"inLibrary": id == "2"}})
+		}
+		return answer(200, map[string]any{"data": data})
+	})
+	ts.storage.set(userTokenKey, "token")
+	ts.storage.set(storefrontKey, "us")
+	in, err := ts.InLibrary(music.ItemAlbum, []string{"1", "2", "l.own"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if in["1"] || !in["2"] || !in["l.own"] {
+		t.Errorf("in the library: %v", in)
+	}
+}

@@ -229,6 +229,16 @@ func (a *app) latestCard(c *ui.Context, secs []music.Section) {
 			if it.Subtitle != "" {
 				ui.Text(c, it.Subtitle).FontSize(12.5).TextColor(p.muted).SingleLine()
 			}
+			// The plus that adds it to the library, as Music on the Mac has
+			// it here, then its star; neither until the library says which.
+			if it.Kind == music.ItemAlbum && !a.library.signedOut() {
+				if in, known := a.albumInLibrary(it.ID); known {
+					fav := it.Album != nil && it.Album.Favorite
+					ui.Box(c).Margin(8, 0, 0, 0).Children(func() {
+						a.libraryButton(c, music.ItemAlbum, it.ID, in, fav, true)
+					})
+				}
+			}
 		})
 	})
 }
