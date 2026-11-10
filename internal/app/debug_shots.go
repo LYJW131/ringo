@@ -14,7 +14,9 @@ import (
 // With MM_SHOTS set to a directory, the app walks through its pages and
 // saves what its window shows of each there, for checking the design against
 // what the source really answers. It plays a song without sound, to see the
-// player at work, and leaves the listener's settings as they were.
+// player at work, and leaves the listener's settings as they were. With
+// MM_SHOTS_SIZE set, as 880x580, the window is that size for the walk, and
+// the size it had again after.
 func init() {
 	dir := os.Getenv("MM_SHOTS")
 	if dir == "" {
@@ -41,6 +43,16 @@ func init() {
 			}
 			browse := func(id string) route { return route{page: pageBrowse, id: id} }
 			mygo.RunOnMain(func() { a.win.Show(); a.win.Focus() })
+			defer mygo.RunOnMain(mygo.App.Quit)
+			var w, h int
+			if n, _ := fmt.Sscanf(os.Getenv("MM_SHOTS_SIZE"), "%dx%d", &w, &h); n == 2 {
+				mygo.RunOnMain(func() {
+					was, tall := a.win.Size()
+					a.win.SetSize(w, h)
+					w, h = was, tall
+				})
+				defer mygo.RunOnMain(func() { a.win.SetSize(w, h) })
+			}
 			time.Sleep(6 * time.Second)
 			shot("home")
 			page("new", browse(music.PageNew), 6*time.Second)
@@ -79,7 +91,6 @@ func init() {
 					step(func() { a.pl.TogglePlay() })
 				}
 			}
-			mygo.RunOnMain(mygo.App.Quit)
 		}()
 	}
 }
