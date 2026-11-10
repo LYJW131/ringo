@@ -22,8 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"mygo-music/internal/applemusic/amhelper"
-	"mygo-music/internal/music"
+	"ringo/internal/applemusic/amhelper"
+	"ringo/internal/music"
 )
 
 // Options are what the app gives the source.

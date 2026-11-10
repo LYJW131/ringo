@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // Plays, reported to Apple as the web player at music.apple.com reports

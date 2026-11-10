@@ -3,8 +3,8 @@ package applemusic
 import (
 	"strings"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // Home, and the source's own pages, by their names:

@@ -9,7 +9,7 @@ import (
 	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 const sidebarWidth = 232

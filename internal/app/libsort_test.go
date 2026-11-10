@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // libraryApp is signed in and shows the library's Albums, which any way it

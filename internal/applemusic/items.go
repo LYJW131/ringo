@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // What Apple's pages hold, as the app's shelves show it: each of Apple's

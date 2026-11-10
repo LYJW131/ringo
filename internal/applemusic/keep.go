@@ -3,7 +3,7 @@ package applemusic
 import (
 	"strings"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // Favorites, the library, and songs to go on with: written as the web

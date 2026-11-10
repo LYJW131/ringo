@@ -5,8 +5,8 @@ import (
 
 	"github.com/egoist/mygo/audio"
 
-	"mygo-music/internal/lyrics"
-	"mygo-music/internal/music"
+	"ringo/internal/lyrics"
+	"ringo/internal/music"
 )
 
 // These set a player up as it would be after loading, without loading

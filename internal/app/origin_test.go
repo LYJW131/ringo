@@ -5,7 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // origins lists where the queue's songs are played from, in the order they

@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // artistLinks shows a track's artists as its credits read, each a link to

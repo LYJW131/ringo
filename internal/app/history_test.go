@@ -5,7 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // The side buttons of a mouse go back and forward between pages.

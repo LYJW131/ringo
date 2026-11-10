@@ -7,7 +7,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // A Line is a line of timed lyrics, with its translation if any, and

@@ -16,7 +16,7 @@ import (
 
 	"github.com/Eyevinn/mp4ff/mp4"
 
-	"mygo-music/internal/applemusic/amhelper/fakeapple"
+	"ringo/internal/applemusic/amhelper/fakeapple"
 )
 
 // samplesOf parses a fragmented MP4 and returns its header, its box layout

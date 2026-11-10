@@ -6,9 +6,9 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/lyrics"
-	"mygo-music/internal/music"
-	"mygo-music/internal/player"
+	"ringo/internal/lyrics"
+	"ringo/internal/music"
+	"ringo/internal/player"
 )
 
 // Choosing a style from the stage's menu sets its lyrics in it, and

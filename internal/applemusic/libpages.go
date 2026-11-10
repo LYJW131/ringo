@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // The listener's own pages: Home's recommendations, and their library, a

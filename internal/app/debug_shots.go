@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // With MM_SHOTS set to a directory, the app walks through its pages and

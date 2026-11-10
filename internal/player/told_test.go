@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // listener is a source that keeps what it's told of what plays.

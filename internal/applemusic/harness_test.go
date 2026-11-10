@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/applemusic/amhelper"
+	"ringo/internal/applemusic/amhelper"
 )
 
 // The tests' stand-ins for what the source reaches: Apple and amhelper

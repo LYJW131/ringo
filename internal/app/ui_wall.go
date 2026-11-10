@@ -7,8 +7,8 @@ import (
 	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/lyrics"
-	"mygo-music/internal/music"
+	"ringo/internal/lyrics"
+	"ringo/internal/music"
 )
 
 // The wall lays the queue out as a wall of its covers, under the song

@@ -8,7 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/shader"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // The cover of Now Playing is a thing to touch. It tilts toward the

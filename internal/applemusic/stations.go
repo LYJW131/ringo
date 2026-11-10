@@ -1,6 +1,6 @@
 package applemusic
 
-import "mygo-music/internal/music"
+import "ringo/internal/music"
 
 // Stations go on with what Apple answers next. Live radio has no next
 // tracks: it plays as it's on the air.

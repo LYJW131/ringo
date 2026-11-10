@@ -1,6 +1,6 @@
 package player
 
-import "mygo-music/internal/music"
+import "ringo/internal/music"
 
 // The next track's audio is asked for once the current one plays, and comes in
 // meanwhile, so that it starts at once when its turn comes: a source may take

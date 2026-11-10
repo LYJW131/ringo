@@ -1,7 +1,7 @@
 package app
 
 import (
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // Whether a song is in the listener's library. A page of the library says

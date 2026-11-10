@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/player"
+	"ringo/internal/player"
 )
 
 // palette holds the app's colors, for the light and the dark appearance.

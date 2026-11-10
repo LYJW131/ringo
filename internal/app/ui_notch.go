@@ -7,8 +7,8 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/music"
-	"mygo-music/internal/player"
+	"ringo/internal/music"
+	"ringo/internal/player"
 )
 
 // notch is the quick player around the camera housing at the top of the

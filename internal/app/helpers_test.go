@@ -13,8 +13,8 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/music"
-	"mygo-music/internal/player"
+	"ringo/internal/music"
+	"ringo/internal/player"
 )
 
 // mainThread takes what has to run on the main thread, which TestMain keeps
@@ -35,7 +35,7 @@ func onMainThread(fn func()) {
 // TestMain keeps what the tests write out of the listener's own data, and serves
 // the main thread while they run.
 func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "mygo-music-test")
+	dir, err := os.MkdirTemp("", "ringo-test")
 	if err != nil {
 		panic(err)
 	}

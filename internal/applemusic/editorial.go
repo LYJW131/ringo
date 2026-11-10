@@ -3,8 +3,8 @@ package applemusic
 import (
 	"strings"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // The editors' pages: New, Radio, a genre's, a See All, a feature of many

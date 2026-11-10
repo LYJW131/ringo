@@ -11,9 +11,9 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
-	"mygo-music/internal/player"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
+	"ringo/internal/player"
 )
 
 type pageKind int

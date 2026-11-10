@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"mygo-music/internal/i18n"
+	"ringo/internal/i18n"
 )
 
 // Apple's addresses, and who the source says it is to them: Safari, as the

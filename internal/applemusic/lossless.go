@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // Lossless: Apple's ALAC when the app's quality is Lossless, up to 24-bit/48

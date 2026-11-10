@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // keepingApp is an app that keeps its pages in dir, with its source starting

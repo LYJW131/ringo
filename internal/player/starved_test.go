@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // onServer answers every track as the same song, of which the server sends a

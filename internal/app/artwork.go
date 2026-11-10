@@ -21,7 +21,7 @@ import (
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // artwork is a cover, decoded and ready to draw, with what the player

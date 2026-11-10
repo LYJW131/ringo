@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/player"
+	"ringo/internal/player"
 )
 
 // The drift eases in as the music plays and glides to a stop as it

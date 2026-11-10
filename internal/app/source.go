@@ -3,8 +3,8 @@ package app
 import (
 	"strings"
 
-	"mygo-music/internal/applemusic"
-	"mygo-music/internal/music"
+	"ringo/internal/applemusic"
+	"ringo/internal/music"
 )
 
 // The app's one source is Apple Music, in Go like the rest of it: see

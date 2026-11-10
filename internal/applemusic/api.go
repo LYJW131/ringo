@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"mygo-music/internal/i18n"
+	"ringo/internal/i18n"
 )
 
 // Apple's API at amp-api.music.apple.com, as the web player asks it.

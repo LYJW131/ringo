@@ -14,7 +14,7 @@ import (
 
 	"github.com/egoist/mygo/audio"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // A download fetches a song as it plays: readers wait for the bytes they

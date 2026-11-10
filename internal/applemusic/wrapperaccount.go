@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // The accounts the listener's wrapper holds, to switch to without signing

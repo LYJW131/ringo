@@ -15,7 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"mygo-music/internal/applemusic/fairplay"
+	"ringo/internal/applemusic/fairplay"
 )
 
 // wrapper talks to a wrapper-manager (or a wrapper-lite of AMDL-Web's fork):

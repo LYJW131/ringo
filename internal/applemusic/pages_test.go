@@ -13,8 +13,8 @@ import (
 	"sync"
 	"testing"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // Apple Music's pages, from answers Apple gave (testdata/, cut short; see

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // served answers each track as a song of its own address on a server, as a

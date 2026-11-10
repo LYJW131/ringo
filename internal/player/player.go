@@ -10,9 +10,9 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/audio"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/lyrics"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/lyrics"
+	"ringo/internal/music"
 )
 
 // RepeatMode is music's, which the source is told it in.

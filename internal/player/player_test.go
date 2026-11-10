@@ -12,7 +12,7 @@ import (
 
 	"github.com/egoist/mygo/audio"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 func TestPlayEmptyQueue(t *testing.T) {

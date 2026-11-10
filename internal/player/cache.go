@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // Cache keeps the songs played on disk, so that they play again at once,

@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // Durations read as minutes and seconds.

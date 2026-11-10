@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/music"
-	vid "mygo-music/internal/video"
+	"ringo/internal/music"
+	vid "ringo/internal/video"
 )
 
 // With APPLE_MUSIC_TOKEN_FILE, reading only: a card of Home's picks and an

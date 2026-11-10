@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // The source as the app calls it, without asking Apple anything: what it

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // Getting ready before the listener picks a song, so it starts at once.

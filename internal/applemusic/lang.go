@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // Where the catalog is and what language it speaks are two things to Apple:

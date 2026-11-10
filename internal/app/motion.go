@@ -9,8 +9,8 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/music"
-	"mygo-music/internal/video"
+	"ringo/internal/music"
+	"ringo/internal/video"
 )
 
 // Animated Art: the covers Apple Music has moving, played without sound and

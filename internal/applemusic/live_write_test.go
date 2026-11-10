@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // Writing to a real account, so run only with APPLE_MUSIC_WRITE_TOKEN_FILE,

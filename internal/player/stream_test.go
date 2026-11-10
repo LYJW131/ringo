@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // decodeAll decodes the whole of a song from its start.

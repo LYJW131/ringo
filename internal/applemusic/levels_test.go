@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // catalogSong is a song's attributes as the catalog lists them: Hi-Res with

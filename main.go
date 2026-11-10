@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"mygo-music/internal/app"
+	"ringo/internal/app"
 )
 
 func main() {

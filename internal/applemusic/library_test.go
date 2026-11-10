@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // The listener's own playlists, as Apple's Recently Played gives them, by

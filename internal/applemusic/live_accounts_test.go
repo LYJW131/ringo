@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // With APPLE_MUSIC_TOKEN_FILE and APPLE_MUSIC_WRITE_TOKEN_FILE, two

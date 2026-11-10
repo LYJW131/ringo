@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // libraryAlbums is a stand-in for the library's albums as Apple lists them: a

@@ -3,7 +3,7 @@ package applemusic
 import (
 	"strings"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // The library's Albums and Songs sorted and filtered, as Music's are (see

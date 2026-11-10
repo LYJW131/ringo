@@ -1,6 +1,6 @@
 package app
 
-import "mygo-music/internal/music"
+import "ringo/internal/music"
 
 // Where what's played is played from, which the player passes on to the
 // source, to say it to Apple as Apple Music's own players do: an album or a

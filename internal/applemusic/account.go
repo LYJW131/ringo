@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // Accounts. A listener signs in, on music.apple.com in a window the app

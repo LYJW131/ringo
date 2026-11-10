@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // Apple Music's own pages against the real Apple Music, so not run by

@@ -18,7 +18,7 @@ import (
 	_ "github.com/egoist/mygo/audio/aac" // AAC in MP4, as the player has it
 	"github.com/egoist/mygo/audio/mp4"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // With APPLE_MUSIC_TOKEN_FILE, the library's albums the catalog doesn't

@@ -14,8 +14,8 @@ import (
 	"github.com/Eyevinn/mp4ff/mp4"
 	mygomp4 "github.com/egoist/mygo/audio/mp4"
 
-	_ "mygo-music/internal/heaac"
-	"mygo-music/internal/music"
+	_ "ringo/internal/heaac"
+	"ringo/internal/music"
 )
 
 // Against the real Apple Music, so not run by default: LIVE=1 signed out

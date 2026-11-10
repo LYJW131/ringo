@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // fakeAccounts stands in for Apple and amhelper for the accounts' tests.

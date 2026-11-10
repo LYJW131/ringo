@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // Lyrics: Apple's TTML, word by word where Apple has it, with the

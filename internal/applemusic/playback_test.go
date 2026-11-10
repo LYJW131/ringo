@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"mygo-music/internal/applemusic/widevine"
-	"mygo-music/internal/music"
+	"ringo/internal/applemusic/widevine"
+	"ringo/internal/music"
 )
 
 // Playing a song as AAC, against a stand-in for Apple and for amhelper: the

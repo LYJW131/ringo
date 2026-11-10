@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"mygo-music/internal/applemusic/amhelper"
+	"ringo/internal/applemusic/amhelper"
 )
 
 // amhelper takes the encryption off Apple's audio as it comes, the AAC with

@@ -9,8 +9,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mygo-music/internal/music"
-	"mygo-music/internal/video"
+	"ringo/internal/music"
+	"ringo/internal/video"
 )
 
 // openClip opens the clip of internal/video's tests, counting how many

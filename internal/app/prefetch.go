@@ -5,7 +5,7 @@ import (
 	"slices"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // What the app fetches before the listener asks, so that a page of the

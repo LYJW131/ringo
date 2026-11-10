@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // Reporting a play to the real activity service, so run only with

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // Index finds the line being sung at a time, and none before the first.

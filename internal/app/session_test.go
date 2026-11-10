@@ -8,8 +8,8 @@ import (
 
 	"github.com/egoist/mygo/audio"
 
-	"mygo-music/internal/music"
-	"mygo-music/internal/player"
+	"ringo/internal/music"
+	"ringo/internal/player"
 )
 
 // The session is kept a while after playback changes and every while as

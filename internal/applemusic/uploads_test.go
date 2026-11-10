@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // Songs of the library the catalog doesn't have: one the listener uploaded

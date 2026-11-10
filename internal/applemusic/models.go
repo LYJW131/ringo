@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // What Apple's API answers, as far as the source reads it, and what Apple

@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"mygo-music/internal/player"
+	"ringo/internal/player"
 )
 
 // Where playback was left is kept in session.json in the user data

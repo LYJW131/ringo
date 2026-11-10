@@ -5,7 +5,7 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"mygo-music/internal/player"
+	"ringo/internal/player"
 )
 
 // newSongCache returns the cache of songs played, in the app's cache

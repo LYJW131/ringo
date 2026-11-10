@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // What favoriting, keeping and autoplay ask Apple, signed in: the method,

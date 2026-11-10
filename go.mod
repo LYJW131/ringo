@@ -1,4 +1,4 @@
-module mygo-music
+module ringo
 
 go 1.27.3
 

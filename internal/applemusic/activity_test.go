@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // An activity service that keeps what it was sent, in the order it came.

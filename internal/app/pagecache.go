@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // What's kept on this computer of what the listener's pages showed, so that

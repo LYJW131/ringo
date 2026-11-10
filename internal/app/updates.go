@@ -5,7 +5,7 @@ import (
 	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/plugins/updater/native"
 
-	"mygo-music/internal/i18n"
+	"ringo/internal/i18n"
 )
 
 // The update plugin's check and preferences, which tests swap: they don't

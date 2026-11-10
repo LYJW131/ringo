@@ -55,7 +55,7 @@ import (
 	"sync"
 	"time"
 
-	"mygo-music/internal/applemusic/fairplay"
+	"ringo/internal/applemusic/fairplay"
 )
 
 // Config is what Start is given.

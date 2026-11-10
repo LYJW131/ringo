@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // recorder keeps what the source asked, by when, on the simulated clock.

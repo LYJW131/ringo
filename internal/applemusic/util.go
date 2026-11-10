@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // What the app does with an error, by its kind: signIn asks the listener to

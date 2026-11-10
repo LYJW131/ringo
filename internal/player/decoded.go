@@ -10,7 +10,7 @@ import (
 	_ "github.com/egoist/mygo/audio/aac" // AAC in MP4
 	"github.com/egoist/mygo/audio/mp4"
 
-	_ "mygo-music/internal/heaac" // HE-AAC in MP4, High Efficiency's
+	_ "ringo/internal/heaac" // HE-AAC in MP4, High Efficiency's
 )
 
 // downloadFile reads a download as a file, for MyGo's decoders: what's

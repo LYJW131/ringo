@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"mygo-music/internal/music"
+	"ringo/internal/music"
 )
 
 // songsOf makes the library's songs n of them, a hundred to a part as Apple

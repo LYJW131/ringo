@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // Albums, artists and playlists, from the catalog or the library. Library

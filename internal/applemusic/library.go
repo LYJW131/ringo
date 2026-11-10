@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
+	"ringo/internal/i18n"
+	"ringo/internal/music"
 )
 
 // The listener's library: what they played lately, their songs, albums and
