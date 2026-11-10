@@ -89,7 +89,7 @@ func resourceOf(t *testing.T, s string) *resource {
 func TestSongs(t *testing.T) {
 	s := New(Options{DataDir: t.TempDir()})
 	library := s.toTrack(resourceOf(t, `{"id":"i.abc","type":"library-songs","attributes":{"name":"迷星叫","artistName":"MyGO!!!!!","albumName":"迷跡波","durationInMillis":1000,"playParams":{"catalogId":"1783644604"},"url":"https://music.apple.com/jp/album/x/1783644603?i=1783644604"}}`))
-	if library.ID != "1783644604" || library.Album.ID != "1783644603" || library.Artists[0].ID != "name:MyGO!!!!!" || library.Unavailable {
+	if library.ID != "1783644604" || library.Album.ID != "1783644603" || library.Artists[0].ID != "of:songs:1783644604:MyGO!!!!!" || library.Unavailable {
 		t.Errorf("library song: %+v", library)
 	}
 	gone := s.toTrack(resourceOf(t, `{"id":"i.xyz","type":"library-songs","attributes":{"name":"gone"}}`))
@@ -124,5 +124,35 @@ func TestCan(t *testing.T) {
 		if s.Can(name) != slices.Contains(want, name) {
 			t.Errorf("Can(%q) = %v", name, s.Can(name))
 		}
+	}
+}
+
+// An artist known by name is the one named to the letter, whoever a search
+// lists first: LiSA and LISA are two artists, and the first found used to
+// be taken.
+func TestNamedArtistToTheLetter(t *testing.T) {
+	artist := func(id, name string) *resource {
+		r := &resource{ID: id, Type: "artists"}
+		r.Attributes = &attributes{Name: name}
+		return r
+	}
+	found := []*resource{artist("1", "LISA"), nil, artist("2", "LiSA"), artist("3", "Lisa")}
+	for name, want := range map[string]string{"LiSA": "2", "LISA": "1", "lisa": "1", "Someone Else": "1"} {
+		if got := named(found, name); got == nil || got.ID != want {
+			t.Errorf("%q: %+v, want %s", name, got, want)
+		}
+	}
+	if named(nil, "LiSA") != nil {
+		t.Error("someone found among none")
+	}
+	// What the artist of a catalog song is known by, and of one that isn't.
+	if got := artistOf("songs", "1538286723", "LiSA").ID; got != "of:songs:1538286723:LiSA" {
+		t.Errorf("of a catalog song: %q", got)
+	}
+	if got := artistOf("songs", "i.abc", "LiSA").ID; got != "name:LiSA" {
+		t.Errorf("of an upload: %q", got)
+	}
+	if typ, of, name, ok := artistOfParts("of:albums:42:A: B"); !ok || typ != "albums" || of != "42" || name != "A: B" {
+		t.Errorf("parts %q %q %q %v", typ, of, name, ok)
 	}
 }

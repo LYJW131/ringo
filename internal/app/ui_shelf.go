@@ -418,7 +418,12 @@ func (a *app) openItem(secs []music.Section, s, i int) {
 			a.open(route{page: pagePlaylist, id: itemID(it, it.Playlist != nil, func() string { return it.Playlist.ID })})
 		}
 	case music.ItemArtist:
-		if lib.can("artist") {
+		switch {
+		case it.Page != "":
+			// An artist of the library opens as what the library has of
+			// them: their library ID isn't one the catalog's page takes.
+			a.open(route{page: pageBrowse, id: it.Page})
+		case lib.can("artist"):
 			a.open(route{page: pageArtist, id: itemID(it, it.Artist != nil, func() string { return it.Artist.ID })})
 		}
 	case music.ItemStation:

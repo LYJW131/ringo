@@ -358,6 +358,26 @@ func artistIDOf(item *resource) string {
 // byName is an artist without an ID, by name: the artist page looks them up.
 func byName(name string) music.Artist { return music.Artist{ID: "name:" + name, Name: name} }
 
+// artistOf is the artist of a catalog song or album (typ is songs or
+// albums) that came without its artists: the artist page asks the catalog
+// who that song's or album's are, which a search for the name can't tell
+// (LiSA is not LISA). Of what isn't in the catalog, they're known by name.
+func artistOf(typ, id, name string) music.Artist {
+	if !isCatalogID(id) {
+		return byName(name)
+	}
+	return music.Artist{ID: "of:" + typ + ":" + id + ":" + name, Name: name}
+}
+
+// artistOfParts takes an artistOf ID apart.
+func artistOfParts(id string) (typ, of, name string, ok bool) {
+	parts := strings.SplitN(id, ":", 4)
+	if len(parts) != 4 || parts[0] != "of" {
+		return "", "", "", false
+	}
+	return parts[1], parts[2], parts[3], true
+}
+
 // colors are those Apple gives with a picture.
 func colors(a *artwork) music.Colors {
 	if a == nil {
@@ -444,14 +464,13 @@ func (s *Source) toTrack(item *resource) music.Track {
 		s.noteAudio(id, a)
 	}
 	s.noteDuration(id, a.DurationInMillis)
-	artistID := artistIDOf(item)
-	if artistID == "" {
-		artistID = "name:" + a.ArtistName
+	artists := []music.Artist{artistOf("songs", id, a.ArtistName)}
+	if artistID := artistIDOf(item); artistID != "" {
+		artists[0].ID = artistID
 	}
-	artists := []music.Artist{{ID: artistID, Name: a.ArtistName}}
 	albumArtists := artists
 	if a.AlbumArtistName != "" {
-		albumArtists = []music.Artist{byName(a.AlbumArtistName)}
+		albumArtists = []music.Artist{artistOf("albums", albumIDOf(item), a.AlbumArtistName)}
 	}
 	own := uploaded(item)
 	return music.Track{
@@ -496,11 +515,10 @@ func (s *Source) toAlbum(item *resource) music.Album {
 	}
 	var artists []music.Artist
 	if a.ArtistName != "" {
-		artistID := artistIDOf(item)
-		if artistID == "" {
-			artistID = "name:" + a.ArtistName
+		artists = []music.Artist{artistOf("albums", id, a.ArtistName)}
+		if artistID := artistIDOf(item); artistID != "" {
+			artists[0].ID = artistID
 		}
-		artists = []music.Artist{{ID: artistID, Name: a.ArtistName}}
 	}
 	written := a.EditorialNotes
 	if written == nil {

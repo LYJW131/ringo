@@ -368,3 +368,24 @@ func TestShelfFrames(t *testing.T) {
 	settled(tt)
 	saveFrame(t, dir, "shelf-hover-dark.png", tt.Image())
 }
+
+// An artist of the library opens as what the library has of them: the
+// catalog's artist page, asked for their library ID, said Apple Music
+// doesn't have this.
+func TestLibraryArtistOpensTheirLibraryPage(t *testing.T) {
+	a, _ := shelfApp()
+	a.browses[music.PageLibraryArtist] = &browseData{at: time.Now(), page: &music.Browse{Title: "Artists", Sections: []music.Section{
+		{Style: music.ShelfGrid, Items: []music.Item{
+			{Kind: music.ItemArtist, ID: "r.1", Title: "The Polar Lights", Page: "library-artist:r.1", Artist: &music.Artist{ID: "r.1", Name: "The Polar Lights"}},
+		}},
+	}}}
+	a.route = route{page: pageBrowse, src: "fake", id: music.PageLibraryArtist}
+	tt := ui.NewTester(a.view, 1180, 780)
+	tt.Frame()
+	if err := tt.Click("The Polar Lights"); err != nil {
+		t.Fatal(err)
+	}
+	if a.route != (route{page: pageBrowse, src: "fake", id: "library-artist:r.1"}) {
+		t.Fatalf("opened %+v", a.route)
+	}
+}

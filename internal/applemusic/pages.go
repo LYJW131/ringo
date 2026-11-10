@@ -12,7 +12,8 @@ import (
 
 // Albums, artists and playlists, from the catalog or the library. Library
 // IDs start with l. (albums) and p. (playlists); an artist the app only knows
-// by name has the ID name:<name>. A catalog page is asked for as the web
+// by name has the ID name:<name>, and one known as the artist of a song or an
+// album, of:<songs|albums>:<id>:<name>. A catalog page is asked for as the web
 // player asks, with the shelves that follow it (views) in the language asked
 // for.
 
@@ -209,21 +210,57 @@ var canvasStyle = map[string]string{
 	"artist-detail-header":  "",
 }
 
+// named is the artist among found whose name is name, to the letter if one
+// is, else whatever the case, else the first: a search for LiSA finds LISA
+// too, and may list her first.
+func named(found []*resource, name string) *resource {
+	var folded, first *resource
+	for _, r := range found {
+		if r == nil {
+			continue
+		}
+		if first == nil {
+			first = r
+		}
+		switch got := r.attrs().Name; {
+		case got == name:
+			return r
+		case folded == nil && strings.EqualFold(got, name):
+			folded = r
+		}
+	}
+	if folded != nil {
+		return folded
+	}
+	return first
+}
+
 func (s *Source) artist(id string) (*music.ArtistPage, error) {
 	s.warm()
+	if typ, of, name, ok := artistOfParts(id); ok {
+		// The artists of the song or album itself; by name only if the
+		// catalog doesn't say.
+		id = "name:" + name
+		if b, err := s.catalog("/"+typ+"/"+of+"/artists", params{"limit": "10"}); err == nil {
+			if found := named(b.all(b.Data), name); found != nil {
+				id = found.ID
+			}
+		}
+	}
 	if name, ok := strings.CutPrefix(id, "name:"); ok {
 		var b struct {
 			Results struct {
 				Artists relationship `json:"artists"`
 			} `json:"results"`
 		}
-		if err := s.catalogInto("/search", params{"term": name, "types": "artists", "limit": "1"}, &b); err != nil {
+		if err := s.catalogInto("/search", params{"term": name, "types": "artists", "limit": "10"}, &b); err != nil {
 			return nil, err
 		}
-		if len(b.Results.Artists.Data) == 0 || b.Results.Artists.Data[0] == nil {
+		found := named(b.Results.Artists.Data, name)
+		if found == nil {
 			return nil, fail("unavailable", i18n.T("Apple Music doesn't have this"))
 		}
-		id = b.Results.Artists.Data[0].ID
+		id = found.ID
 	}
 	b, _, favorite, err := s.withLibrary("artists", id, artistParams())
 	if err != nil {
