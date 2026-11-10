@@ -396,8 +396,9 @@ func (a *app) playlistRow(c *ui.Context, tracks []music.Track, i int, pid string
 var rowHoverIn = ui.ElementTransition{Duration: 100 * time.Millisecond, Enter: &ui.Motion{Opacity: 0}, Exit: &ui.Motion{Opacity: 0}}
 
 // playButtons are the buttons of a page that play what it lists, in order or
-// shuffled.
-func (a *app) playButtons(c *ui.Context, tracks []music.Track) {
+// shuffled. tight, Shuffle is its icon alone, where a header hasn't the room
+// for its word.
+func (a *app) playButtons(c *ui.Context, tracks []music.Track, tight bool) {
 	p := a.pal
 	if pillButton(c.Key("play"), iconPlay, T("Play"), p.accent, p.onAccent).Clicked() {
 		if a.pl.Shuffle() {
@@ -405,7 +406,14 @@ func (a *app) playButtons(c *ui.Context, tracks []music.Track) {
 		}
 		a.pl.PlayQueue(tracks, firstPlayable(tracks), a.pageOrigin())
 	}
-	if pillButton(c.Key("shuffle"), iconShuffle, T("Shuffle"), p.hover.Over(p.bg), p.text).Clicked() {
+	var shuffle ui.Element
+	if tight {
+		shuffle = a.roundHeaderButton(c.Key("shuffle"), T("Shuffle"))
+		shuffle.Tooltip(T("Shuffle")).Children(func() { ui.Icon(c, iconShuffle).Size(14, 14) })
+	} else {
+		shuffle = pillButton(c.Key("shuffle"), iconShuffle, T("Shuffle"), p.hover.Over(p.bg), p.text)
+	}
+	if shuffle.Clicked() {
 		a.pl.PlayShuffled(tracks, a.pageOrigin())
 	}
 }
@@ -427,7 +435,7 @@ func (a *app) likedPage(c *ui.Context) {
 					ui.Text(c, i18n.Songs(len(lib.likedList))).FontSize(13).TextColor(p.muted)
 				}
 				if len(lib.likedList) > 0 {
-					ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() { a.playButtons(c, lib.likedList) })
+					ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() { a.playButtons(c, lib.likedList, false) })
 				}
 			})
 		})

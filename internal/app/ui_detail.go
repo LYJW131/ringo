@@ -114,15 +114,19 @@ func (a *app) detailHeader(c *ui.Context, cover, video string, lines func(), not
 			}
 			// What the row needs with every button in words: Play, Shuffle,
 			// the spacer, Add to Library and the dots, and the gaps between.
+			room := a.shelfMetrics(c).inner - detailCover - 30
 			need := float32(4*pillGap + roundSize)
 			if len(tracks) > 0 {
 				need += pillWidth(c, T("Play"), true) + pillWidth(c, T("Shuffle"), true)
 			}
-			need += pillWidth(c, T("Add to Library"), true)
-			compact := need > a.shelfMetrics(c).inner-detailCover-30
+			compact := need+pillWidth(c, T("Add to Library"), true) > room
+			// Short of room even so, as where the system's font is a wide
+			// one, Shuffle goes to its icon too: the row never runs past the
+			// page's edge, which would hide its menu.
+			tight := compact && need+roundSize > room
 			ui.Row(c).Gap(pillGap).AlignItems(ui.Center).Margin(18, 0, 0, 0).Children(func() {
 				if len(tracks) > 0 {
-					a.playButtons(c, tracks)
+					a.playButtons(c, tracks, tight)
 				}
 				ui.Spacer(c)
 				if extra != nil {

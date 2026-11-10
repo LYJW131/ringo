@@ -234,20 +234,26 @@ func TestAlbumAddToLibrary(t *testing.T) {
 
 // In a narrow window, the header's buttons all stay in it, Add to Library
 // down to its icon: they ran past the window's edge, which hid the page's
-// menu.
+// menu. Narrower still, or with a system font as wide as Linux's fallback,
+// where Play and Shuffle in words alone ran past it by a few points, Shuffle
+// is down to its icon too.
 func TestNarrowHeaderKeepsItsButtons(t *testing.T) {
+	for _, w := range []int{840, 880} {
+		tt := ui.NewTester(albumApp().view, w, 580)
+		tt.Frame()
+		for _, label := range []string{"Play", "Shuffle", "Add to Library", "More"} {
+			r, ok := tt.Find(label)
+			if !ok || r.X+r.W > float32(w-pagePad+1) {
+				t.Fatalf("%d wide: %s at %+v, past the page's edge at %d", w, label, r, w-pagePad)
+			}
+		}
+	}
 	a := albumApp()
 	added := make(chan bool, 1)
 	fake(a).addToLibrary = func(kind, id string, on bool) error { added <- on; return nil }
 	const w = 880
 	tt := ui.NewTester(a.view, w, 580)
 	tt.Frame()
-	for _, label := range []string{"Play", "Shuffle", "Add to Library", "More"} {
-		r, ok := tt.Find(label)
-		if !ok || r.X+r.W > w-pagePad+1 {
-			t.Fatalf("%s at %+v, past the page's edge at %d", label, r, w-pagePad)
-		}
-	}
 	if err := tt.Click("Add to Library"); err != nil {
 		t.Fatal(err)
 	}

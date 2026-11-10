@@ -437,7 +437,7 @@ func (a *app) artistListsHeader(c *ui.Context, d *artistData) {
 			ui.Text(c, strings.Join(meta, " · ")).FontSize(13).TextColor(p.muted)
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Margin(10, 0, 0, 0).Children(func() {
 				if len(songs) > 0 {
-					a.playButtons(c, songs)
+					a.playButtons(c, songs, false)
 				}
 				a.favoriteButton(c.Key("favorite"), music.ItemArtist, ar.ID, ar.Favorite, 18, p.muted)
 			})
