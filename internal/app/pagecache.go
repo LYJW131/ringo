@@ -58,6 +58,7 @@ type pageFile struct {
 	Browses   map[string]*music.Browse   `json:",omitempty"`
 	Liked     []music.Track              `json:",omitempty"`
 	LikedMore bool                       `json:",omitempty"`
+	LikedAll  int                        `json:",omitempty"`
 	Playlists map[string]*music.Playlist `json:",omitempty"`
 }
 
@@ -119,7 +120,7 @@ func (a *app) stagePages() {
 		}
 	}
 	if len(f.Liked) > 0 {
-		a.setLiked(&music.Page{Tracks: f.Liked, More: f.LikedMore}, time.Time{})
+		a.setLiked(&music.Page{Tracks: f.Liked, More: f.LikedMore, Total: f.LikedAll}, time.Time{})
 	}
 }
 
@@ -266,6 +267,7 @@ func (a *app) encodePages(account string) []byte {
 	if lib.likedPaged.loaded {
 		f.Liked = lib.likedList[:min(len(lib.likedList), likedPart)]
 		f.LikedMore = lib.likedPaged.more || len(lib.likedList) > likedPart
+		f.LikedAll = lib.likedTotal
 	}
 	lists := append(append([]music.Playlist(nil), lib.mine...), lib.saved...)
 	for i := 0; i < len(lists) && len(f.Playlists) < pagesPlaylists; i++ {

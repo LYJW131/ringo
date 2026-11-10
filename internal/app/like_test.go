@@ -207,6 +207,23 @@ func TestLikedPagePaging(t *testing.T) {
 	}
 }
 
+// A song liked or unliked moves the number of liked songs there are in all
+// with it, so that the blocks standing in for those yet to come stay as many
+// as the songs to come.
+func TestLikedTotalFollowsLikes(t *testing.T) {
+	a := newTestApp()
+	lib := a.library
+	lib.likedList, lib.likedTotal = []music.Track{song("1", "一"), song("2", "二")}, 5
+	a.likedChanged(song("3", "三"), true)
+	if lib.likedTotal != 6 || len(lib.likedList) != 3 {
+		t.Errorf("after a like: %d in all, %d listed", lib.likedTotal, len(lib.likedList))
+	}
+	a.likedChanged(song("1", "一"), false)
+	if lib.likedTotal != 5 || len(lib.likedList) != 2 {
+		t.Errorf("after an unlike: %d in all, %d listed", lib.likedTotal, len(lib.likedList))
+	}
+}
+
 // With MM_FRAMES set to a directory, saves the like burst at moments after
 // the click there, side by side, to look at.
 func TestLikeBurstFrames(t *testing.T) {

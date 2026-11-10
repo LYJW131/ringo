@@ -263,6 +263,10 @@ type AccountChoice struct {
 type Page struct {
 	Tracks []Track `json:"tracks,omitempty"`
 	More   bool    `json:"more,omitempty"`
+	// Total is how many tracks the list has in all, those of the pages to
+	// come included, if the source knows. The app sizes what is yet to come
+	// by it, and asks for the pages ahead of the listener's scrolling.
+	Total int `json:"total,omitempty"`
 }
 
 // Station is an endless radio: it goes on with what StationNext gives.

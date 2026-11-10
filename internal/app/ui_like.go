@@ -128,12 +128,25 @@ func (a *app) likedChanged(tr music.Track, like bool) {
 	if like {
 		list = append(list, tr)
 	}
+	listed := false
 	for _, t := range a.library.likedList {
 		if t.ID != tr.ID {
 			list = append(list, t)
+		} else {
+			listed = true
 		}
 	}
 	a.library.likedList = list
+	// The source's count goes with it, so that the rows to come stay as many
+	// as the songs to come.
+	if lib := a.library; lib.likedTotal > 0 {
+		switch {
+		case like && !listed:
+			lib.likedTotal++
+		case !like:
+			lib.likedTotal--
+		}
+	}
 }
 
 // likeCurrent likes the song playing, or unlikes it, from the keyboard (⌘D),

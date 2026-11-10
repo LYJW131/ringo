@@ -347,7 +347,13 @@ func loadedItems(page *music.Browse) int {
 // wantsMore reports whether a page of rows loaded rows long should ask for its
 // next part now.
 func (a *app) wantsMore(page *music.Browse, rows int) bool {
-	return page.Total > 0 && loadedItems(page) < eagerItems || a.nearEnd(rows)
+	return a.wantsMoreOf(page.Total, loadedItems(page), rows)
+}
+
+// wantsMoreOf is wantsMore for a list of which the source says it has total
+// items, 0 if it doesn't say, of which loaded are loaded.
+func (a *app) wantsMoreOf(total, loaded, rows int) bool {
+	return total > 0 && loaded < eagerItems || a.nearEnd(rows)
 }
 
 // pendingRows is how many rows stand in for the items of a page that are yet

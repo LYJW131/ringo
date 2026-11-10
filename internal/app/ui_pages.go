@@ -440,15 +440,38 @@ func (a *app) likedPage(c *ui.Context) {
 		a.trackSkeleton(c, a.pageShimmer(c), true, header)
 		return
 	}
-	a.trackRows(c, lib.likedList, true, header, func(c *ui.Context) {
-		a.pageFoot(c, &lib.likedPaged, func() { a.loadLikedPage() })
-		if len(lib.likedList) == 0 {
-			a.empty(c, T("Songs you favorite will show here"))
+	// Where the source says how many songs there are, blocks stand in for
+	// those to come, as high as their rows, and the foot says nothing of
+	// loading; else the foot does (as browseRows).
+	var after []func(c *ui.Context)
+	if pending := a.likedPending(); pending > 0 {
+		s := a.rowShimmer(c)
+		for i := range pending {
+			after = append(after, func(c *ui.Context) { a.trackRowSkeleton(c, s, len(lib.likedList)+i, true) })
 		}
-	})
-	if p := &lib.likedPaged; p.more && !p.loading && p.err == "" && a.nearEnd(len(lib.likedList)+1) {
+	} else {
+		after = append(after, func(c *ui.Context) {
+			a.pageFoot(c, &lib.likedPaged, func() { a.loadLikedPage() })
+			if len(lib.likedList) == 0 {
+				a.empty(c, T("Songs you favorite will show here"))
+			}
+		})
+	}
+	a.trackRows(c, lib.likedList, true, header, after...)
+	if p := &lib.likedPaged; p.more && !p.loading && p.err == "" && a.wantsMoreOf(lib.likedTotal, len(lib.likedList), len(lib.likedList)+1) {
 		a.loadLikedPage()
 	}
+}
+
+// likedPending is how many rows stand in for the liked songs yet to come: as
+// many as the source says there are left, but pendingItems at most, and none
+// where it didn't say, or the next part failed.
+func (a *app) likedPending() int {
+	lib := a.library
+	if p := &lib.likedPaged; !p.more || p.err != "" {
+		return 0
+	}
+	return max(min(lib.likedTotal-len(lib.likedList), pendingItems), 0)
 }
 
 // loadLikedPage loads the next page of the songs the listener likes.
@@ -472,6 +495,7 @@ func (a *app) loadLikedPage() {
 			}
 			lib.likedList = append(lib.likedList, page.Tracks...)
 			lib.likedPaged.loaded, lib.likedPaged.more = true, page.More && len(page.Tracks) > 0
+			lib.likedTotal = page.Total
 			if lib.liked == nil {
 				lib.liked = map[string]bool{}
 			}
@@ -500,6 +524,7 @@ func (a *app) setLiked(page *music.Page, at time.Time) {
 	lib := a.library
 	lib.likedList = append([]music.Track(nil), page.Tracks...)
 	lib.likedPaged.loaded, lib.likedPaged.more = true, page.More && len(page.Tracks) > 0
+	lib.likedTotal = page.Total
 	lib.likedAt = at
 	if lib.liked == nil {
 		lib.liked = map[string]bool{}
@@ -537,6 +562,7 @@ func (a *app) refreshLiked(quiet bool, then func()) {
 			}
 			lib.likedList = page.Tracks
 			lib.likedPaged.more = page.More && len(page.Tracks) > 0
+			lib.likedTotal = page.Total
 			if lib.liked == nil {
 				lib.liked = map[string]bool{}
 			}

@@ -55,6 +55,9 @@ type library struct {
 	wantLikes  []string        // the tracks a heart showed for, to ask about
 	likedList  []music.Track   // the liked songs' page
 	likedPaged paged
+	// likedTotal is how many liked songs the source says there are in all,
+	// or 0 where it doesn't say.
+	likedTotal int
 	likedAt    time.Time // when the liked songs' first page was asked for
 	likedFresh bool      // it's being asked for anew
 
@@ -122,7 +125,7 @@ func (l *library) forget() {
 	l.favorites, l.kept, l.busy = map[string]bool{}, map[string]bool{}, map[string]bool{}
 	l.wantKept, l.askedKept, l.doubted = nil, map[string]bool{}, map[string]bool{}
 	l.unsaid = map[string]bool{}
-	l.likedList, l.likedPaged, l.likedAt = nil, paged{}, time.Time{}
+	l.likedList, l.likedPaged, l.likedAt, l.likedTotal = nil, paged{}, time.Time{}, 0
 	l.warm = newWarmQueue()
 }
 
@@ -249,7 +252,7 @@ func (a *app) libraryChanged() {
 			lib.artists[r.id] = d
 		}
 	case pageLiked:
-		lib.likedList, lib.likedPaged = was.likedList, was.likedPaged
+		lib.likedList, lib.likedPaged, lib.likedTotal = was.likedList, was.likedPaged, was.likedTotal
 	}
 	shown := browseID(a.route)
 	for page := range lib.browses {

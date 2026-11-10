@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"ringo/internal/i18n"
@@ -165,24 +166,89 @@ func (s *Source) likedPage(offset int, ahead, work bool) (*music.Page, error) {
 		if favorites != "" {
 			path = "/library/playlists/" + favorites + "/tracks"
 		}
-		p := params{"limit": "100", "include": "catalog"}
+		// The first part comes alone, to show at once; those after it, a few
+		// together, as a library's lists go on (libraryParts).
+		parts := 1
 		if offset > 0 {
-			p["offset"] = strconv.Itoa(offset)
+			parts = libraryParts
 		}
-		b, err := s.me(path, p, reqOpts{})
-		if errors.Is(err, music.ErrUnavailable) {
-			b, err = &body{}, nil // none yet
-		}
-		if err != nil {
-			return nil, err
-		}
-		return &music.Page{Tracks: s.songsOf(b.Data), More: b.Next != ""}, nil
+		return s.likedParts(path, offset, parts)
 	}, ahead)
 	if err != nil {
 		return nil, err
 	}
 	if work {
 		s.prefetch(page.Tracks, nil)
+	}
+	return page, nil
+}
+
+// likedPart is how many songs of Favorite Songs one request gives, the most
+// Apple gives to one.
+const likedPart = 100
+
+// likedTotal is how many favorite songs Apple last said there were in all,
+// as the first part of them came, or 0 before it has, or since the listener
+// liked or unliked a song, which makes it out of date.
+func (s *Source) likedTotal() int {
+	s.keptMu.Lock()
+	defer s.keptMu.Unlock()
+	if e, _ := s.entries.get("liked:0"); e != nil {
+		if p, ok := e.value.(*music.Page); ok {
+			return p.Total
+		}
+	}
+	return 0
+}
+
+// likedParts is parts parts of the favorite songs at path from offset, asked
+// for together and joined. The first is the page's; if one after it fails, the
+// page ends before it, with more to come, and the next ask begins there. A
+// part past the end of the list isn't asked for where the total is known, and
+// where it isn't comes empty.
+func (s *Source) likedParts(path string, offset, parts int) (*music.Page, error) {
+	total := s.likedTotal()
+	var offsets []int
+	for i := range parts {
+		from := offset + i*likedPart
+		if i > 0 && total > 0 && from >= total {
+			break
+		}
+		offsets = append(offsets, from)
+	}
+	got := make([]*body, len(offsets))
+	errs := make([]error, len(offsets))
+	var wg sync.WaitGroup
+	for i, from := range offsets {
+		wg.Go(func() {
+			p := params{"limit": strconv.Itoa(likedPart), "include": "catalog"}
+			if from > 0 {
+				p["offset"] = strconv.Itoa(from)
+			}
+			got[i], errs[i] = s.me(path, p, reqOpts{})
+			if errors.Is(errs[i], music.ErrUnavailable) {
+				got[i], errs[i] = &body{}, nil // none yet
+			}
+		})
+	}
+	wg.Wait()
+	if errs[0] != nil {
+		return nil, errs[0]
+	}
+	page := &music.Page{Total: total}
+	for i, b := range got {
+		if errs[i] != nil {
+			page.More = true
+			break
+		}
+		page.Tracks = append(page.Tracks, s.songsOf(b.Data)...)
+		if n := b.total(); n > 0 {
+			page.Total = n
+		}
+		page.More = b.Next != ""
+		if !page.More {
+			break
+		}
 	}
 	return page, nil
 }
