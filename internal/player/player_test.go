@@ -187,13 +187,13 @@ func TestCache(t *testing.T) {
 	store("3", &music.Stream{Quality: "high", Type: "mp3"}, 100)
 	store("4", &music.Stream{Quality: "high", Type: "mp3"}, 100)
 	store("5", &music.Stream{Quality: "high", Type: "mp3"}, 100)
-	if _, _, ok := c.lookup("src", "1", "standard"); ok {
+	if _, _, ok := c.lookup("src", "1", "high"); ok {
 		t.Error("kept the song played longest ago")
 	}
 	if _, _, ok := c.lookup("src", "2", "lossless"); ok {
 		t.Error("found a high quality song for lossless")
 	}
-	if dl, _, ok := c.lookup("src", "5", "standard"); !ok {
+	if dl, _, ok := c.lookup("src", "5", "high"); !ok {
 		t.Error("dropped the song just kept")
 	} else {
 		dl.Close()

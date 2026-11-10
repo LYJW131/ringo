@@ -73,7 +73,7 @@ type app struct {
 	naming      nameDialog         // the name of a playlist asked for
 	deleting    deleteDialog       // whether to delete a playlist, asked
 	toast       string             // a message to show once
-	settingText map[string]*string // the settings of sources, as being typed
+	settingText map[string]*string // the text settings, as being typed
 
 	trackList ui.ListState
 	// Where the page and the sidebar are scrolled, kept while Now Playing
@@ -266,7 +266,7 @@ func Run() error {
 		a.pl.Quiet = func(fn func()) { mygo.RunOnMain(fn) }
 		a.pl.Source = a.sourceByID
 		a.pl.Failed = a.sourceFailed
-		a.pl.Quality = func() string { return a.settings.Quality }
+		a.pl.Quality = func() string { return a.settings.quality() }
 		a.pl.Normalize = func() bool { return a.settings.Normalize }
 		a.pl.Cache = newSongCache(a.settings.CacheMB)
 		a.pl.Changed = a.keepSession

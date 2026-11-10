@@ -744,7 +744,7 @@ func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duratio
 
 	p.loadCover(gen, &t)
 	p.loadLyrics(gen, src, t)
-	quality := music.Qualities[len(music.Qualities)/2]
+	quality := music.Qualities[0]
 	if p.Quality != nil {
 		quality = p.Quality()
 	}

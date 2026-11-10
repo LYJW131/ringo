@@ -224,7 +224,7 @@ func (a *app) problem(lib *library, err error, msg string) string {
 		lib.needsSetup, lib.setupReason = true, music.Reason(err)
 		if !lib.askedSetup {
 			lib.askedSetup = true
-			a.openSourceSettings()
+			a.openAccountSettings()
 		}
 		if lib.setupReason != "" {
 			return lib.setupReason
@@ -245,7 +245,7 @@ func (a *app) actionFailed(lib *library, err error, msg string) {
 		a.promptSignIn(lib)
 	case errors.Is(err, music.ErrSetup):
 		lib.needsSetup, lib.setupReason = true, music.Reason(err)
-		a.openSourceSettings()
+		a.openAccountSettings()
 	default:
 		a.toast = msg
 	}

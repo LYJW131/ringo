@@ -325,22 +325,12 @@ const (
 	PlaybackStream Playback = "stream"
 )
 
-// A Setting is something a plugin asks the listener for, such as an API key.
-type Setting struct {
-	Key   string `json:"key"`
-	Label string `json:"label"`
-	Help  string `json:"help,omitempty"`
-	// Link is where to get the value.
-	Link string `json:"link,omitempty"`
-}
-
 // Info is how a source introduces itself.
 type Info struct {
-	ID       string    `json:"id"`
-	Name     string    `json:"name"`
-	Version  string    `json:"version,omitempty"`
-	Playback Playback  `json:"playback"`
-	Settings []Setting `json:"settings,omitempty"`
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Version  string   `json:"version,omitempty"`
+	Playback Playback `json:"playback"`
 }
 
 var (
@@ -381,8 +371,8 @@ func Reason(err error) string {
 }
 
 // Qualities are the levels of audio the listener can ask a source for, worst
-// first. A source may have others, or none, and answers what it has.
-var Qualities = []string{"standard", "high", "lossless"}
+// first, as Apple Music names them: High Quality and Lossless.
+var Qualities = []string{"high", "lossless"}
 
 // A Recorder is a source that wants to know what's played, for its Recent.
 // A source that keeps that itself, as a service does, needn't be one.

@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"slices"
 	"testing"
-
-	"mygo-music/internal/i18n"
 )
 
 // What the source reads without asking Apple: TTML lyrics, pasted links,
@@ -126,18 +124,5 @@ func TestCan(t *testing.T) {
 		if s.Can(name) != slices.Contains(want, name) {
 			t.Errorf("Can(%q) = %v", name, s.Can(name))
 		}
-	}
-}
-
-func TestInfo(t *testing.T) {
-	s := New(Options{DataDir: t.TempDir()})
-	i18n.SetLanguage(i18n.Chinese)
-	defer i18n.SetLanguage(i18n.English)
-	info := s.Info()
-	if info.ID != ID || info.Name != "Apple Music" || info.Playback != "stream" || len(info.Settings) != 5 {
-		t.Fatalf("info: %+v", info)
-	}
-	if info.Settings[1].Label != "Wrapper 地址" {
-		t.Errorf("not in Chinese: %+v", info.Settings[1])
 	}
 }

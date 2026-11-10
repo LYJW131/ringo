@@ -43,7 +43,7 @@
 三种方式，任选其一：
 
 1. **登录窗口**：点侧栏底部的「登录」，在弹出的 Apple 登录页面里登录。这个窗口不支持通行密钥和安全密钥。
-2. **Media User Token**：在已登录的 [music.apple.com](https://music.apple.com) 打开开发者工具，从 Cookies 里复制 `media-user-token` 的值，粘贴到「设置 › Apple Music › Media User Token」。清空即退出登录。
+2. **Media User Token**：在已登录的 [music.apple.com](https://music.apple.com) 打开开发者工具，从 Cookies 里复制 `media-user-token` 的值，粘贴到「设置 › 账户 › Media User Token」。清空即退出登录。
 3. **Wrapper 账户**：已经在 wrapper-manager 里登录了账户的，填好 Wrapper 地址，再在 **Wrapper 账户** 里填这个账户的 Apple ID 或国家或地区代码（如 `jp`）。
 
 未登录也能浏览目录、搜索和查看页面；播放、资料库和个人推荐需要登录。
@@ -53,8 +53,8 @@
 无损和高解析度无损通过 [wrapper-manager](https://github.com/AMDL-Web/wrapper/tree/amdl/manager) 播放：
 
 1. 部署一个 wrapper-manager 并在其中登录 Apple Music 账户。
-2. 在「设置 › Apple Music」里填 **Wrapper 地址**；wrapper 放在需要密钥的网关后面时，再填 **Wrapper 密钥**。
-3. 在「设置 › 播放」里把音质设为「无损」。
+2. 在「设置 › 播放」里填 **Wrapper 地址**；wrapper 放在需要密钥的网关后面时，再填 **Wrapper 密钥**。
+3. 在「设置 › 播放」里把「流播放」设为「无损」。
 
 没有 wrapper 或取不到无损音轨时，自动以 AAC 播放。能访问 wrapper 端口的人都能使用其中的账户，不要把没有密钥保护的 wrapper 暴露到公网。
 
@@ -80,7 +80,7 @@ go test ./...
 
 - 没有统计和跟踪。Ringo 只连接 Apple 的服务器，以及你自己填的 wrapper。
 - media-user-token 以明文保存在本机的应用数据目录里，只发给 Apple；退出登录只删除本机的这一份。
-- 「使用收听历史记录」开启时（默认开启），每首歌开始播放时会像 Apple 自己的 App 一样把播放记录发给 Apple，用于「最近播放」、Replay 和推荐。可在「设置 › Apple Music」里关闭。
+- 「使用收听历史记录」开启时（默认开启），每首歌开始播放时会像 Apple 自己的 App 一样把播放记录发给 Apple，用于「最近播放」、Replay 和推荐。可在「设置 › 通用」里关闭。
 - 解密在本机进行；Ringo 只播放，不提供把歌曲另存为文件的功能。
 
 ## 致谢与许可证

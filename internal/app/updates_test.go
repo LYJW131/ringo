@@ -32,7 +32,7 @@ func TestTurnOffUpdateChecks(t *testing.T) {
 	defer fakeUpdater(&checks, &downloads, &checked)()
 	a := newTestApp()
 	a.updates = true
-	a.settingsPage = "updates"
+	a.settingsPage = "general"
 	tt := ui.NewTester(a.settingsView, 760, 2000)
 	tt.Frame()
 	// The row's title is labelled as its switch is: click the switch, at
@@ -70,7 +70,7 @@ func TestCheckForUpdatesFromSettings(t *testing.T) {
 	defer fakeUpdater(&checks, &downloads, &checked)()
 	a := newTestApp()
 	a.updates = true
-	a.settingsPage = "updates"
+	a.settingsPage = "general"
 	tt := ui.NewTester(a.settingsView, 760, 2000)
 	tt.Frame()
 	if err := tt.Click("Check for Updates"); err != nil {

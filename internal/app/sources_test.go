@@ -437,12 +437,11 @@ func TestErrSignInAsksOnce(t *testing.T) {
 }
 
 // A source that answers ErrSetup needs setting up, which shows on the page and
-// its settings, and goes once a setting is kept.
+// offers the account settings, and goes once a setting is kept.
 func TestErrSetupOffersSettings(t *testing.T) {
 	kept := make(chan string, 1)
 	a := newTestApp()
 	ch := posts(a)
-	fake(a).info.Settings = []music.Setting{{Key: "key", Label: "API Key"}}
 	fake(a).playlist = func(string) (*music.Playlist, error) { return nil, music.ErrSetup }
 	fake(a).setSetting = func(key, value string) error { kept <- key + "=" + value; return nil }
 	a.library.askedSetup = true // opening the window takes a real app
@@ -458,18 +457,18 @@ func TestErrSetupOffersSettings(t *testing.T) {
 		t.Errorf("the page offers no settings: %q", tt.Texts())
 	}
 
-	a.settingsPage = "plugins"
+	a.settingsPage = "account"
 	settings := ui.NewTester(a.settingsView, 760, 1400)
 	settings.Frame()
 	// The field, under the title labelled as it is.
-	r, ok := settings.Find("API Key")
+	r, ok := settings.Find("Media User Token")
 	if !ok {
 		t.Fatal("no field")
 	}
 	settings.ClickAt(r.X+20, r.Y+r.H+18)
 	settings.Type("secret")
 	settings.Key(0, ui.KeyEnter)
-	if got := wait(t, kept, "the setting"); got != "key=secret" {
+	if got := wait(t, kept, "the setting"); got != "mediaUserToken=secret" {
 		t.Fatalf("kept %s", got)
 	}
 	until(t, ch, func() bool { return !a.needsSetup })
@@ -478,15 +477,12 @@ func TestErrSetupOffersSettings(t *testing.T) {
 	}
 }
 
-// A source that needs setting up says what for, on its page and in its settings.
-// Every plugin said "Fill these in for it to work", even with its fields filled
-// in, when what it wanted was a program installed: what it said was dropped.
+// A source that needs setting up says what for, on its page and in the account
+// settings, where what it said is what's to fix.
 func TestErrSetupSaysWhy(t *testing.T) {
 	const why = "Install ffmpeg to play this"
 	a := newTestApp()
 	ch := posts(a)
-	fake(a).info.Settings = []music.Setting{{Key: "key", Label: "API Key"}}
-	fake(a).vals["key"] = "secret"
 	fake(a).playlist = func(string) (*music.Playlist, error) {
 		return nil, fmt.Errorf("loading: %w", music.Fail(music.ErrSetup, why))
 	}
@@ -500,19 +496,11 @@ func TestErrSetupSaysWhy(t *testing.T) {
 		t.Errorf("the page doesn't say why: %q", tt.Texts())
 	}
 
-	a.settingsPage = "plugins"
+	a.settingsPage = "account"
 	settings := ui.NewTester(a.settingsView, 760, 1400)
 	settings.Frame()
 	if _, ok := settings.Find(why); !ok {
 		t.Errorf("the settings don't say why: %q", settings.Texts())
-	}
-
-	// Saying nothing, it names the fields still empty, not those filled in.
-	a.library.setupReason = ""
-	fake(a).info.Settings = append(fake(a).info.Settings, music.Setting{Key: "region", Label: "Region"})
-	settings.Frame()
-	if _, ok := settings.Find("Fill in Region for it to work"); !ok {
-		t.Errorf("the settings don't name the empty field: %q", settings.Texts())
 	}
 }
 
@@ -576,7 +564,7 @@ func TestSignInAndOut(t *testing.T) {
 // dialog in the main window, behind the settings, where it went unseen.
 func TestSignInFromSettingsAsksThere(t *testing.T) {
 	a := newTestApp()
-	a.settingsPage = "plugins"
+	a.settingsPage = "account"
 	main := ui.NewTester(a.view, 1200, 800)
 	settings := ui.NewTester(a.settingsView, 780, 1000)
 	main.Frame()
@@ -895,8 +883,8 @@ func TestSettingsSidebarOpensPages(t *testing.T) {
 		t.Fatal(err)
 	}
 	settled(tt)
-	if _, ok := tt.Find("Quality"); !ok {
-		t.Errorf("no Quality on Playback: %q", tt.Texts())
+	if _, ok := tt.Find("Streaming"); !ok {
+		t.Errorf("no Streaming on Playback: %q", tt.Texts())
 	}
 	if _, ok := tt.Find("Language"); ok {
 		t.Error("General's still showing")
@@ -914,13 +902,13 @@ func TestSettingsSearch(t *testing.T) {
 	}
 	tt.Type("QUALITY")
 	settled(tt)
-	if _, ok := tt.Find("Quality"); !ok {
+	if _, ok := tt.Find("Streaming"); !ok {
 		t.Fatalf("didn't find it: %q", tt.Texts())
 	}
 	if _, ok := tt.Find("Language"); ok {
 		t.Error("shows what it didn't look for")
 	}
-	if _, ok := tt.Find("Even Out Loudness"); ok {
+	if _, ok := tt.Find("Sound Check"); ok {
 		t.Error("shows a row of the same page it didn't look for")
 	}
 
@@ -933,29 +921,39 @@ func TestSettingsSearch(t *testing.T) {
 	// By a page's name, all of it.
 	a.settingsQuery = "playback"
 	settled(tt)
-	if _, ok := tt.Find("Even Out Loudness"); !ok {
+	if _, ok := tt.Find("Sound Check"); !ok {
 		t.Errorf("the page's rows aren't there: %q", tt.Texts())
 	}
 
-	if err := tt.Click("Cache"); err != nil {
+	if err := tt.Click("Advanced"); err != nil {
 		t.Fatal(err)
 	}
 	settled(tt)
-	if a.settingsQuery != "" || a.settingsPage != "cache" {
+	if a.settingsQuery != "" || a.settingsPage != "advanced" {
 		t.Errorf("query %q on page %q", a.settingsQuery, a.settingsPage)
+	}
+}
+
+// A quality kept from when there was a Standard level asks for High Quality: a
+// level the cache doesn't know would keep no song.
+func TestStandardQualityAsksForHigh(t *testing.T) {
+	for kept, want := range map[string]string{"standard": "high", "": "high", "high": "high", "lossless": "lossless"} {
+		if got := (settings{Quality: kept}).quality(); got != want {
+			t.Errorf("%q asks for %q, want %q", kept, got, want)
+		}
 	}
 }
 
 // A control a search found works as on its page.
 func TestSettingsFoundControlWorks(t *testing.T) {
 	a := newTestApp()
-	a.settingsQuery = "loudness"
+	a.settingsQuery = "sound check"
 	tt := ui.NewTester(a.settingsView, 780, 800)
 	settled(tt)
 	was := a.settings.Normalize
 	// The row's title is labelled as its switch is: click the switch, at its end.
-	top, ok1 := tt.Find("Even Out Loudness")
-	bottom, ok2 := tt.Find("Adjust each song's volume by how loud it was measured to be, for them to sound as loud as each other")
+	top, ok1 := tt.Find("Sound Check")
+	bottom, ok2 := tt.Find("Plays every song at the same volume")
 	if !ok1 || !ok2 {
 		t.Fatalf("not found: %q", tt.Texts())
 	}

@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"mygo-music/internal/applemusic/amhelper"
-	"mygo-music/internal/i18n"
 	"mygo-music/internal/music"
 )
 
@@ -228,36 +227,6 @@ func (s *Source) Info() music.Info {
 		ID:       ID,
 		Name:     "Apple Music",
 		Playback: music.PlaybackStream,
-		Settings: []music.Setting{
-			{
-				Key:   "mediaUserToken",
-				Label: i18n.T("Media User Token"),
-				Help:  i18n.T("For an Apple Account that signs in with a passkey or security key, which the sign-in window can't use: sign in at music.apple.com in your browser, and paste the value of its media-user-token cookie here. Empty it to sign out, or to sign in with the window again."),
-				Link:  "https://github.com/LYJW131/mygo-music-apple-music#media-user-token",
-			},
-			{
-				Key:   "wrapper",
-				Label: i18n.T("Wrapper Address"),
-				Help:  i18n.T("For lossless: the wrapper-manager that holds your Apple Music account, such as http://127.0.0.1:8080. Songs play lossless when the quality is Lossless, and as AAC without a wrapper."),
-				Link:  "https://github.com/LYJW131/mygo-music-apple-music#lossless",
-			},
-			{
-				Key:   "wrapperKey",
-				Label: i18n.T("Wrapper Key"),
-				Help:  i18n.T("The wrapper's key (API_KEY), the same one amdl uses: for a wrapper-manager on Cloudflare, or one that faces the internet. Empty for one on this computer or your network without a key."),
-			},
-			{
-				Key:   "wrapperAccount",
-				Label: i18n.T("Wrapper Account"),
-				Help:  i18n.T("To sign in as an Apple Account the wrapper holds, without the sign-in window: its Apple ID as logged in to the wrapper, or a country or region code such as jp for the wrapper's account there. When the wrapper holds several accounts, each listener names their own. Empty to sign in here."),
-				Link:  "https://github.com/LYJW131/mygo-music-apple-music#wrapper-account",
-			},
-			{
-				Key:   "listeningHistory",
-				Label: i18n.T("Use Listening History"),
-				Help:  i18n.T("Songs you play here show in Recently Played and count toward Apple Music Replay and recommendations, as in Apple's own apps. Empty means on; type off to turn it off."),
-			},
-		},
 	}
 }
 

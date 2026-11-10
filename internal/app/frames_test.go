@@ -9,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"mygo-music/internal/i18n"
 	"mygo-music/internal/lyrics"
 	"mygo-music/internal/music"
 )
@@ -172,24 +173,64 @@ func contactSheet(shots []image.Image, cols int) image.Image {
 	return out
 }
 
-// With MM_FRAMES set, saves the settings' Apple Music page: the account row and
-// a setting the source asks for.
+// With MM_FRAMES set, saves every page of the settings, light and dark at the
+// window's size and dark at the smallest it gets, the account page signed in
+// and out, the playback page asking for High Quality and for Lossless with no
+// wrapper to play it, a search, and two pages in Chinese.
 func TestSettingsFrame(t *testing.T) {
 	dir := framesDir(t)
-	a := newTestApp()
-	src := fake(a)
-	src.info.Name = "Apple Music"
-	src.info.Version = "1.2.0"
-	src.info.Settings = []music.Setting{
-		{Key: "apiKey", Label: "API Key", Help: "Keys are free for personal use.", Link: "https://example.com/keys"},
-		{Key: "region", Label: "Region"},
+	checks, downloads, checked := true, false, 0
+	defer fakeUpdater(&checks, &downloads, &checked)()
+	shots := []struct {
+		name, page, query string
+		signedIn          bool
+		lossless          bool
+	}{
+		{name: "general", page: "general"},
+		{name: "account-in", page: "account", signedIn: true},
+		{name: "account-out", page: "account"},
+		{name: "playback-high", page: "playback"},
+		{name: "playback-lossless", page: "playback", lossless: true},
+		{name: "advanced", page: "advanced"},
+		{name: "search-wrapper", page: "general", query: "wrapper"},
 	}
-	src.vals["region"] = "Nordics"
-	a.account = &music.Account{ID: "1", Name: "Alex"}
-	a.settingsPage = "plugins"
-	tt := ui.NewTester(a.settingsView, 780, 720)
-	settled(tt)
-	saveFrame(t, dir, "settings.png", tt.Image())
+	save := func(name string, shot int, w, h int, dark bool) {
+		s := shots[shot]
+		a := newTestApp()
+		a.updates = true
+		a.notch = &notch{a: a}
+		src := fake(a)
+		src.info.Name = "Apple Music"
+		// Made up: nothing here is anyone's token.
+		src.vals["mediaUserToken"] = "not-a-real-token-0123456789"
+		src.vals["wrapperKey"] = "not-a-real-key"
+		if s.lossless {
+			a.settings.Quality = "lossless"
+		}
+		if s.signedIn {
+			a.account = &music.Account{ID: "1", Name: "Alex"}
+		}
+		a.settingsPage, a.settingsQuery = s.page, s.query
+		tt := ui.NewTester(a.settingsView, w, h)
+		tt.SetDark(dark)
+		settled(tt)
+		saveFrame(t, dir, name, tt.Image())
+	}
+	for i, s := range shots {
+		save(s.name+"-dark.png", i, 780, 640, true)
+		save(s.name+"-min-dark.png", i, 640, 420, true)
+		if s.query == "" {
+			save(s.name+"-light.png", i, 780, 640, false)
+		}
+	}
+	defer i18n.SetLanguage(i18n.English)
+	i18n.SetLanguage(i18n.Chinese)
+	for i, s := range shots {
+		if s.name == "account-in" || s.name == "playback-lossless" {
+			save(s.name+"-zh-dark.png", i, 780, 640, true)
+			save(s.name+"-zh-min-dark.png", i, 640, 420, true)
+		}
+	}
 }
 
 // With MM_FRAMES set, saves the player bar of windows from the narrowest

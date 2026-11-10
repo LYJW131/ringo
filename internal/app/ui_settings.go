@@ -2,6 +2,7 @@ package app
 
 import (
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mygo-music/internal/i18n"
-	"mygo-music/internal/music"
 )
 
 // openSettings shows the settings window, opening it the first time.
@@ -56,9 +56,10 @@ func (a *app) openSettings() {
 	a.syncDock()
 }
 
-// openSourceSettings shows the page of the settings where the source is set up.
-func (a *app) openSourceSettings() {
-	a.settingsPage, a.settingsQuery = "plugins", ""
+// openAccountSettings shows the page of the settings where the listener signs
+// in, which is where Apple Music's errors ask to be taken.
+func (a *app) openAccountSettings() {
+	a.settingsPage, a.settingsQuery = "account", ""
 	a.openSettings()
 }
 
@@ -117,12 +118,19 @@ type settingsRow func(label, desc string, control func())
 // settingsBlock is anything else in the settings, which a search finds by text.
 type settingsBlock func(text string, draw func())
 
-// settingsSection is a page of the settings. Its build only says what it has
-// through row and block, for a search to go through them without drawing.
-type settingsSection struct {
+// settingsGroup is a card of a page of the settings, under a small title if it
+// has one. Its build only says what it has through row and block, for a
+// search to go through them without drawing.
+type settingsGroup struct {
+	title string
+	build func(row settingsRow, block settingsBlock)
+}
+
+// settingsPage is a page of the settings, a column of groups.
+type settingsPage struct {
 	id, title string
 	icon      *ui.SVG
-	build     func(row settingsRow, block settingsBlock)
+	groups    []settingsGroup
 }
 
 // settingsMatch reports whether a search, lower case, finds any of the texts.
@@ -144,11 +152,11 @@ func (a *app) settingsView(c *ui.Context) {
 	c.OnShortcut(ui.Cmd, ui.KeyW, func() { a.settingsWin.Close() })
 	c.OnShortcut(ui.Cmd, ui.KeyF, func() { a.settingsSearchBox.Focus(c) })
 
-	sections := a.settingsSections(c, p)
-	current := sections[0]
-	for _, sec := range sections {
-		if sec.id == a.settingsPage {
-			current = sec
+	pages := a.settingsPages(c, p)
+	current := pages[0]
+	for _, pg := range pages {
+		if pg.id == a.settingsPage {
+			current = pg
 		}
 	}
 	query := strings.ToLower(strings.TrimSpace(a.settingsQuery))
@@ -162,8 +170,8 @@ func (a *app) settingsView(c *ui.Context) {
 		}
 		ui.Column(c).Width(settingsSidebarWidth).Shrink(0).Padding(top, 12, 14, 12).Gap(2).Background(p.sidebar).DragWindow().Children(func() {
 			a.settingsSearch(c, p)
-			for _, sec := range sections {
-				a.settingsNavItem(c, p, sec, query == "" && sec.id == current.id)
+			for _, pg := range pages {
+				a.settingsNavItem(c, p, pg, query == "" && pg.id == current.id)
 			}
 		})
 		ui.Box(c).Width(1).Shrink(0).Background(p.hairline)
@@ -177,14 +185,14 @@ func (a *app) settingsView(c *ui.Context) {
 					a.settingsUnderTop = mark.Y < pad-0.5
 				}
 				if query == "" {
-					a.settingsGroup(c, p, current, "", "")
+					a.settingsPageView(c, p, current, "")
 					return
 				}
 				found := false
-				for _, sec := range sections {
-					if a.settingsFinds(sec, query) {
+				for _, pg := range pages {
+					if settingsFinds(pg, query) {
 						found = true
-						a.settingsGroup(c, p, sec, sec.title, query)
+						a.settingsPageView(c, p, pg, query)
 					}
 				}
 				if !found {
@@ -232,9 +240,9 @@ func (a *app) settingsSearch(c *ui.Context, p palette) {
 }
 
 // settingsNavItem opens a page of the settings, leaving a search.
-func (a *app) settingsNavItem(c *ui.Context, p palette, sec settingsSection, selected bool) {
-	b := ui.ButtonBase(c.Key(sec.id)).Height(32).PaddingX(9).Gap(9).Radius(8).AlignItems(ui.Center).Justify(ui.Start).
-		FocusRing(false).Label(sec.title)
+func (a *app) settingsNavItem(c *ui.Context, p palette, pg settingsPage, selected bool) {
+	b := ui.ButtonBase(c.Key(pg.id)).Height(32).PaddingX(9).Gap(9).Radius(8).AlignItems(ui.Center).Justify(ui.Start).
+		FocusRing(false).Label(pg.title)
 	switch {
 	case selected:
 		b.Background(p.press)
@@ -246,22 +254,36 @@ func (a *app) settingsNavItem(c *ui.Context, p palette, sec settingsSection, sel
 		color = p.accent
 	}
 	b.Children(func() {
-		ui.Icon(c, sec.icon).Size(15, 15).TextColor(color)
-		ui.Text(c, sec.title).FontSize(13).FontWeight(500).SingleLine().Shrink(1).MinWidth(0)
+		ui.Icon(c, pg.icon).Size(15, 15).TextColor(color)
+		ui.Text(c, pg.title).FontSize(13).FontWeight(500).SingleLine().Shrink(1).MinWidth(0)
 	})
 	if b.Clicked() {
-		a.settingsPage, a.settingsQuery = sec.id, ""
+		a.settingsPage, a.settingsQuery = pg.id, ""
 	}
 }
 
-// settingsFinds reports whether a search finds anything in a section: all of it,
-// if it's what the section is called.
-func (a *app) settingsFinds(sec settingsSection, query string) bool {
-	if settingsMatch(query, sec.title) {
+// settingsFinds reports whether a search finds anything in a page: all of it,
+// if it's what the page is called.
+func settingsFinds(pg settingsPage, query string) bool {
+	if settingsMatch(query, pg.title) {
+		return true
+	}
+	for _, g := range pg.groups {
+		if groupFinds(g, query) {
+			return true
+		}
+	}
+	return false
+}
+
+// groupFinds reports whether a search finds anything in a group: all of it, if
+// it's what the group is called.
+func groupFinds(g settingsGroup, query string) bool {
+	if settingsMatch(query, g.title) {
 		return true
 	}
 	found := false
-	sec.build(func(label, desc string, _ func()) {
+	g.build(func(label, desc string, _ func()) {
 		found = found || settingsMatch(query, label, desc)
 	}, func(text string, _ func()) {
 		found = found || settingsMatch(query, text)
@@ -269,44 +291,69 @@ func (a *app) settingsFinds(sec settingsSection, query string) bool {
 	return found
 }
 
-// settingsGroup draws a section's rows, those a search finds if there is one,
-// under its title if it has one.
-func (a *app) settingsGroup(c *ui.Context, p palette, sec settingsSection, title, query string) {
-	if title != "" {
-		ui.Text(c, title).FontSize(12).FontWeight(600).TextColor(p.muted).Margin(14, 4, 4, 4)
-	}
-	all := query == "" || settingsMatch(query, sec.title)
-	ui.Column(c.Key(sec.id)).Radius(12).Background(p.bg).Border(1, p.hairline).Dividers(1, p.hairline).Children(func() {
-		sec.build(func(label, desc string, control func()) {
-			if !all && !settingsMatch(query, label, desc) {
-				return
+// settingsPageView draws the groups of a page, or of what a search finds in
+// it: those it finds, and the rows of them it finds. Each is under its title,
+// which a search says with the page's.
+func (a *app) settingsPageView(c *ui.Context, p palette, pg settingsPage, query string) {
+	shown := false
+	for i, g := range pg.groups {
+		whole := query == "" || settingsMatch(query, pg.title, g.title)
+		if !whole && !groupFinds(g, query) {
+			continue
+		}
+		title := g.title
+		if query != "" {
+			title = pg.title
+			if g.title != "" {
+				title += " › " + g.title
 			}
-			ui.Row(c).Padding(12, 16).Gap(16).AlignItems(ui.Center).MinHeight(48).Children(func() {
-				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
-					ui.Text(c, label).FontSize(13.5).FontWeight(500)
-					if desc != "" {
-						ui.Text(c, desc).FontSize(12).TextColor(p.muted).LineHeight(1.4)
-					}
+		}
+		// What follows another group is set apart from it.
+		apart := float32(0)
+		if shown {
+			apart = 12
+		}
+		shown = true
+		if title != "" {
+			ui.Text(c, title).FontSize(12).FontWeight(600).TextColor(p.muted).Margin(apart+2, 4, 0, 4)
+			apart = 0
+		}
+		ui.Column(c.Key(pg.id+"\x00"+strconv.Itoa(i))).Margin(apart, 0, 0, 0).Radius(12).Background(p.bg).Border(1, p.hairline).Dividers(1, p.hairline).Children(func() {
+			g.build(func(label, desc string, control func()) {
+				if !whole && !settingsMatch(query, label, desc) {
+					return
+				}
+				ui.Row(c).Padding(12, 16).Gap(16).AlignItems(ui.Center).MinHeight(48).Children(func() {
+					ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
+						ui.Text(c, label).FontSize(13.5).FontWeight(500)
+						// A second paragraph is what the setting waits on, said
+						// in the accent for it not to read as more of the first.
+						what, waits, _ := strings.Cut(desc, "\n")
+						if what != "" {
+							ui.Text(c, what).FontSize(12).TextColor(p.muted).LineHeight(1.4)
+						}
+						if waits != "" {
+							ui.Text(c, waits).FontSize(12).TextColor(p.accent).LineHeight(1.4).Margin(2, 0, 0, 0)
+						}
+					})
+					control()
 				})
-				control()
+			}, func(text string, draw func()) {
+				if whole || settingsMatch(query, text) {
+					draw()
+				}
 			})
-		}, func(text string, draw func()) {
-			if all || settingsMatch(query, text) {
-				draw()
-			}
 		})
-	})
+	}
 }
 
-// settingsSections are the pages of the settings, those that apply here.
-func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
+// settingsPages are the pages of the settings, in the order Apple Music has
+// them, with the groups that apply here.
+func (a *app) settingsPages(c *ui.Context, p palette) []settingsPage {
 	s := &a.settings
-	var sections []settingsSection
-	add := func(id, title string, icon *ui.SVG, build func(row settingsRow, block settingsBlock)) {
-		sections = append(sections, settingsSection{id, title, icon, build})
-	}
 
-	add("general", T("General"), iconSettings, func(row settingsRow, block settingsBlock) {
+	general := settingsPage{id: "general", title: T("General"), icon: iconSettings}
+	general.groups = append(general.groups, settingsGroup{"", func(row settingsRow, block settingsBlock) {
 		row(T("Language"), "", func() {
 			follow := T("Follow System")
 			names := []string{follow}
@@ -359,13 +406,23 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 				}
 			})
 		}
-	})
-
-	add("plugins", T("Apple Music"), iconNote, func(row settingsRow, block settingsBlock) { a.appleMusicSettings(c, row, block, p) })
-
+	}}, settingsGroup{"", func(row settingsRow, block settingsBlock) {
+		row(T("Use Listening History"), T("Songs you play here show in Recently Played and count toward Apple Music Replay and recommendations, as in Apple's own apps"), func() {
+			lib := a.library
+			// The source reads "off" for it: here it's a switch.
+			on := !strings.EqualFold(strings.TrimSpace(lib.src.Setting(historySetting)), "off")
+			if ui.Switch(c.Key("history"), &on).Label(T("Use Listening History")).Changed() {
+				value := ""
+				if !on {
+					value = "off"
+				}
+				a.keepSetting(lib, historySetting, value)
+			}
+		})
+	}})
 	// Only on macOS, the one with a notch player.
 	if a.notch != nil {
-		add("notch", T("Notch Player"), iconLaptop, func(row settingsRow, block settingsBlock) {
+		general.groups = append(general.groups, settingsGroup{T("Notch Player"), func(row settingsRow, block settingsBlock) {
 			row(T("Show the Notch Player"), T("A small player at the notch on top of the screen, which opens as the pointer rests on it"), func() {
 				if ui.Switch(c.Key("notch"), &s.Notch).Label(T("Show the Notch Player")).Changed() {
 					a.changed()
@@ -381,75 +438,10 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 					a.changed()
 				}
 			})
-		})
+		}})
 	}
-
-	add("playback", T("Playback"), iconVolume, func(row settingsRow, block settingsBlock) {
-		row(T("Quality"), T("From the next song on. Lossless plays through a wrapper, set up under Apple Music, and songs play as AAC without one"), func() {
-			labels := make([]string, len(qualityLevels))
-			at := 1
-			for i, q := range qualityLevels {
-				labels[i] = q.label
-				if q.level == s.Quality {
-					at = i
-				}
-			}
-			if i, ok := choice(c, "quality", T("Quality"), labels, at); ok {
-				s.Quality = qualityLevels[i].level
-				a.changed()
-			}
-		})
-		row(T("Even Out Loudness"), T("Adjust each song's volume by how loud it was measured to be, for them to sound as loud as each other"), func() {
-			if ui.Switch(c.Key("normalize"), &s.Normalize).Label(T("Even Out Loudness")).Changed() {
-				a.pl.SetVolume(a.volume)
-				a.changed()
-			}
-		})
-	})
-
-	add("cache", T("Cache"), iconDatabase, func(row settingsRow, block settingsBlock) {
-		row(T("Song Cache"), Tf("Songs from elsewhere are kept here to play again at once, without the network. %s", a.cacheUsage()), func() {
-			labels := make([]string, len(cacheLimits))
-			at := 2
-			for i, l := range cacheLimits {
-				labels[i] = l.label
-				if l.mb == s.CacheMB {
-					at = i
-				}
-			}
-			if i, ok := choice(c, "cache", T("Song Cache"), labels, at); ok {
-				s.CacheMB = cacheLimits[i].mb
-				a.changed()
-				a.applyCacheLimit()
-			}
-		})
-		row(T("Clear the Cache"), T("Delete all the songs kept here"), func() {
-			if ui.Button(c.Key("clear-cache"), T("Clear")).Disabled(a.cacheUsed <= 0).Clicked() {
-				a.clearCache()
-			}
-		})
-	})
-
-	add("experiments", T("Experiments"), iconFlask, func(row settingsRow, block settingsBlock) {
-		row(T("Smoke on the Progress Bar"), T("The progress bar turns into a light trailing smoke, moving with the music. Uses a little more power."), func() {
-			if ui.Switch(c.Key("smoke"), &s.Smoke).Label(T("Smoke on the Progress Bar")).Changed() {
-				a.changed()
-			}
-		})
-		row(T("Fog Backdrop"), T("Now Playing's backdrop turns into fog in the cover's colors, rising with the bass. Still being polished; uses a little more power."), func() {
-			if ui.Switch(c.Key("fog"), &s.Fog).Label(T("Fog Backdrop")).Changed() {
-				a.changed()
-			}
-		})
-		row(T("Grow From the Cover"), T("Now Playing opens out of the cover in the player bar and shrinks back into it, rather than sliding up from the bottom"), func() {
-			if ui.Switch(c.Key("grow-from-cover"), &s.GrowFromCover).Label(T("Grow From the Cover")).Changed() {
-				a.changed()
-			}
-		})
-	})
-
 	if a.updates {
-		add("updates", T("Updates"), iconRefresh, func(row settingsRow, block settingsBlock) {
+		general.groups = append(general.groups, settingsGroup{T("Software Update"), func(row settingsRow, block settingsBlock) {
 			desc := T("Check for a new version once a day")
 			if t := lastUpdateCheck(); !t.IsZero() {
 				desc = Tf("Check for a new version once a day. Last checked: %s", i18n.Ago(t, time.Now()))
@@ -471,70 +463,84 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 					checkForUpdates()
 				}
 			})
-		})
+		}})
 	}
-	return sections
-}
 
-// setupNotice says what a source that needs setting up wants: what it said,
-// or else the settings still empty, or else only that it does.
-func setupNotice(lib *library, info music.Info) string {
-	if lib.setupReason != "" {
-		return lib.setupReason
-	}
-	var empty []string
-	for _, st := range info.Settings {
-		if strings.TrimSpace(lib.src.Setting(st.Key)) == "" {
-			empty = append(empty, st.Label)
-		}
-	}
-	if len(empty) > 0 {
-		return Tf("Fill in %s for it to work", strings.Join(empty, ", "))
-	}
-	return Tf("%s needs setting up first", lib.name())
-}
+	account := settingsPage{id: "account", title: T("Account"), icon: iconUser, groups: a.accountGroups(c, p)}
 
-// sourceSetting is a text field for what a source asks of the listener. It's
-// kept as it's submitted, or as the focus leaves it.
-func (a *app) sourceSetting(c *ui.Context, lib *library, st music.Setting, p palette) {
-	key := lib.id + "\x00" + st.Key
-	text := a.settingText[key]
-	if text == nil {
-		v := lib.src.Setting(st.Key)
-		text = &v
-		a.settingText[key] = text
-	}
-	ui.Column(c).Gap(4).Children(func() {
-		ui.Text(c, st.Label).FontSize(12.5).FontWeight(500)
-		in := ui.TextInput(c.Key("value"), text).Label(st.Label).FontSize(13)
-		if in.Submitted() || !in.Focused() && *text != lib.src.Setting(st.Key) {
-			a.keepSetting(lib, st.Key, *text)
-		}
-		if st.Help != "" {
-			ui.Text(c, st.Help).FontSize(11.5).TextColor(p.muted).LineHeight(1.4)
-		}
-		if st.Link != "" {
-			ui.RichText(c).FontSize(11.5).Children(func() { ui.Link(c, st.Link, st.Link) })
-		}
-	})
-}
-
-// keepSetting gives a source a setting, off the main thread, and loads anew
-// what it may now be able to show.
-func (a *app) keepSetting(lib *library, key, value string) {
-	if lib.src.Setting(key) == value {
-		return
-	}
-	go func() {
-		err := lib.src.SetSetting(key, value)
-		a.post(func() {
-			if err != nil {
-				a.toast = Tf("Couldn't keep the setting: %s", err.Error())
-				return
+	playback := settingsPage{id: "playback", title: T("Playback"), icon: iconVolume}
+	playback.groups = append(playback.groups, settingsGroup{T("Audio Quality"), func(row settingsRow, block settingsBlock) {
+		desc := T("AAC, 256 kbps. From the next song on")
+		if s.quality() == "lossless" {
+			desc = T("ALAC, up to 24-bit/192 kHz. From the next song on")
+			if strings.TrimSpace(a.library.src.Setting("wrapper")) == "" {
+				desc += "\n" + T("Lossless plays through a wrapper. Until its address is filled in below, songs play in High Quality.")
 			}
-			lib.needsSetup, lib.askedSetup, lib.setupReason = false, false, ""
-			a.libraryChanged(lib)
-			a.loadAccount(lib)
+		}
+		row(T("Streaming"), desc, func() {
+			labels := make([]string, len(qualityLevels))
+			at := 0
+			for i, q := range qualityLevels {
+				labels[i] = q.label
+				if q.level == s.quality() {
+					at = i
+				}
+			}
+			if i, ok := choice(c, "quality", T("Streaming"), labels, at); ok {
+				s.Quality = qualityLevels[i].level
+				a.changed()
+			}
 		})
-	}()
+		a.textSetting(c, p, block, "wrapper", T("Wrapper Address"), T("The wrapper-manager that holds your Apple Music account, such as http://127.0.0.1:8080."), false)
+		a.textSetting(c, p, block, "wrapperKey", T("Wrapper Key"), T("The wrapper's key (API_KEY): for a wrapper-manager on Cloudflare, or one that faces the internet. Empty for one on this computer or your network without a key."), true)
+	}}, settingsGroup{"", func(row settingsRow, block settingsBlock) {
+		row(T("Sound Check"), T("Plays every song at the same volume"), func() {
+			if ui.Switch(c.Key("normalize"), &s.Normalize).Label(T("Sound Check")).Changed() {
+				a.pl.SetVolume(a.volume)
+				a.changed()
+			}
+		})
+	}})
+
+	advanced := settingsPage{id: "advanced", title: T("Advanced"), icon: iconFlask}
+	advanced.groups = append(advanced.groups, settingsGroup{T("Cache"), func(row settingsRow, block settingsBlock) {
+		row(T("Song Cache"), Tf("Songs you've played are kept on this computer to play again at once. %s", a.cacheUsage()), func() {
+			labels := make([]string, len(cacheLimits))
+			at := 2
+			for i, l := range cacheLimits {
+				labels[i] = l.label
+				if l.mb == s.CacheMB {
+					at = i
+				}
+			}
+			if i, ok := choice(c, "cache", T("Song Cache"), labels, at); ok {
+				s.CacheMB = cacheLimits[i].mb
+				a.changed()
+				a.applyCacheLimit()
+			}
+		})
+		row(T("Clear the Cache"), T("Delete all the songs kept here"), func() {
+			if ui.Button(c.Key("clear-cache"), T("Clear")).Disabled(a.cacheUsed <= 0).Clicked() {
+				a.clearCache()
+			}
+		})
+	}}, settingsGroup{T("Experimental Features"), func(row settingsRow, block settingsBlock) {
+		row(T("Smoke on the Progress Bar"), T("The progress bar turns into a light trailing smoke, moving with the music. Uses a little more power."), func() {
+			if ui.Switch(c.Key("smoke"), &s.Smoke).Label(T("Smoke on the Progress Bar")).Changed() {
+				a.changed()
+			}
+		})
+		row(T("Fog Backdrop"), T("Now Playing's backdrop turns into fog in the cover's colors, rising with the bass. Still being polished; uses a little more power."), func() {
+			if ui.Switch(c.Key("fog"), &s.Fog).Label(T("Fog Backdrop")).Changed() {
+				a.changed()
+			}
+		})
+		row(T("Grow From the Cover"), T("Now Playing opens out of the cover in the player bar and shrinks back into it, rather than sliding up from the bottom"), func() {
+			if ui.Switch(c.Key("grow-from-cover"), &s.GrowFromCover).Label(T("Grow From the Cover")).Changed() {
+				a.changed()
+			}
+		})
+	}})
+
+	return []settingsPage{general, account, playback, advanced}
 }

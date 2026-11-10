@@ -362,7 +362,7 @@ func (a *app) remedy(c *ui.Context) {
 		}
 	case lib.needsSetup:
 		if ui.PrimaryButton(c.Key("setup"), T("Open Settings")).Clicked() {
-			a.openSourceSettings()
+			a.openAccountSettings()
 		}
 	}
 }

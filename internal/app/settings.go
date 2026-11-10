@@ -28,8 +28,8 @@ type settings struct {
 	// NotchGreeted says the notch showed itself, once, as the first song
 	// played (greet).
 	NotchGreeted bool `json:"notchGreeted"`
-	// Quality is what's asked of sources: standard, high or lossless. A source
-	// may ignore it.
+	// Quality is what's asked of sources: high or lossless. One kept from when
+	// there was a standard level reads as high (quality).
 	Quality string `json:"quality"`
 	// Appearance is light, dark, or system to follow the system.
 	Appearance string `json:"appearance"`
@@ -130,11 +130,21 @@ func (s settings) applyAppearance() {
 	}
 }
 
-// qualityLevels are what can be asked of sources, by what they sound like.
+// qualityLevels are what can be asked of sources, by Apple Music's names.
 var qualityLevels = []struct{ level, label string }{
-	{"standard", N("Standard")},
-	{"high", N("High")},
+	{"high", N("High Quality")},
 	{"lossless", N("Lossless")},
+}
+
+// quality is the level asked of sources: one the settings keep that isn't a
+// level any more asks for high.
+func (s settings) quality() string {
+	for _, q := range qualityLevels {
+		if q.level == s.Quality {
+			return q.level
+		}
+	}
+	return qualityLevels[0].level
 }
 
 // cacheLimits are the sizes the song cache may take, in megabytes.

@@ -8,53 +8,112 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// appleMusicSettings is the settings' page of the source: who's signed in,
-// and what it asks of the listener.
-func (a *app) appleMusicSettings(c *ui.Context, row settingsRow, block settingsBlock, p palette) {
-	lib := a.library
-	info := lib.src.Info()
-
-	who := T("Not signed in")
-	switch {
-	case lib.needsSetup:
-		who = setupNotice(lib, info)
-	case lib.account != nil:
-		who = Tf("Signed in as %s", lib.account.Name)
+// accountGroups are the account page of the settings: who's signed in, and the
+// ways to sign in that the sign-in window can't do.
+func (a *app) accountGroups(c *ui.Context, p palette) []settingsGroup {
+	return []settingsGroup{
+		{"", func(row settingsRow, block settingsBlock) {
+			block(T("Apple Account")+" "+T("Sign In")+" "+T("Sign Out"), func() { a.accountCard(c, p) })
+		}},
+		{T("Other Ways to Sign In"), func(row settingsRow, block settingsBlock) {
+			a.textSetting(c, p, block, "mediaUserToken", T("Media User Token"),
+				T("For an Apple Account that signs in with a passkey or security key, which the sign-in window can't use: sign in at music.apple.com in your browser, and paste the value of its media-user-token cookie here. Empty it to sign out, or to sign in with the window again."), true)
+			a.textSetting(c, p, block, "wrapperAccount", T("Wrapper Account"),
+				T("To sign in as an Apple Account the wrapper holds, without the sign-in window: its Apple ID as logged in to the wrapper, or a country or region code such as jp for the wrapper's account there. When the wrapper holds several accounts, each listener names their own. Empty to sign in here. It uses the wrapper set under Playback."), false)
+		}},
 	}
-	row(T("Apple Account"), who, func() {
+}
+
+// accountCard is who is signed in, with the way out of it or into it.
+func (a *app) accountCard(c *ui.Context, p palette) {
+	lib := a.library
+	if lib.account == nil && lib.accountUnknown() {
+		a.loadAccount(lib)
+	}
+	acc := lib.account
+	name, status := T("Apple Account"), T("Sign in to play music and see your library")
+	if acc != nil {
+		if acc.Name != "" {
+			name = acc.Name
+		}
+		status = T("Signed in to Apple Music")
+		if strings.TrimSpace(lib.src.Setting("wrapperAccount")) != "" {
+			status = T("Signed in through the wrapper")
+		}
+	}
+	// What Apple Music said it wants, over the rest: it's what to fix here.
+	if lib.needsSetup && lib.setupReason != "" {
+		status = lib.setupReason
+	}
+	ui.Row(c.Key("account-card")).Padding(14, 16).Gap(12).AlignItems(ui.Center).MinHeight(68).Children(func() {
+		if acc != nil {
+			a.avatar(c, acc.ImageURL, 40, p.press)
+		} else {
+			ui.Box(c).Size(40, 40).Radius(20).Shrink(0).Background(p.press).Center().Children(func() {
+				ui.Icon(c, iconUser).Size(20, 20).TextColor(p.muted)
+			})
+		}
+		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(2).Children(func() {
+			ui.Text(c, name).FontSize(14).FontWeight(600)
+			ui.Text(c, status).FontSize(12).TextColor(p.muted).LineHeight(1.4)
+		})
 		switch {
-		case lib.account == nil && lib.accountUnknown():
-			a.loadAccount(lib)
-		case lib.account != nil && lib.can("signOut"):
-			if ui.Button(c.Key("sign-out"), T("Sign Out")).Clicked() {
+		case acc != nil && lib.can("signOut"):
+			if ui.Button(c.Key("sign-out"), T("Sign Out")).Shrink(0).Clicked() {
 				a.signOut(lib)
 			}
-		case lib.account == nil && lib.can("signIn"):
-			if ui.PrimaryButton(c.Key("sign-in"), T("Sign In")).Clicked() {
+		case acc == nil && lib.can("signIn"):
+			if ui.PrimaryButton(c.Key("sign-in"), T("Sign In")).Shrink(0).Clicked() {
 				a.promptSignInInSettings(lib)
 			}
 		}
 	})
+}
 
-	for _, st := range info.Settings {
-		if st.Key == historySetting {
-			// The source reads "off" for it: here it's a switch.
-			row(T("Use Listening History"), T("Songs you play here show in Recently Played and count toward Apple Music Replay and recommendations, as in Apple's own apps"), func() {
-				on := !strings.EqualFold(strings.TrimSpace(lib.src.Setting(historySetting)), "off")
-				if ui.Switch(c.Key("history"), &on).Label(T("Use Listening History")).Changed() {
-					value := ""
-					if !on {
-						value = "off"
-					}
-					a.keepSetting(lib, historySetting, value)
-				}
-			})
-			continue
+// textSetting is a setting the listener types, in a row of its own: its name,
+// the field the width of the card, and what it's for. A token or a key is
+// hidden as it's typed. It's kept as it's submitted, or as the focus leaves it.
+func (a *app) textSetting(c *ui.Context, p palette, block settingsBlock, key, label, desc string, secret bool) {
+	block(label+" "+desc, func() {
+		lib := a.library
+		text := a.settingText[key]
+		if text == nil {
+			v := lib.src.Setting(key)
+			text = &v
+			a.settingText[key] = text
 		}
-		block(st.Label+" "+st.Help, func() {
-			ui.Column(c.Key(st.Key)).Padding(12, 16).Children(func() { a.sourceSetting(c, lib, st, p) })
+		ui.Column(c.Key(key)).Padding(12, 16).Gap(6).Children(func() {
+			ui.Text(c, label).FontSize(13.5).FontWeight(500)
+			in := ui.TextInput(c.Key("value"), text).Label(label).FontSize(13)
+			if secret {
+				in.Password()
+			}
+			if in.Submitted() || !in.Focused() && *text != lib.src.Setting(key) {
+				a.keepSetting(lib, key, *text)
+			}
+			ui.Text(c, desc).FontSize(12).TextColor(p.muted).LineHeight(1.4)
 		})
+	})
+}
+
+// keepSetting gives a source a setting, off the main thread, and loads anew
+// what it may now be able to show.
+func (a *app) keepSetting(lib *library, key, value string) {
+	if lib.src.Setting(key) == value {
+		return
 	}
+	go func() {
+		err := lib.src.SetSetting(key, value)
+		a.post(func() {
+			if err != nil {
+				a.toast = Tf("Couldn't keep the setting: %s", err.Error())
+				return
+			}
+			lib.needsSetup, lib.askedSetup, lib.setupReason = false, false, ""
+			a.libraryChanged(lib)
+			a.loadAccount(lib)
+		})
+	}()
 }
 
 // historySetting is the source's setting that keeps what's played out of the
