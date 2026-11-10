@@ -248,7 +248,7 @@ func (a *app) shelf(c *ui.Context, secs []music.Section, s int, m shelfMetrics, 
 	switch sec.Style {
 	case music.ShelfHero:
 		_, w = m.fit(heroMin)
-		artTop, artH = heroHead, w*9/16
+		artTop, artH = heroHead(c, sec), w*9/16
 	case music.ShelfLive:
 		var n int
 		n, w = m.fit(heroMin)
@@ -730,8 +730,36 @@ func (a *app) brickCard(c *ui.Context, secs []music.Section, s, i int, w float32
 	})
 }
 
-// heroHead is the height of what a hero says over its picture.
-const heroHead = 62
+// heroClear is how far what a hero says keeps from its picture.
+const heroClear = 12
+
+// heroHead is the height of what the heroes of a section say over their
+// pictures: that of the one that says most, for the pictures to stand in a
+// row, and heroClear under it. Its lines are measured, as fonts differ in
+// how tall theirs are: a head as high as three lines of Latin text ran the
+// last line of a Chinese one down to the picture on Linux.
+func heroHead(c *ui.Context, sec *music.Section) float32 {
+	line := func(text string, size float32, weight int) float32 {
+		if text == "" {
+			return 0
+		}
+		_, h := c.MeasureText(0, ui.Span{Text: text, Size: size, Weight: weight})
+		return h
+	}
+	var most float32
+	for i := range sec.Items {
+		it := &sec.Items[i]
+		h := line(it.Title, 15, 0) + line(it.Subtitle, 15, 0)
+		if it.Badge != "" {
+			h += line(it.Badge, 10.5, 600) + heroBadgeGap
+		}
+		most = max(most, h)
+	}
+	return most + heroClear
+}
+
+// heroBadgeGap is the gap under a hero's badge.
+const heroBadgeGap = 3
 
 // heroCard is a picture that leads a page: over it, a badge, its title and a
 // line, and on it, what the editors say of it.
@@ -742,9 +770,9 @@ func (a *app) heroCard(c *ui.Context, secs []music.Section, s, i int, w float32)
 	b := a.itemButton(c, secs, s, i).Width(w).Shrink(0)
 	hovered := b.Hovered()
 	b.Children(func() {
-		ui.Column(c).Height(heroHead).Justify(ui.End).Padding(0, 0, 10, 0).Children(func() {
+		ui.Column(c).Height(heroHead(c, &secs[s])).Justify(ui.End).Padding(0, 0, heroClear, 0).Children(func() {
 			if it.Badge != "" {
-				ui.Text(c, it.Badge).FontSize(10.5).FontWeight(600).TextColor(p.muted).SingleLine().Margin(0, 0, 3, 0)
+				ui.Text(c, it.Badge).FontSize(10.5).FontWeight(600).TextColor(p.muted).SingleLine().Margin(0, 0, heroBadgeGap, 0)
 			}
 			ui.Text(c, it.Title).FontSize(15).SingleLine()
 			if it.Subtitle != "" {
