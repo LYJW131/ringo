@@ -179,6 +179,49 @@ func TestNewPage(t *testing.T) {
 	}
 }
 
+// Home's picks are cards three to four whoever Apple says they're for: a
+// reason sits on the reference and not on the thing it points at, a playlist's
+// artists and tall picture come with it, and a "more like" shelf keeps its
+// seed apart from the sentence that names it, unless Apple didn't give the
+// seed.
+func TestListenNowPortraits(t *testing.T) {
+	ts, a := newApple(t)
+	ts.storage.set(userTokenKey, "token")
+	a.routes = append(a.routes, route{regexp.MustCompile(`^/v1/me/recommendations$`), fixed("listen-now-us.json")})
+	b, err := ts.Home()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{music.ShelfPortrait, music.ShelfPortrait, music.ShelfSquare, music.ShelfSquare, music.ShelfSquare}
+	if got := styles(b); !slices.Equal(got, want) {
+		t.Fatalf("styles %q", got)
+	}
+	picks := b.Sections[0].Items
+	if len(picks) != 3 || picks[0].Badge != "Listen Again" || picks[1].Badge != "Made for You" {
+		t.Fatalf("picks %+v", picks)
+	}
+	if picks[0].TallURL != "" || picks[0].ImageURL == "" || picks[0].Colors.BG != "304a6e" {
+		t.Errorf("an album is its cover and colors: %+v", picks[0])
+	}
+	if !strings.Contains(picks[1].TallURL, "p1tall") || !strings.Contains(picks[2].TallURL, "r1tall") {
+		t.Errorf("tall pictures: %q, %q", picks[1].TallURL, picks[2].TallURL)
+	}
+	mix := b.Sections[1].Items[0]
+	if mix.Badge != "" || mix.Artists != "The Polar Lights, Quiet Hours, Paper Sails and more" || !strings.Contains(mix.TallURL, "p2static") {
+		t.Errorf("a made-for-you playlist: %+v", mix)
+	}
+	seeded := b.Sections[2]
+	if seeded.Seed == nil || seeded.Seed.Title != "Paper Boats" || seeded.Seed.ImageURL == "" || seeded.Kicker != "More Like" || seeded.Title != "More Like Paper Boats" {
+		t.Errorf("a seeded shelf: seed %+v, kicker %q, title %q", seeded.Seed, seeded.Kicker, seeded.Title)
+	}
+	if lonely := b.Sections[4]; lonely.Seed != nil || lonely.Kicker != "" || lonely.Title != "Fans of Nobody Like" {
+		t.Errorf("a shelf whose seed Apple left out: %+v", lonely)
+	}
+	if u := a.last(`/recommendations$`); !strings.Contains(u.Query().Get("extend[playlists]"), "editorialArtwork") {
+		t.Errorf("asked %v", u)
+	}
+}
+
 // Radio leads with Apple Music 1 as a hero, and what's on the air as a live shelf.
 func TestRadioPage(t *testing.T) {
 	ts, _ := newApple(t)

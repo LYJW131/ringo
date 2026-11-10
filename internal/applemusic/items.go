@@ -38,6 +38,8 @@ func (s *Source) item(b *body, r *resource) (music.Item, bool) {
 		p := s.toPlaylist(r)
 		it.Kind, it.Playlist, it.Subtitle, it.ImageURL = music.ItemPlaylist, &p, a.CuratorName, p.ImageURL
 		it.VideoURL = p.VideoURL
+		it.Artists = a.ArtistNames
+		it.TallURL, _ = wide(a, tallArt...)
 	case "artists":
 		artist := toArtist(r)
 		it.Kind, it.Artist = music.ItemArtist, &artist
@@ -62,6 +64,7 @@ func (s *Source) item(b *body, r *resource) (music.Item, bool) {
 			st.Subtitle = shows[0].attrs().Name
 		}
 		it.Kind, it.Station, it.Subtitle, it.WideURL = music.ItemStation, &st, st.Subtitle, st.WideURL
+		it.TallURL, _ = wide(a, tallArt...)
 	case "apple-curators", "curators":
 		it.Kind, it.Page = music.ItemLink, "curator:"+r.ID
 		it.Subtitle = a.ShowHostName
@@ -78,6 +81,7 @@ func (s *Source) item(b *body, r *resource) (music.Item, bool) {
 		}
 		var w *artwork
 		it.WideURL, w = wide(a, brickArt...)
+		it.TallURL, _ = wide(a, tallArt...)
 		if w != nil {
 			it.Colors = colors(w)
 		}

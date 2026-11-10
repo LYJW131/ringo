@@ -15,6 +15,12 @@ const (
 	// ShelfHero is the pictures that lead a page, wide and one at a time or
 	// nearly, each with a badge, a title and a line or two over it.
 	ShelfHero = "hero"
+	// ShelfPortrait is cards taller than wide, three to four, in a row that
+	// scrolls sideways: Home's picks for the listener. A card is its
+	// picture, a tall one that fills it or a cover with its own color
+	// below, and over its foot the Badge, then the Artists if it has them,
+	// else the Title and Subtitle.
+	ShelfPortrait = "portrait"
 	// ShelfSquare is covers in a row that scrolls sideways, a title and a
 	// line under each: albums, playlists, stations.
 	ShelfSquare = "square"
@@ -68,14 +74,22 @@ type Item struct {
 	// Title and Subtitle are the two lines by its picture.
 	Title    string `json:"title,omitempty"`
 	Subtitle string `json:"subtitle,omitempty"`
-	// Badge is a few words over it in capitals, such as "NEW ALBUM".
+	// Badge is a few words over it, such as "NEW ALBUM" or, on a card of
+	// Home's picks, why it is there: "Listen Again".
 	Badge string `json:"badge,omitempty"`
+	// Artists is who is on a playlist, a line of names that Apple cut short
+	// with "and more" itself.
+	Artists string `json:"artists,omitempty"`
 	// Note is what the editors say of it, a sentence or two, where a hero
 	// has room for it.
 	Note     string `json:"note,omitempty"`
 	ImageURL string `json:"imageUrl,omitempty"`
 	// WideURL is its picture wider than tall, for heroes and bricks (Wide).
 	WideURL string `json:"wideUrl,omitempty"`
+	// TallURL is its picture taller than wide, three to four, for the
+	// cards of a portrait shelf: its own title and Apple's mark are drawn
+	// in it. Its address is asked for as Wide's is.
+	TallURL string `json:"tallUrl,omitempty"`
 	// VideoURL is its picture moving, an HLS stream.
 	VideoURL string `json:"videoUrl,omitempty"`
 	Colors   Colors `json:"colors,omitzero"`

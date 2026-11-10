@@ -45,11 +45,20 @@ func (m shelfMetrics) fit(min float32) (int, float32) {
 	return n, (m.inner - shelfGap*float32(n-1)) / float32(n)
 }
 
+// The cover that heads a section made from one thing, and the room around it.
+const (
+	seedCover  = 58
+	seedRadius = 6
+	seedGap    = 12
+)
+
 // The least widths of the items of each style.
 const (
-	squareMin = 150
-	circleMin = 128
-	brickMin  = 240
+	// Five to a row in a window 1600 wide, as Apple Music's.
+	portraitMin = 230
+	squareMin   = 150
+	circleMin   = 128
+	brickMin    = 240
 	// A brick in rows that wrap, as Search's categories.
 	tileMin   = 190
 	heroMin   = 360
@@ -199,9 +208,18 @@ func (a *app) shelfTitle(c *ui.Context, sec *music.Section, first bool) {
 	if first {
 		margin = 0
 	}
-	ui.Column(c).Margin(margin, 12, 10, 12).Gap(2).Children(func() {
+	text, seed := sec.Title, sec.Seed
+	if seed != nil {
+		text = seed.Title
+	}
+	lines := func() {
+		// A section made from one thing is headed by it: its cover, and
+		// its name under what Apple says of the section.
+		if seed != nil && sec.Kicker != "" {
+			ui.Text(c, sec.Kicker).FontSize(13).TextColor(p.muted).SingleLine()
+		}
 		title := func(color ui.Color) {
-			ui.Text(c, sec.Title).FontSize(18).FontWeight(700).LetterSpacing(-0.3).TextColor(color).SingleLine().Shrink(1).MinWidth(0)
+			ui.Text(c, text).FontSize(18).FontWeight(700).LetterSpacing(-0.3).TextColor(color).SingleLine().Shrink(1).MinWidth(0)
 		}
 		if sec.MorePage == "" {
 			ui.Row(c).Children(func() { title(p.text) })
@@ -222,6 +240,16 @@ func (a *app) shelfTitle(c *ui.Context, sec *music.Section, first bool) {
 		if sec.Subtitle != "" && sec.Style != music.ShelfText {
 			ui.Text(c, sec.Subtitle).FontSize(13).TextColor(p.muted).SingleLine()
 		}
+	}
+	if seed == nil {
+		ui.Column(c).Margin(margin, 12, 10, 12).Gap(2).Children(lines)
+		return
+	}
+	ui.Row(c).Margin(margin, 12, 12, 12).Gap(seedGap).AlignItems(ui.Center).Children(func() {
+		ui.Box(c).Size(seedCover, seedCover).Radius(seedRadius).Shrink(0).Border(0.5, p.hairline).Children(func() {
+			a.itemPicture(c, seed, false, 160, seedRadius)
+		})
+		ui.Column(c).Gap(2).Shrink(1).MinWidth(0).Children(lines)
 	})
 }
 
@@ -249,6 +277,9 @@ func (a *app) shelf(c *ui.Context, secs []music.Section, s int, m shelfMetrics, 
 	case music.ShelfHero:
 		_, w = m.fit(heroMin)
 		artTop, artH = heroHead(c, sec), w*9/16
+	case music.ShelfPortrait:
+		_, w = m.fit(portraitMin)
+		artH = w * 4 / 3
 	case music.ShelfLive:
 		var n int
 		n, w = m.fit(heroMin)
@@ -327,6 +358,8 @@ func (a *app) shelfItem(c *ui.Context, secs []music.Section, s, i int, w float32
 	switch secs[s].Style {
 	case music.ShelfHero:
 		a.heroCard(c, secs, s, i, w)
+	case music.ShelfPortrait:
+		a.portraitCard(c, secs, s, i, w)
 	case music.ShelfLive:
 		a.liveCard(c, secs, s, i, w)
 	case music.ShelfBrick:
@@ -585,6 +618,12 @@ func (a *app) itemPicture(c *ui.Context, it *music.Item, wide bool, px int, radi
 	if wide && it.WideURL != "" {
 		url, px = music.Wide(it.WideURL, wideArt, wideArt*9/16), wideArt
 	}
+	a.pictureAt(c, it, url, px, radius)
+}
+
+// pictureAt is itemPicture of the picture at url, which it asks for as px
+// wide.
+func (a *app) pictureAt(c *ui.Context, it *music.Item, url string, px int, radius float32) {
 	bmp := bitmap(a.art.get(sized(url, px), false))
 	box := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(radius)
 	in := artIn(box, bmp)
@@ -790,6 +829,98 @@ func (a *app) heroCard(c *ui.Context, secs []music.Section, s, i int, w float32)
 				ui.Text(c, it.Note).Absolute().Left(14).Right(14).Bottom(12).FontSize(12).TextColor(white).MaxLines(2).LineHeight(1.35)
 			}
 			a.hoverShade(c, hovered, artRadius+1)
+			if play := a.playItem(it); play != nil {
+				a.coverPlayButton(c, hovered, play)
+			}
+		})
+	})
+}
+
+// portraitRadius rounds the corners of a portrait card, as Apple Music's.
+const portraitRadius = 8
+
+// portraitInk is the color of the words over a portrait card's foot, in
+// the picture's own for them if it gives one that can be read on ground,
+// else white or black by how dark ground is.
+func portraitInk(it *music.Item, ground ui.Color) ui.Color {
+	read := func(ink ui.Color) float64 {
+		a, b := luminance(ink)+0.05, luminance(ground)+0.05
+		return max(a, b) / min(a, b)
+	}
+	if ink, ok := hexColorOK(it.Colors.Text1); ok && read(ink) >= 4.5 {
+		return ink
+	}
+	if dark := ui.RGB(18, 18, 20); read(dark) > read(white) {
+		return dark
+	}
+	return white
+}
+
+// portraitCard is a card of Home's picks, three to four. Its picture is a
+// tall one that fills it, which has its own title; or, without one, the
+// cover over the card's own ground, the cover's color, that it fades into.
+// The words stand on its foot: why it is there, then who's on it, or else
+// its title and a line.
+func (a *app) portraitCard(c *ui.Context, secs []music.Section, s, i int, w float32) {
+	it := &secs[s].Items[i]
+	h := w * 4 / 3
+	b := a.itemButton(c, secs, s, i).Width(w).Shrink(0)
+	hovered := b.Hovered()
+	tall := it.TallURL != ""
+	says := it.Badge != "" || it.Artists != "" || !tall
+	b.Children(func() {
+		ground := itemColor(it, a.pal.blank)
+		ink := white
+		box := ui.Box(c).Size(w, h).Radius(portraitRadius).Border(0.5, a.pal.hairline)
+		if !tall {
+			ink = portraitInk(it, ground)
+		}
+		box.Children(func() {
+			if !tall {
+				// The ground is only the cover's lower part, that it
+				// doesn't ring the cover's rounded corners.
+				ui.Box(c.Key("ground")).Absolute().Left(0).Right(0).Bottom(0).Top(w * 0.5).Radius(portraitRadius).Background(ground)
+			}
+			if tall {
+				a.pictureAt(c, it, music.Wide(it.TallURL, 900, 1200), 900, portraitRadius)
+				if says {
+					// A scrim for the words, as the picture may be light
+					// at its foot.
+					ui.Box(c.Key("scrim")).Absolute().Left(0).Right(0).Bottom(0).Height(h * 0.45).Radius(portraitRadius).
+						LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
+							{Color: ui.RGBA(0, 0, 0, 0), At: 0},
+							{Color: ui.RGBA(0, 0, 0, 0.6), At: 1},
+						}})
+				}
+			} else {
+				ui.Box(c.Key("cover")).Absolute().Top(0).Left(0).Right(0).Height(w).Children(func() {
+					a.itemPicture(c, it, false, 600, portraitRadius)
+				})
+				// The cover's foot melts into the ground it stands on, the
+				// last of it past the cover's own edge.
+				ui.Box(c.Key("melt")).Absolute().Left(0).Right(0).Top(w * 0.6).Height(w*0.4 + 1).
+					LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
+						{Color: ground.Alpha(0), At: 0},
+						{Color: ground, At: 1},
+					}})
+			}
+			if says {
+				ui.Column(c.Key("words")).Absolute().Left(14).Right(14).Bottom(14).Gap(2).Children(func() {
+					if it.Badge != "" {
+						ui.Text(c, it.Badge).FontSize(11.5).FontWeight(600).TextColor(ink.Alpha(0.7)).SingleLine()
+					}
+					switch {
+					case it.Artists != "":
+						ui.Text(c, it.Artists).FontSize(12.5).FontWeight(500).TextColor(ink).MaxLines(3).LineHeight(1.3)
+					case !tall:
+						ui.Text(c, it.Title).FontSize(14).FontWeight(700).TextColor(ink).MaxLines(2).LineHeight(1.25)
+						if it.Subtitle != "" {
+							ui.Text(c, it.Subtitle).FontSize(12).TextColor(ink.Alpha(0.7)).SingleLine()
+						}
+					}
+				})
+			}
+			a.hoverShade(c, hovered, portraitRadius)
 			if play := a.playItem(it); play != nil {
 				a.coverPlayButton(c, hovered, play)
 			}

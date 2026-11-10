@@ -224,6 +224,35 @@ func TestLivePagesSignedIn(t *testing.T) {
 
 	home, err := s.Home()
 	checkPage(t, "home", home, err, 3)
+	// Home's picks are cards three to four, each with its picture; only
+	// counts are printed, as what's on them is the listener's.
+	if home != nil {
+		portraits, reasons, artists, seeded := 0, 0, 0, 0
+		for _, sec := range home.Sections {
+			if sec.Seed != nil && sec.Kicker != "" {
+				seeded++
+			}
+			if sec.Style != music.ShelfPortrait {
+				continue
+			}
+			portraits++
+			for _, it := range sec.Items {
+				if it.ImageURL == "" && it.TallURL == "" {
+					t.Errorf("a portrait card without a picture: %s", it.Kind)
+				}
+				if it.Badge != "" {
+					reasons++
+				}
+				if it.Artists != "" {
+					artists++
+				}
+			}
+		}
+		if portraits == 0 {
+			t.Error("Home without cards three to four")
+		}
+		t.Logf("home: %d portrait sections, %d cards with a reason, %d with artists, %d sections with a seed", portraits, reasons, artists, seeded)
+	}
 	if rec := firstPage(home, "rec:"); rec != "" {
 		openPage(t, s, "a shelf of home", rec, 1)
 	}

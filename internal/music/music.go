@@ -274,6 +274,12 @@ type Section struct {
 	// left alone.
 	Style string `json:"style,omitempty"`
 	Items []Item `json:"items,omitempty"`
+
+	// Seed is the one thing the section is made from, as "More Like" a
+	// certain album: its title shows as Kicker over the Seed's own, beside
+	// the Seed's small cover. Title stays the whole sentence.
+	Seed   *Item  `json:"seed,omitempty"`
+	Kicker string `json:"kicker,omitempty"`
 }
 
 // Link opens another Browse page.

@@ -152,8 +152,12 @@ type attributes struct {
 	HasCatalog          bool   `json:"hasCatalog"`
 	LastModifiedDate    string `json:"lastModifiedDate"`
 	IsLive              bool   `json:"isLive"`
-	// Title is a recommendation's, a room's or a shelf's.
+	// Title is a recommendation's, a room's or a shelf's. A recommendation
+	// made from one thing the listener has (More Like …) also has its title
+	// without that thing's name.
 	Title             text     `json:"title"`
+	TitleWithoutName  text     `json:"titleWithoutName"`
+	ArtistNames       string   `json:"artistNames"` // of a playlist
 	Value             int      `json:"value"`
 	TTML              string   `json:"ttml"`
 	TTMLLocalizations string   `json:"ttmlLocalizations"`
@@ -245,9 +249,10 @@ type resource struct {
 	Relationships map[string]*relationship `json:"relationships"`
 	Views         map[string]*relationship `json:"views"`
 	// Meta is what a pointer says of what it points at in its place, such
-	// as how much an album's song is played.
+	// as how much an album's song is played, or why a recommendation has it.
 	Meta *struct {
 		Popularity float64 `json:"popularity"`
+		Reason     text    `json:"reason"`
 	} `json:"meta"`
 }
 
@@ -410,9 +415,12 @@ func motion(a *attributes, names ...string) string {
 }
 
 // The pictures, by what shows them: wider than tall, across a hero or a
-// page's head; and the cover moving, square.
+// page's head; taller than wide, for a card of Home's picks (superHeroTall
+// has the picture's title and Apple's mark drawn in it, staticDetailTall
+// neither); and the cover moving, square.
 var (
 	heroArt    = []string{"subscriptionHero", "superHeroWide", "storeFlowcase", "bannerUber", "epicStageWide", "centeredFullscreenBackground"}
+	tallArt    = []string{"superHeroTall", "staticDetailTall"}
 	brickArt   = []string{"subscriptionCover", "superHeroWide", "subscriptionHero", "storeFlowcase", "bannerUber"}
 	squareMove = []string{"motionDetailSquare", "motionSquareVideo1x1", "motionArtistSquare1x1"}
 	wideMove   = []string{"motionWideVideo21x9", "motionMediumVideo16x9", "motionArtistWide16x9", "motionArtistFullscreen16x9", "motionDetailTall"}

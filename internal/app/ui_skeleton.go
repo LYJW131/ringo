@@ -102,7 +102,8 @@ func boneWidth(i int) float32 { return boneWidths[i%len(boneWidths)] }
 // browseRows starts a source's own Home.
 func (a *app) homeSkeleton(c *ui.Context, s shimmer, shelves bool) {
 	if shelves {
-		a.shelfSkeleton(c, s)
+		// A listener's Home leads with cards three to four, Apple's picks.
+		a.shelfSkeletonWith(c, s, a.account != nil)
 		return
 	}
 	ui.Column(c.Key("home-skeleton")).PaddingX(12).Children(func() {
@@ -112,13 +113,25 @@ func (a *app) homeSkeleton(c *ui.Context, s shimmer, shelves bool) {
 
 // shelfSkeleton is a page of shelves while it loads: titles over rows of
 // squares, as many as fit across.
-func (a *app) shelfSkeleton(c *ui.Context, s shimmer) {
-	n, w := a.shelfMetrics(c).fit(squareMin)
+func (a *app) shelfSkeleton(c *ui.Context, s shimmer) { a.shelfSkeletonWith(c, s, false) }
+
+// shelfSkeletonWith is shelfSkeleton, its first row cards three to four,
+// as portraitCard's, with no words under them, as they have none.
+func (a *app) shelfSkeletonWith(c *ui.Context, s shimmer, portrait bool) {
+	m := a.shelfMetrics(c)
+	n, w := m.fit(squareMin)
+	pn, pw := m.fit(portraitMin)
 	ui.Column(c.Key("shelf-skeleton")).PaddingX(12).Children(func() {
 		for row := range 2 {
 			ui.Column(c.Key(row)).Margin(float32(row)*sectionGap, 0, 0, 0).Gap(12).Children(func() {
 				s.text(c, 18, 1.3).Width(140)
 				ui.Row(c).Gap(shelfGap).Children(func() {
+					if portrait && row == 0 {
+						for i := range pn {
+							s.bone(c.Key(i), portraitRadius).Size(pw, pw*4/3)
+						}
+						return
+					}
 					for i := range n {
 						ui.Column(c.Key(i)).Width(w).Gap(7).Children(func() {
 							s.bone(c, artRadius).Size(w, w)

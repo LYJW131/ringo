@@ -282,8 +282,8 @@ func (s *Source) searchMore(key, term, next string) (*music.Browse, error) {
 // by display.kind; "" leaves the shelf out, as the web player does what it
 // asks only to fill in with what the listener has.
 var recommendationStyle = map[string]string{
-	"MusicSuperHeroShelf":       music.ShelfHero,
-	"MusicNotesHeroShelf":       music.ShelfHero,
+	"MusicSuperHeroShelf":       music.ShelfPortrait,
+	"MusicNotesHeroShelf":       music.ShelfPortrait,
 	"MusicCoverShelf":           music.ShelfSquare,
 	"MusicCardShelf":            music.ShelfSquare,
 	"MusicHorizontalLockupGrid": music.ShelfSquare,
@@ -313,7 +313,7 @@ func (s *Source) recommendations(b *body) []music.Section {
 		if known && style == "" {
 			continue
 		}
-		items := s.items(b, rec.related("contents").Data)
+		items := s.recommended(b, rec.related("contents").Data)
 		if len(items) == 0 {
 			continue
 		}
@@ -321,10 +321,34 @@ func (s *Source) recommendations(b *body) []music.Section {
 			style = shelfStyle(items)
 		}
 		sec := music.Section{Title: string(a.Title), Style: style, Items: items}
+		// "More like" a thing has it as its own: it shows its cover and
+		// name, with what Apple says before the name over them.
+		if a.TitleWithoutName != "" {
+			if seeds := s.items(b, rec.related("primary-content").Data); len(seeds) > 0 {
+				sec.Seed, sec.Kicker = &seeds[0], string(a.TitleWithoutName)
+			}
+		}
 		if a.HasSeeAll {
 			sec.MorePage = "rec:" + rec.ID
 		}
 		out = append(out, sec)
+	}
+	return out
+}
+
+// recommended is items of a recommendation's refs, each with the reason
+// Apple gives for it, which sits on the ref and not on what it points at.
+func (s *Source) recommended(b *body, refs []*resource) []music.Item {
+	out := []music.Item{}
+	for _, ref := range refs {
+		it, ok := s.item(b, b.get(ref))
+		if !ok {
+			continue
+		}
+		if ref.Meta != nil {
+			it.Badge = string(ref.Meta.Reason)
+		}
+		out = append(out, it)
 	}
 	return out
 }

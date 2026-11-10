@@ -44,6 +44,33 @@ func TestHomeShowsTheSourcesSections(t *testing.T) {
 	}
 }
 
+// A card of Home's picks opens what it is, whether its words are the title
+// or, over a picture that has the title in it, only who's on it.
+func TestPortraitCardsOpenWhatTheyAre(t *testing.T) {
+	a := newTestApp()
+	a.account = &music.Account{ID: "1", Name: "Alex"}
+	a.home = &music.Browse{Sections: []music.Section{{Title: "Top Picks for You", Style: music.ShelfPortrait, Items: []music.Item{
+		{Kind: music.ItemAlbum, ID: "8", Title: "Slow Tide", Subtitle: "Quiet Hours", Badge: "Listen Again", Album: &music.Album{ID: "8"}},
+		{Kind: music.ItemPlaylist, ID: "42", Title: "Favorites Mix", Artists: "Quiet Hours and more", TallURL: "tall:0:{w}x{h}", Playlist: &music.Playlist{ID: "42"}},
+	}}}}
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if err := tt.Click("Slow Tide"); err != nil {
+		t.Fatal(err)
+	}
+	if a.route != (route{page: pageAlbum, src: "fake", id: "8"}) {
+		t.Fatalf("the album's card opened %+v", a.route)
+	}
+	tt.Key(0, ui.KeyBack)
+	tt.Frame()
+	if err := tt.Click("Favorites Mix"); err != nil {
+		t.Fatal(err)
+	}
+	if a.route != (route{page: pagePlaylist, src: "fake", id: "42"}) {
+		t.Fatalf("the playlist's card opened %+v", a.route)
+	}
+}
+
 // browseApp's source answers with a page of what a page is called, which the
 // test finds in asked.
 func browseApp() (*app, chan func(), chan string) {

@@ -15,8 +15,8 @@ import (
 func listenNowParams() params {
 	return params{
 		"name":                             "listen-now",
-		"extend[playlists]":                "artistNames",
-		"extend[stations]":                 "airTime,supportsAirTimeUpdates",
+		"extend[playlists]":                "artistNames,editorialArtwork",
+		"extend[stations]":                 "airTime,supportsAirTimeUpdates,editorialArtwork",
 		"meta[stations]":                   "inflectionPoints",
 		"include[albums]":                  "artists",
 		"include[library-playlists]":       "catalog",
