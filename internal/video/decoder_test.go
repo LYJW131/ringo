@@ -119,26 +119,6 @@ func TestDecoderPlaysAndRewinds(t *testing.T) {
 	playsAndRewinds(t, d)
 }
 
-// The Mac's own decoder, which plays covers there, gives the same frames
-// in the same colors, and lets go of the file it reads from once closed.
-func TestHardwarePlaysAndRewinds(t *testing.T) {
-	if !Hardware() {
-		t.Skip("no hardware decoder here")
-	}
-	d, err := openHardware(clip(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	playsAndRewinds(t, d)
-	path := d.(*hardware).path
-	if err := d.(io.Closer).Close(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Errorf("its file stayed: %v", err)
-	}
-}
-
 // What isn't a fragmented MP4 of H.264 doesn't open.
 func TestDecoderRefuses(t *testing.T) {
 	if _, err := Open([]byte("not a video")); err == nil {

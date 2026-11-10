@@ -168,7 +168,7 @@ func TestLatestReleaseAdds(t *testing.T) {
 // With MM_FRAMES set, saves an artist's page headed by their picture
 // moving (its still, as tests don't decode video), by their round photo, and
 // by nothing, in the light and the dark, wide and narrow, to set beside
-// Music on the Mac's (.work/apple-app/artist).
+// Music on the Mac's.
 func TestArtistFrames(t *testing.T) {
 	dir := framesDir(t)
 	heads := []struct {

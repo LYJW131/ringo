@@ -21,7 +21,7 @@ import (
 
 // motionSize is the biggest variant fetched for a place, in pixels. Past
 // these, the next sizes up took about twice the CPU to decode for no
-// difference at the size they show (.work/motion/decision.md): a card at
+// difference at the size they show: a card at
 // 436×582 takes some 6% of a core, a page's head at 486² as much, an
 // artist's at 768×432 some 8%.
 type motionSize struct{ w, h int }

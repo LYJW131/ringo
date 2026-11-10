@@ -19,8 +19,8 @@ import (
 
 // On the Mac a cover is decoded by AVFoundation, which hands it to the
 // machine's video decoder: almost no CPU, where FFmpeg's in WebAssembly
-// takes half a core for an artist's head at 1920×1080 (.work/apple-app/
-// findings.md). It is reached through purego, not cgo, as the notch is.
+// takes half a core for an artist's head at 1920×1080, as measured on an M4
+// Pro. It is reached through purego, not cgo, as the notch is.
 // AVFoundation reads a file, so the stream is written to one for as long as
 // it plays. Anything that fails leaves the cover to the WebAssembly decoder.
 
