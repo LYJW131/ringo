@@ -265,7 +265,9 @@ func TestLivePagesSignedIn(t *testing.T) {
 		}
 		if page == music.PageLibraryArtist {
 			if a := firstPage(b, "library-artist:"); a != "" {
-				openPage(t, s, "an artist of the library", a, 1)
+				if ab := openPage(t, s, "an artist of the library", a, 1); ab != nil {
+					t.Logf("an artist of the library offers their page: %v", ab.Artist != "")
+				}
 			}
 		}
 	}

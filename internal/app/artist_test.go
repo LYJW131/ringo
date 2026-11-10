@@ -205,6 +205,27 @@ func TestArtistFrames(t *testing.T) {
 		}
 		saveFrame(t, dir, name+".png", tt.Image())
 	}
+	// An artist of the library, as the sidebar's Artists and the search
+	// open them, with the way to their page of Apple Music.
+	for _, dark := range []bool{false, true} {
+		a, _ := shelfApp()
+		var albums []music.Item
+		for i, name := range []string{"Polar Night", "Aurora", "Thaw"} {
+			albums = append(albums, music.Item{Kind: music.ItemAlbum, ID: fmt.Sprint("70", i), Title: name, Subtitle: "The Polar Lights", ImageURL: fmt.Sprintf("cover:%d", i)})
+		}
+		a.browses["library-artist:r.1"] = &browseData{at: time.Now(), page: &music.Browse{Title: "The Polar Lights", ImageURL: "cover:1", Artist: "7",
+			Sections: []music.Section{{Style: music.ShelfGrid, Items: albums}}}}
+		a.route = route{page: pageBrowse, id: "library-artist:r.1"}
+		shelfArt(a)
+		tt := ui.NewTester(a.view, 1180, 780)
+		tt.SetDark(dark)
+		settled(tt)
+		name := "library-artist"
+		if dark {
+			name += "-dark"
+		}
+		saveFrame(t, dir, name+".png", tt.Image())
+	}
 	// And their biography over the page, in both appearances.
 	for _, dark := range []bool{false, true} {
 		a := artistApp(false)

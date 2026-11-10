@@ -386,3 +386,21 @@ func TestLibraryArtistOpensTheirLibraryPage(t *testing.T) {
 		t.Fatalf("opened %+v", a.route)
 	}
 }
+
+// The page of an artist of the library, their albums there, opens their
+// page of Apple Music from the button under their name, as the search and
+// the sidebar's Artists bring the listener to the library's.
+func TestLibraryArtistGoesToTheirPage(t *testing.T) {
+	a, _ := shelfApp()
+	a.browses["library-artist:r.1"] = &browseData{at: time.Now(), page: &music.Browse{Title: "The Polar Lights", ImageURL: "cover:1", Artist: "7",
+		Sections: []music.Section{{Style: music.ShelfGrid, Items: []music.Item{{Kind: music.ItemAlbum, ID: "70", Title: "Polar Night", ImageURL: "cover:2"}}}}}}
+	a.route = route{page: pageBrowse, id: "library-artist:r.1"}
+	tt := ui.NewTester(a.view, 1180, 780)
+	tt.Frame()
+	if err := tt.Click("Go to Artist Page"); err != nil {
+		t.Fatal(err)
+	}
+	if a.route != (route{page: pageArtist, id: "7"}) {
+		t.Fatalf("opened %+v", a.route)
+	}
+}
