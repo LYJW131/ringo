@@ -257,3 +257,24 @@ func TestLyricsFirstLinesAtTheFocus(t *testing.T) {
 		t.Errorf("before it is sung, the first line is at %.1f; sung, a line is at %.1f", got, want)
 	}
 }
+
+// Lyrics fade toward the ends of their pane only as far as they are
+// scrolled from them, so that at their top the first line shows whole, and
+// at their end the last; and never over more than a quarter of the pane.
+func TestLyricEdgeFades(t *testing.T) {
+	for _, c := range []struct {
+		h, y, most, top, foot float32
+	}{
+		{600, 0, 2000, 0, lyricEdgeFoot},
+		{600, 30, 2000, 30, lyricEdgeFoot},
+		{600, 500, 2000, lyricEdgeTop, lyricEdgeFoot},
+		{600, 1960, 2000, lyricEdgeTop, 40},
+		{600, 2000, 2000, lyricEdgeTop, 0},
+		{200, 500, 2000, 50, 50},
+		{600, 0, 0, 0, 0},
+	} {
+		if top, foot := edgeFades(c.h, c.y, c.most); top != c.top || foot != c.foot {
+			t.Errorf("a pane %.0f tall at %.0f of %.0f fades %.0f from its top and %.0f from its foot, want %.0f and %.0f", c.h, c.y, c.most, top, foot, c.top, c.foot)
+		}
+	}
+}

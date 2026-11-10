@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -251,4 +252,73 @@ func TestLyricsFirstLineFrames(t *testing.T) {
 		playFrames(a, tt, pos-time.Second, time.Second/30, 31, func(int) {})
 		saveFrame(t, dir, name, tt.Image())
 	}
+}
+
+// thrice is lines three times over, one after another, for a song long
+// enough to have lines past both ends of the pane at once.
+func thrice(lines []music.LyricLine) []music.LyricLine {
+	length := lines[len(lines)-1].End + 4000
+	var out []music.LyricLine
+	for n := range int64(3) {
+		for _, l := range lines {
+			l.Start, l.End = l.Start+n*length, l.End+n*length
+			l.Words, l.Pronounced = slices.Clone(l.Words), slices.Clone(l.Pronounced)
+			for _, words := range [][]music.LyricWord{l.Words, l.Pronounced} {
+				for k := range words {
+					words[k].Start, words[k].End = words[k].Start+n*length, words[k].End+n*length
+				}
+			}
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// With MM_FRAMES set, saves the lyrics where their lines meet the pane's
+// top and bottom, in a tall window: as a line is sung, with a translation
+// under the lines and with how they are said; a moment after the listener
+// scrolled them; and lyrics without times, at their top and scrolled a
+// little.
+func TestLyricsEdgesFrames(t *testing.T) {
+	dir := framesDir(t)
+	const w, h = 1180, 1000
+	tall := func(lines []music.LyricLine, extra string) (*app, *ui.Tester, time.Duration) {
+		// A second and a half into the seventeenth line.
+		lines = thrice(lines)
+		pos := time.Duration(lines[16].Start+1500) * time.Millisecond
+		a, tt, _ := motionApp(lines, pos)
+		a.settings.LyricsExtra = extra
+		tt.SetSize(w, h)
+		tt.Frame()
+		playFrames(a, tt, pos, time.Second/30, 45, func(int) {})
+		return a, tt, pos
+	}
+	_, tt, _ := tall(motionSongs()["zh"], extraTranslation)
+	saveFrame(t, dir, "edges-translation.png", tt.Image())
+	_, tt, _ = tall(saidSong(), extraPronunciation)
+	saveFrame(t, dir, "edges-pronunciation.png", tt.Image())
+	// Scrolled as far as leaves a line across the pane's top, and its foot.
+	var pos time.Duration
+	for name, by := range map[string]float32{"edges-scrolled-top.png": 122, "edges-scrolled-foot.png": 150} {
+		var a *app
+		a, tt, pos = tall(motionSongs()["zh"], extraTranslation)
+		wheel(tt, 800, 500, by)
+		playFrames(a, tt, pos, time.Second/30, 20, func(int) {})
+		saveFrame(t, dir, name, tt.Image())
+	}
+
+	a := newTestApp()
+	a.pl.Cue([]music.Track{coveredSong(a)})
+	a.pl.SetLyrics(stillWords(40))
+	a.pl.Hold(pos)
+	a.nowPlaying, a.npPane = true, paneLyrics
+	tt = ui.NewTester(a.view, w, h)
+	tt.SetDark(true)
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	saveFrame(t, dir, "edges-still-top.png", tt.Image())
+	wheel(tt, 800, 500, 137)
+	tt.Advance(2 * time.Second) // the scroll bar goes
+	tt.Frame()
+	saveFrame(t, dir, "edges-still.png", tt.Image())
 }

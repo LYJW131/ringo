@@ -60,8 +60,58 @@ func (a *app) lyricsPane(c *ui.Context, tr *music.Track, h float32) {
 	a.bars.settle("lyrics", barPlace{of: a.lyricTrack, y: a.lyricScroll.Y, last: -1})
 
 	scroll := ui.Scroll(c.Key("lyrics")).Grow(1).TrackScroll(&a.lyricScroll).Padding(0, 8, h*0.5, 0)
+	fadeEdges(scroll, &a.lyricScroll)
 	a.bars.show(c, scroll, "lyrics")
 	a.timedLines(c, scroll, lines, pos, focus, linesStyle{size: 30, weight: 800, lineHeight: 1.25})
+}
+
+// The lyrics fade out toward the top and the foot of their pane, over
+// lyricEdgeTop and lyricEdgeFoot DIPs at most: a line leaves the pane into
+// nothing, as in Music, where the pane's edge cut it through, half a line
+// of type standing on a straight edge with nothing to show for one.
+const (
+	lyricEdgeTop  = 72
+	lyricEdgeFoot = 112
+)
+
+// edgeFades is how far from its top and from its foot a pane of lyrics h
+// tall fades, scrolled to y of most: no farther than a quarter of it, and
+// than it is scrolled from either end, so that lyrics at their top show
+// their first line whole, and at their end their last.
+func edgeFades(h, y, most float32) (top, foot float32) {
+	return max(0, min(lyricEdgeTop, y, h/4)), max(0, min(lyricEdgeFoot, most-y, h/4))
+}
+
+// fadeEdges fades what scroll, a pane of lyrics scrolled to s, shows toward
+// its top and its foot. It is a mask over what the pane draws, not a layer
+// of it: nothing is drawn twice for it, and no frame asked for.
+func fadeEdges(scroll ui.Element, s *ui.ScrollState) {
+	h := scroll.Bounds().H
+	if h <= 0 {
+		return
+	}
+	top, foot := edgeFades(h, s.Y, s.MaxY)
+	if top == 0 && foot == 0 {
+		return
+	}
+	// Eased, at five places along each: a straight ramp shows where it
+	// begins.
+	black := ui.RGB(0, 0, 0)
+	stops := []ui.GradientStop{{Color: black, At: 0}}
+	if top > 0 {
+		stops = stops[:0]
+		for _, t := range []float32{0, 0.25, 0.5, 0.75, 1} {
+			stops = append(stops, ui.GradientStop{Color: black.Alpha(smoothstep(0, 1, t)), At: t * top / h})
+		}
+	}
+	if foot > 0 {
+		for _, t := range []float32{1, 0.75, 0.5, 0.25, 0} {
+			stops = append(stops, ui.GradientStop{Color: black.Alpha(smoothstep(0, 1, t)), At: 1 - t*foot/h})
+		}
+	} else {
+		stops = append(stops, ui.GradientStop{Color: black, At: 1})
+	}
+	scroll.MaskLinearGradient(ui.LinearGradient{Angle: 180, Stops: stops})
 }
 
 // lyricsOf has the lyrics' place and type be those of track: another
@@ -81,6 +131,7 @@ func (a *app) lyricsOf(track string) {
 func (a *app) stillLines(c *ui.Context, lines []lyrics.Line, st linesStyle, foot float32) {
 	lang := lyrics.Lang(lines)
 	scroll := ui.Scroll(c.Key("still-lyrics")).Grow(1).TrackScroll(&a.lyricScroll).Padding(0, 8, foot, 0)
+	fadeEdges(scroll, &a.lyricScroll)
 	a.bars.quiet(c, scroll, "still-lyrics", barPlace{of: a.lyricTrack, y: a.lyricScroll.Y, last: -1})
 	scroll.Children(func() {
 		for i, l := range lines {
