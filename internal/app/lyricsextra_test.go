@@ -1,12 +1,14 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
+	"ringo/internal/i18n"
 	"ringo/internal/lyrics"
 	"ringo/internal/music"
 )
@@ -146,5 +148,80 @@ func TestLyricsExtraMenuOffersWhatTheSongHas(t *testing.T) {
 		if a.settings.LyricsExtra != "" {
 			t.Errorf("the settings keep %q", a.settings.LyricsExtra)
 		}
+	}
+}
+
+// saidSong is the song in Japanese that the frames of the lyrics' motion
+// are of, with how each of its lines is said, made up as the song is: as
+// Apple sends it, a piece for each of the line's words, sung when the word
+// is. A dot parts the pieces of a word.
+func saidSong() []music.LyricLine {
+	said := []string{
+		"yo·a·ke no eki de kaze wo ma·t·te i·ta",
+		"shiro·i iki ga sora ni ho·do·ke·te yu·ku",
+		"kimi no na·mae wo chii·sa·ku yo·n·de mi·ru",
+		"too·i machi no aka·ri ga ma·da yu·re·te i·ru",
+		"shi·hatsu no be·ru ga kyo·u wo tsu·re·te ku·ru",
+		"mo·u ichi·do da·ke aru·ki·da·se·ru ki ga shi·ta",
+		"asa ga ho·o·mu ni o·ri·te ku·ru",
+		"mado no mu·ko·u de machi ga me wo sa·ma·su",
+		"shi·ra·na·i dare·ka no koe ga ya·sa·shi·i",
+		"po·ke·t·to no naka no kip·pu wo ni·gi·ru",
+		"yu·ki·saki wa ma·da ki·me·te i·na·i ke·do",
+		"ko·no kaze to na·ra do·ko e de·mo i·ke·ru",
+	}
+	lines := motionSongs()["ja"]
+	for i := range lines {
+		l := &lines[i]
+		for _, word := range strings.Fields(said[i]) {
+			pieces := strings.Split(word, "·")
+			pieces[len(pieces)-1] += " "
+			for _, piece := range pieces {
+				sung := l.Words[len(l.Pronounced)]
+				l.Pronounced = append(l.Pronounced, music.LyricWord{Start: sung.Start, End: sung.End, Text: piece})
+			}
+		}
+		if len(l.Pronounced) != len(l.Words) {
+			panic(fmt.Sprintf("line %d: %d pieces for %d words", i, len(l.Pronounced), len(l.Words)))
+		}
+		l.Pronunciation = strings.ReplaceAll(said[i], "·", "")
+	}
+	return lines
+}
+
+// With MM_FRAMES set, saves the app in Chinese with each of what can show
+// under a line of lyrics, nothing, how it is said, and its translation: the
+// lyrics, the stage and the wall as a line is sung; the lyrics from one line
+// through the next, a frame every tenth of a second; and the settings' page
+// with the same choice.
+func TestLyricsExtraFrames(t *testing.T) {
+	dir := framesDir(t)
+	defer i18n.SetLanguage(i18n.English)
+	i18n.SetLanguage(i18n.Chinese)
+	a := newTestApp()
+	a.settingsPage = "playback"
+	tt := ui.NewTester(a.settingsView, 780, 760)
+	tt.SetDark(true)
+	settled(tt)
+	saveFrame(t, dir, "extra-settings.png", tt.Image())
+
+	shown := func(pane int, extra string, from time.Duration) (*app, *ui.Tester) {
+		a, tt, _ := motionApp(saidSong(), from)
+		a.settings.LyricsExtra, a.npPane = extra, pane
+		tt.Move(240, 700) // the pointer in the window shows the button
+		tt.Frame()
+		return a, tt
+	}
+	for _, extra := range []string{extraOff, extraPronunciation, extraTranslation} {
+		// The eighth line begins at 49.4 s.
+		for name, pane := range map[string]int{"lyrics": paneLyrics, "stage": paneStage, "wall": paneWall} {
+			a, tt := shown(pane, extra, 50*time.Second)
+			playFrames(a, tt, 50*time.Second, time.Second/30, 45, func(int) {})
+			saveFrame(t, dir, fmt.Sprintf("extra-%s-%s.png", name, extra), tt.Image())
+		}
+		a, tt := shown(paneLyrics, extra, 49*time.Second)
+		playFrames(a, tt, 49*time.Second, time.Second/10, 50, func(i int) {
+			saveFrame(t, dir, fmt.Sprintf("extra-sung-%s-%02d.png", extra, i), tt.Image())
+		})
 	}
 }

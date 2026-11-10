@@ -201,17 +201,17 @@ func TestLyricsBrowsedFrame(t *testing.T) {
 
 // With MM_BENCH set, says how long a refresh of the display takes the lyrics
 // off screen, through a line giving way to the next, a line being sung and
-// a break in the song: the frames the view asks for, built, laid out and
-// drawn on the CPU, how many of them built the view, and how long a build
-// took.
+// a break in the song, with their translation under the lines and with how
+// they are said: the frames the view asks for, built, laid out and drawn on
+// the CPU, how many of them built the view, and how long a build took.
 func TestLyricsMotionCost(t *testing.T) {
 	if os.Getenv("MM_BENCH") == "" {
 		t.Skip()
 	}
 	const refresh = time.Second / 60
-	cost := func(name string, from time.Duration, n int, soft bool) {
-		a, tt, builds := motionApp(motionSongs()["ja"], from-time.Second/2)
-		a.lyricSoft = soft
+	cost := func(name string, from time.Duration, n int, soft bool, extra string) {
+		a, tt, builds := motionApp(saidSong(), from-time.Second/2)
+		a.lyricSoft, a.settings.LyricsExtra = soft, extra
 		tt.Frame()
 		for i := range 30 { // warmed
 			a.pl.Seek(from - time.Second/2 + time.Duration(i)*refresh)
@@ -228,11 +228,15 @@ func TestLyricsMotionCost(t *testing.T) {
 		if built > 0 {
 			each = float64((motionBuilt - view).Microseconds()) / 1000 / float64(built)
 		}
-		t.Logf("%s (blurred: %v): %.2f ms a refresh, %d builds of %.2f ms in %d refreshes", name, soft, float64(took.Microseconds())/1000/float64(n), built, each, n)
+		t.Logf("%s (blurred: %v, under the lines: %s): %.2f ms a refresh, %d builds of %.2f ms in %d refreshes", name, soft, extra, float64(took.Microseconds())/1000/float64(n), built, each, n)
 	}
-	for _, soft := range []bool{false, true} {
-		cost("a line giving way to the next", 49400*time.Millisecond, 72, soft)
-		cost("a line being sung", 51000*time.Millisecond, 120, soft)
-		cost("a break in the song", 34000*time.Millisecond, 120, soft)
+	// Under the lines, their translation, which is text, and how they are
+	// said, which the light crosses as it does the line.
+	for _, extra := range []string{extraTranslation, extraPronunciation} {
+		for _, soft := range []bool{false, true} {
+			cost("a line giving way to the next", 49400*time.Millisecond, 72, soft, extra)
+			cost("a line being sung", 51000*time.Millisecond, 120, soft, extra)
+			cost("a break in the song", 34000*time.Millisecond, 120, soft, extra)
+		}
 	}
 }
