@@ -45,7 +45,7 @@ The screenshots are of the real window on Linux, signed in to an account of the 
 
 ## Download
 
-Get the package for your platform from [Releases](https://github.com/LYJW131/ringo/releases): a `.dmg` for macOS, an installer for Windows, a `.deb` or a `.tar.gz` for Linux. Until there is a release, build it as below.
+Get the package for your platform from [Releases](https://github.com/LYJW131/ringo/releases): a `.dmg` for macOS, an installer for Windows, a `.deb` or a `.tar.gz` for Linux.
 
 The macOS app isn't notarized, so the first launch has to be allowed in System Settings › Privacy & Security.
 

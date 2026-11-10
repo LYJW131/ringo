@@ -45,7 +45,7 @@
 
 ## 下载
 
-在 [Releases](https://github.com/LYJW131/ringo/releases) 页面下载对应平台的包：macOS 是 `.dmg`，Windows 是安装程序，Linux 是 `.deb` 或 `.tar.gz`。还没有发布版本时，按下面的「构建」自己编译。
+在 [Releases](https://github.com/LYJW131/ringo/releases) 页面下载对应平台的包：macOS 是 `.dmg`，Windows 是安装程序，Linux 是 `.deb` 或 `.tar.gz`（解开后运行其中的 `ringo`）。
 
 macOS 的包没有经过 Apple 公证，第一次打开要在「系统设置 › 隐私与安全性」里放行。
 
