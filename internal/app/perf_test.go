@@ -59,7 +59,9 @@ func TestNowPlayingFrameBudget(t *testing.T) {
 	// do: it moves only as it is moved.
 	tt.SetPreferences(ui.Preferences{ReduceMotion: true})
 	a.nowPlaying, a.npPane = true, paneLyrics
-	lyricsFrames := framesAt(a, tt, 12*time.Second)
+	// The lyrics between two lines, that is: a line sung asks for the
+	// frames that move the light across it.
+	lyricsFrames := framesAt(a, tt, 16*time.Second)
 	a.npPane = paneWall
 	if n := framesAt(a, tt, 12*time.Second); n > lyricsFrames+3 {
 		t.Errorf("the wall, still: %d frames a second, the lyrics %d", n, lyricsFrames)
@@ -76,10 +78,11 @@ func TestNowPlayingFrameBudget(t *testing.T) {
 }
 
 // The lyrics, between a line sung to its last word and the next, build the
-// view no more than the times shown ask for. Counted as builds, which
-// FramePending misses for a frame waiting on After: the words asked to be
-// lit every 40 ms after the last of them was, 25 builds a second of the
-// whole of Now Playing.
+// view no more than the times shown ask for; and while a line's words
+// light, the frames that move the light only paint. Counted as builds,
+// which FramePending misses for a frame waiting on After: the words asked
+// to be lit every 40 ms after the last of them was, and then, lit by the
+// view, built the whole of Now Playing 25 times a second.
 func TestLyricsBuildBudget(t *testing.T) {
 	a, tt, builds := playingApp()
 	a.nowPlaying, a.npPane = true, paneLyrics
@@ -88,19 +91,23 @@ func TestLyricsBuildBudget(t *testing.T) {
 		tt.Frame()
 		// Opened, and come to rest: the backdrop fades in from the first.
 		tt.Advance(2 * time.Second)
-		tt.Frame()
 		n := *builds
 		tt.Advance(time.Second)
-		tt.Frame()
 		return *builds - n
 	}
 	// Sung over its first 5 seconds, the second line rests from 15 s to 20 s.
 	if n := count(16 * time.Second); n > 3 {
 		t.Errorf("the lyrics between lines: %d builds a second", n)
 	}
-	// While its words light, the line asks for them, as it should.
-	if n := count(11 * time.Second); n < 10 {
+	if tt.FramePending() {
+		t.Error("the lyrics ask for frames between lines")
+	}
+	// While its words light, the line asks for the frames, as it should.
+	if n := count(11 * time.Second); n > 3 {
 		t.Errorf("the lyrics lighting a line's words: %d builds a second", n)
+	}
+	if !tt.FramePending() {
+		t.Error("the line sung asks for no frames as its words light")
 	}
 }
 

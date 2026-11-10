@@ -133,8 +133,10 @@ type app struct {
 	npPane      int     // paneLyrics, paneQueue, paneStage or paneWall
 	npPaneTop   float32 // how far the cover beside the pane starts below its top
 	lyricScroll ui.ScrollState
-	lyricGlide  lyricGlide
-	lyricAt     int
+	lyricFlow   lyricFlow
+	lyricType   lyricType
+	lyricGPU    bool // whether the lyrics last painted on a GPU
+	lyricSoft   bool // blurs the lyrics wherever they paint, for a look at them
 	lyricTrack  string
 	queueList   ui.ListState
 	queueAt     int // the row of the queue pane last scrolled to, -1 while it is hidden
@@ -292,7 +294,6 @@ func Run() error {
 	a := &app{
 		signInOver:  new(atomic.Pointer[mygo.Window]),
 		settingText: map[string]*string{},
-		lyricAt:     -1,
 		queueAt:     -1,
 		cacheUsed:   -1,
 	}

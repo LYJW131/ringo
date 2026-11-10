@@ -113,10 +113,7 @@ func (a *app) stage(c *ui.Context, tr *music.Track, accent ui.Color) {
 	if lyrics.Still(lines) {
 		// Lyrics without times have no line to set on the stage as it's
 		// sung: they're there to read, in a column in its middle.
-		if key := tr.ID; a.lyricTrack != key {
-			a.lyricTrack, a.lyricAt = key, -2
-			a.lyricScroll, a.lyricGlide = ui.ScrollState{}, lyricGlide{}
-		}
+		a.lyricsOf(tr.ID)
 		box.Children(func() {
 			ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).AlignItems(ui.Center).Padding(npTabsHeight+16, 48, 0, 48).Children(func() {
 				ui.Column(c).Width(min(w-96, 760)).Grow(1).Basis(0).MinHeight(0).Children(func() {

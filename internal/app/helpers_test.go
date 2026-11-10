@@ -313,7 +313,7 @@ var (
 // it had answered. AutoPlay is off: it asks the source as soon as a queue
 // nears its end, which a test of something else doesn't expect.
 func newTestApp() *app {
-	a := &app{signInOver: new(atomic.Pointer[mygo.Window]), settings: defaultSettings(), settingText: map[string]*string{}, lyricAt: -1, queueAt: -1}
+	a := &app{signInOver: new(atomic.Pointer[mygo.Window]), settings: defaultSettings(), settingText: map[string]*string{}, queueAt: -1}
 	a.settings.Autoplay = false
 	a.library = newLibrary(newFakeSource())
 	a.started, a.accountAsked = true, true
