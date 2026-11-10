@@ -10,6 +10,8 @@
 
 **简体中文** · [English](README.en.md)
 
+[![Test](https://github.com/LYJW131/ringo/actions/workflows/test.yml/badge.svg)](https://github.com/LYJW131/ringo/actions/workflows/test.yml)
+
 </div>
 
 > [!IMPORTANT]
@@ -19,13 +21,14 @@
 
 - **主页、新发现、广播**：按 Apple Music 自己的版式呈现，顶部大图、横向货架、歌曲列、直播电台，每个区块都能「查看全部」。
 - **搜索**：未输入时是类别浏览；搜索结果一页列出最佳结果、艺人、专辑、歌曲、播放列表、电台和视频。
-- **资料库**：最近添加、艺人、专辑、歌曲、专属推荐、所有播放列表，滚动到底自动加载；你的播放列表在侧栏里。
-- **专辑、艺人、播放列表页**：编辑介绍、封面取色的背景、音质标识、热门歌曲标记，以及「其他版本」「更多作品」「类似艺人」等后续内容。
+- **资料库**：最近添加（按添加时间分组）、艺人、专辑、歌曲、专属推荐、所有播放列表。专辑和歌曲可以按标题或最近添加排序、只看喜爱、在其中查找；后面的内容提前取好，滚动时不用等。你上传到资料库的歌曲也能播放。
+- **专辑、艺人、播放列表页**：编辑介绍、封面取色的背景、音质标识、热门歌曲标记，以及「其他版本」「更多作品」「类似艺人」等后续内容；专辑页有唱片公司和它的页面，资料库里只收了一部分的专辑可以「显示完整的专辑」；艺人页的页头、简介和歌曲排行与 Mac 上的「音乐」一致。
 - **动态封面**：专辑和播放列表页的封面、艺人页顶部大图、主页竖版推荐卡片，Apple Music 有动态版本的就静音循环播放；可在设置里关闭，系统要求减少动态效果时只显示静态图。
 - **播放**：整首 256 kbps AAC；配置 wrapper 后可播放至高 24-bit/192 kHz 的 ALAC 无损、64 kbps 的高效（HE-AAC），以及杜比全景声歌曲的耳机版（双耳渲染）或扬声器版（立体声下混）。
-- **歌词**：逐字跟随，有翻译时一并显示。
-- **操作**：插播、最后播放、个人收藏、添加到资料库与移除、添加到歌单、新建播放列表，以及给自己的播放列表改名、从资料库删除、移除和上下移动歌曲、自动连播。
-- **桌面端该有的**：媒体键、托盘、macOS 刘海播放器、深浅色外观、会话恢复、歌曲缓存、响度均衡。
+- **音量平衡**：按 Apple 为每首歌测得的响度把音量拉齐；按顺序听一张专辑时改用整张专辑的响度，保留曲目之间的强弱。
+- **歌词**：逐字跟随。当前行清晰，其余行按远近虚化，换行像一道波传下去，光在词内扫过；对唱分列左右，背景人声小一号跟在下面，间奏时有呼吸的圆点。有翻译时一并显示；没有时间轴的歌词整篇可读。
+- **操作**：插播、最后播放、添加到资料库与移除、喜爱（先加入资料库，再喜爱，和 Apple Music 一样）、添加到歌单、新建播放列表，以及给自己的播放列表改名、从资料库删除、移除和上下移动歌曲、自动连播。
+- **桌面端该有的**：媒体键、托盘、macOS 刘海播放器、深浅色外观、会话恢复、歌曲缓存。
 - 简体中文和英文，用语与 Apple Music 一致。
 
 还没有的：音乐视频的播放、Replay、社交资料、演出信息。
@@ -38,6 +41,12 @@
 | ![专辑](docs/screenshots/album.jpg) | ![搜索](docs/screenshots/search.jpg) |
 
 截图由测试离屏渲染，封面是色块，内容是示例数据。
+
+## 下载
+
+在 [Releases](https://github.com/LYJW131/ringo/releases) 页面下载对应平台的包：macOS 是 `.dmg`，Windows 是安装程序，Linux 是 `.deb` 或 `.tar.gz`。还没有发布版本时，按下面的「构建」自己编译。
+
+macOS 的包没有经过 Apple 公证，第一次打开要在「系统设置 › 隐私与安全性」里放行。
 
 ## 登录
 
@@ -77,7 +86,13 @@ go tool mygo build -platform darwin/arm64,windows/amd64,linux/amd64
 go test ./...
 ```
 
-产物在 `build/` 下：macOS 是 `.app` 和 `.dmg`，Windows 是 `.exe` 和安装程序，Linux 是可执行文件、`.deb` 和 `.tar.gz`。macOS 的包没有经过 Apple 公证，第一次打开要在「系统设置 › 隐私与安全性」里放行。
+产物在 `build/` 下：macOS 是 `.app` 和 `.dmg`，Windows 是 `.exe` 和安装程序，Linux 是可执行文件、`.deb` 和 `.tar.gz`。
+
+推送到 `main` 和每个拉取请求都会跑 [Test](.github/workflows/test.yml)：格式、`go vet`、六个平台的编译，以及 Linux 和 macOS 上的全部测试。推送 `v` 开头的标签会由 [Release](.github/workflows/release.yml) 打出三个平台的包，放进一个草稿发布，由人工确认后发布。给代码助手看的约定在 [AGENTS.md](AGENTS.md)。
+
+## 和插件的关系
+
+Ringo 的 Apple Music 部分最初是 MyGo Music 的插件 [mygo-music-apple-music](https://github.com/LYJW131/mygo-music-apple-music)。插件只能通过宿主的插件接口交出数据，Ringo 把同一套代码移植成 Go、编进应用，于是可以改应用本身：版式、动态封面、多账户、播放事件的上报、音质分档这些都是这样做出来的。两者逐项的对照和插件方案的限制，见[插件的 README](https://github.com/LYJW131/mygo-music-apple-music#ringo)。
 
 ## 隐私
 
@@ -88,7 +103,7 @@ go test ./...
 
 ## 致谢与许可证
 
-[AGPL-3.0](LICENSE)。
+[AGPL-3.0](LICENSE)。Ringo 用到和附带的第三方作品、各自的许可证，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 - 播放器和界面基础来自 [MyGo Music](https://github.com/egoist/mygo-music)（AGPL-3.0），界面框架是 [MyGo](https://github.com/egoist/mygo)。
 - Apple Music 部分移植自 [mygo-music-apple-music](https://github.com/LYJW131/mygo-music-apple-music)；无损部分的实现基于 [apple-music-downloader](https://github.com/AMDL-Web/apple-music-downloader)、[wrapper](https://github.com/WorldObservationLog/wrapper) 和 [Temari](https://github.com/WorldObservationLog/Temari)。
