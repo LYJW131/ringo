@@ -124,7 +124,6 @@ func (a *app) wallPane(c *ui.Context, tr *music.Track, art *artwork, accent ui.C
 		})
 	a.wallSong(c, tr, art, top, songH)
 	a.wallBar(c, accent)
-	a.npRise(reveal(npTabsRow(c, w), pointerIn), 0).Children(func() { a.paneTabs(c) })
 }
 
 // wallSong is the song playing, over the wall: its cover, which breathes

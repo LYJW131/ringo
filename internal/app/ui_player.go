@@ -192,6 +192,7 @@ func (a *app) volumeButton(c *ui.Context, color ui.Color) {
 		panel.AttachTo(b, ui.AnchorTop, ui.AnchorBottom).Margin(0, 0, arrow+3, 0).Width(52).Padding(11, 0, 12, 0).
 			Radius(12).Background(pop.fill).Border(0.5, pop.edge).Shadow(0, 8, 24, -4, ui.RGBA(0, 0, 0, 0.2)).
 			AlignItems(ui.Center).Gap(8).Label(T("Volume"))
+		popIn(c, panel, 0.5)
 		panel.Draw(func(p *ui.Painter, r ui.Rect) {
 			// The arrow pointing at the speaker, its sides edged as the
 			// panel is, over the panel's border.
@@ -206,6 +207,18 @@ func (a *app) volumeButton(c *ui.Context, color ui.Color) {
 		ui.Textf(c, "%d%%", int(a.volume*100+0.5)).FontSize(11).FontWeight(500).FontFeatures("tnum").TextColor(a.pal.muted)
 		a.nativeVolumeSlider(c, pop)
 	})
+}
+
+// popIn brings a popover in as AppKit's come, fading in from a little
+// smaller, growing from its foot at across (0 its left, 1 its right), where
+// what opened it is, and takes it away a little quicker. With less motion,
+// it comes and goes at once.
+func popIn(c *ui.Context, panel ui.Element, across float32) {
+	if c.Preferences().ReduceMotion {
+		return
+	}
+	from := &ui.Motion{Opacity: 0, Scale: 0.96}
+	panel.TransformOrigin(across, 1).Transition(ui.ElementTransition{Duration: 150 * time.Millisecond, ExitDuration: 100 * time.Millisecond, Enter: from, Exit: from})
 }
 
 // popover holds the colors of a popover as AppKit draws them.
@@ -373,6 +386,47 @@ func barLayout(w float32) (left, mid float32) {
 	return max(w-mid-right, 0), mid
 }
 
+// footEdge returns how much of the edge over the foot of the page shows. It
+// fades as content scrolls under it; but as what a page loads arrives in
+// place of its skeleton, it is where it should be at once, rather than
+// leaving what arrived clear under the player for a moment: as soon as the
+// page's end mark says where it is, or a few frames on where the mark is
+// out of view, held as it was till then.
+func (a *app) footEdge(c *ui.Context, edge ui.Element) float32 {
+	if a.footSnap > 0 {
+		a.footSnap--
+		if !a.endMarked && a.footSnap > 0 {
+			c.AnimationFrame()
+			return edge.Jump("shown", a.footShown)
+		}
+		a.footSnap, a.footShown = 0, 0
+		if a.underBottom {
+			a.footShown = 1
+		}
+		return edge.Jump("shown", a.footShown)
+	}
+	a.footShown = edgeShown(edge, a.underBottom)
+	return a.footShown
+}
+
+// songIn fades e, the player bar's cover or title of the song playing, in
+// as another song takes the last one's place. Crossed, the last one's fades
+// out under it, slowly at first as the new one comes quickly, so that the
+// bar hardly shows between them; else the last one goes at once, and the
+// new one comes from a little shown, never a frame of nothing. With less
+// motion, it changes at once.
+func songIn(c *ui.Context, e ui.Element, crossed bool) ui.Element {
+	if c.Preferences().ReduceMotion {
+		return e
+	}
+	t := ui.ElementTransition{Duration: 200 * time.Millisecond, Enter: &ui.Motion{Opacity: 0.3}}
+	if crossed {
+		t.Enter = &ui.Motion{Opacity: 0}
+		t.Exit, t.ExitEase = &ui.Motion{Opacity: 0}, ui.EaseInOut
+	}
+	return e.Transition(t)
+}
+
 // playerBar runs along the foot of the content: what plays, its controls
 // and its progress, and the volume.
 func (a *app) playerBar(c *ui.Context) {
@@ -384,7 +438,7 @@ func (a *app) playerBar(c *ui.Context) {
 	// it, with a hairline along the top.
 	edge := ui.Box(c.Key("bottom-edge")).Absolute().Left(0).Right(0).Bottom(0).Height(playerBarHeight).
 		Material(glass.ScrollEdge{Hard: true, Bottom: true, Background: p.bg})
-	edge.Opacity(edgeShown(edge, a.underBottom))
+	edge.Opacity(a.footEdge(c, edge))
 	w, _ := c.Size()
 	left, mid := barLayout(w - sidebarWidth - 2*barPad - 2*barGap)
 	ui.Row(c).Absolute().Left(0).Right(0).Bottom(0).Height(playerBarHeight).PaddingX(barPad).Gap(barGap).AlignItems(ui.Center).Children(func() {
@@ -412,7 +466,10 @@ func (a *app) playerBar(c *ui.Context) {
 					mini.Opacity(0)
 				}
 				mini.Children(func() {
-					a.cover(c, tr.Album.ImageURL, 120, 48, npFromRadius).Shadow(0, 2, 8, 0, p.cardShade)
+					// Another song's cover fades in over the last one's.
+					songIn(c, ui.Box(c.Key(tr.ID)).Absolute().Top(0).Left(0), true).Children(func() {
+						a.cover(c, tr.Album.ImageURL, 120, 48, npFromRadius).Shadow(0, 2, 8, 0, p.cardShade)
+					})
 					// The shade and its arrow fade in under the pointer, and out.
 					fade := float32(1)
 					if hovered {
@@ -426,7 +483,7 @@ func (a *app) playerBar(c *ui.Context) {
 				})
 				ui.Column(c).Shrink(1).MinWidth(0).Gap(3).Children(func() {
 					ui.Row(c).Gap(barBadgeGap).AlignItems(ui.Center).MinWidth(0).Children(func() {
-						ui.Text(c, tr.Name).FontSize(13.5).FontWeight(600).SingleLine().Shrink(1).MinWidth(0)
+						songIn(c, ui.Text(c.Key(tr.ID), tr.Name), false).FontSize(13.5).FontWeight(600).SingleLine().Shrink(1).MinWidth(0)
 						// The title comes first: how it sounds shows beside it
 						// only where that leaves the title whole, or a good part
 						// of a long one. Now Playing always says it.

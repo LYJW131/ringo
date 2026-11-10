@@ -276,6 +276,7 @@ func (a *app) accountMenu(c *ui.Context, row ui.Element) {
 		panel.AttachTo(row, ui.AnchorTopStart, ui.AnchorBottomStart).Margin(0, 0, 6, 0).Padding(5).Gap(1).
 			Radius(12).Background(pop.fill).Border(0.5, pop.edge).Shadow(0, 8, 24, -4, ui.RGBA(0, 0, 0, 0.2)).
 			Role(ui.RoleMenu).FocusGroup(ui.Vertical).Label(T("Account"))
+		popIn(c, panel, 0)
 		if w := row.Bounds().W; w > 0 {
 			panel.Width(w)
 		}

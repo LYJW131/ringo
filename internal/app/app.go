@@ -145,6 +145,16 @@ type app struct {
 	edgeSnap int
 	topShown float32
 
+	// skelOf is the page whose skeleton shows as it is built, skelShown
+	// the page whose skeleton the page last built showed, endMarked says
+	// its end mark was laid out, and footSnap and footShown are to the edge
+	// over its foot what edgeSnap and topShown are to the top's (footEdge).
+	skelOf    route
+	skelShown route
+	endMarked bool
+	footSnap  int
+	footShown float32
+
 	// underTop and underBottom say whether the page has content under its
 	// bars, which show their scroll edges then.
 	underTop, underBottom bool

@@ -336,6 +336,7 @@ func (a *app) endMark(c *ui.Context) {
 		_, h := c.Size()
 		_, bottom := a.insets(c)
 		a.underBottom = b.Y > h-bottom+0.5
+		a.endMarked = true
 	}
 }
 
@@ -444,6 +445,18 @@ func (a *app) content(c *ui.Context) {
 	}
 	// Pages mark where their content is, as they scroll.
 	a.underTop, a.underBottom, a.marked = false, false, false
+	// Whether the page shows its skeleton, from what it built alone: the
+	// sidebar, built before it, may show one of its own.
+	skeleton := a.skelShown == a.route
+	a.skelOf, a.endMarked = route{}, false
+	defer func() {
+		a.skelShown = a.skelOf
+		if skeleton && a.skelShown != a.route {
+			// What it was loading arrived: the edge over its foot goes
+			// where it should at once.
+			a.footSnap = 4
+		}
+	}()
 	switch a.route.page {
 	case pageHome:
 		a.homePage(c)

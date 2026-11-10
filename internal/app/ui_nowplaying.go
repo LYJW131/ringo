@@ -285,7 +285,59 @@ func (a *app) nowPlayingView(c *ui.Context) {
 		bloom.Children(func() { a.backdrop(c, shown, tint) })
 		// Over the backdrop, which is positioned too: positioned elements
 		// paint over those in the flow.
-		ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Children(func() { a.nowPlayingBody(c, tr, art, accent, w, h, pointerIn) })
+		// The bodies of the panes in a layer of their own, over the
+		// backdrop: one leaving goes under its siblings, the backdrop too
+		// were it one.
+		ui.Box(c.Key("np-bodies")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Children(func() {
+			body := ui.Column(c.Key(npBodyKind(a.npPane))).Absolute().Top(0).Left(0).Right(0).Bottom(0)
+			a.paneFade(c, body)
+			body.Children(func() { a.nowPlayingBody(c, tr, art, accent, w, h, pointerIn) })
+		})
+		a.npChrome(c, w, pointerIn)
+	})
+}
+
+// npBodyKind is the body of Now Playing that shows pane: the stage's, the
+// wall's, or the cover's beside the lyrics or Up Next.
+func npBodyKind(pane int) string {
+	switch pane {
+	case paneStage:
+		return "stage-body"
+	case paneWall:
+		return "wall-body"
+	}
+	return "cover-body"
+}
+
+// paneFade crosses e, a pane of Now Playing or the body that holds it, over
+// to the one taking its place as another tab is chosen, once Now Playing is
+// open; its way in is its own. The one leaving fades slowly at first as the
+// other comes quickly, so that the backdrop hardly shows between them. With
+// less motion, they change at once.
+func (a *app) paneFade(c *ui.Context, e ui.Element) {
+	if a.npT < 1 || c.Preferences().ReduceMotion {
+		return
+	}
+	e.Transition(ui.ElementTransition{Duration: 180 * time.Millisecond, Enter: &ui.Motion{Opacity: 0}, Exit: &ui.Motion{Opacity: 0}, ExitEase: ui.EaseInOut})
+}
+
+// npChrome is what every pane of Now Playing has in the same place, over
+// whichever shows, and which stays as they cross: the top strip, which
+// drags the window, with the chevron that closes the view, and the tabs.
+// The chevron and the tabs show only while the pointer is in the window.
+func (a *app) npChrome(c *ui.Context, w float32, pointerIn bool) {
+	a.npRise(ui.Row(c.Key("top-strip")).Absolute().Top(0).Left(0).Right(0).Height(topBar(c)).Justify(ui.Center).AlignItems(ui.Center).DragWindow(), 0).Children(func() {
+		reveal(ui.Box(c.Key("close-reveal")), pointerIn).Children(func() {
+			if iconButton(c.Key("close"), iconDown, 22, white.Alpha(0.7), T("Close")).Clicked() {
+				a.nowPlaying = false
+			}
+		})
+	})
+	a.npRise(reveal(npTabsRow(c, w), pointerIn), 0).Children(func() {
+		a.paneTabs(c)
+		if a.npPane == paneStage {
+			a.stageStyleButton(c)
+		}
 	})
 }
 
@@ -298,22 +350,11 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 		a.wallState.track = ""
 	}
 	{
-		// The top strip drags the window; the chevron closes the view,
-		// showing only while the pointer is in the window, as the pane tabs do.
-		a.npRise(ui.Row(c).Height(topBar(c)).Justify(ui.Center).AlignItems(ui.Center).DragWindow(), 0).Children(func() {
-			reveal(ui.Box(c.Key("close-reveal")), pointerIn).Children(func() {
-				if iconButton(c.Key("close"), iconDown, 22, white.Alpha(0.7), T("Close")).Clicked() {
-					a.nowPlaying = false
-				}
-			})
-		})
+		// Room for the top strip, which is over the body (npChrome).
+		ui.Box(c).Height(topBar(c))
 		if a.npPane == paneStage {
 			// The stage takes the whole view: the lyrics are the show, the
 			// controls a slim bar at the foot.
-			a.npRise(reveal(npTabsRow(c, w), pointerIn), 0).Children(func() {
-				a.paneTabs(c)
-				a.stageStyleButton(c)
-			})
 			a.stage(c, tr, accent)
 			a.stageBar(c, tr, art, accent)
 			return
@@ -338,7 +379,6 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 		// the controls.
 		side = max(coverSize, 280)
 		padX := npSideX(w)
-		a.npRise(reveal(npTabsRow(c, w), pointerIn), 0).Children(func() { a.paneTabs(c) })
 		ui.Row(c).Grow(1).Padding(0, padX, 44, padX).Gap(72).AlignItems(ui.Stretch).Children(func() {
 			var coverTop float32
 			ui.Column(c).Width(side).Justify(ui.Center).Gap(0).Children(func() {
@@ -407,12 +447,17 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 					c.AnimationFrame() // not laid out yet: the next frame places it
 				}
 				ui.Box(c).Height(a.npPaneTop)
-				switch a.npPane {
-				case paneLyrics:
-					a.lyricsPane(c, tr, h)
-				default:
-					a.queuePane(c)
-				}
+				// The lyrics and Up Next cross beside the cover, which stays.
+				inner := ui.Column(c.Key(a.npPane)).Grow(1).Basis(0).MinHeight(0)
+				a.paneFade(c, inner)
+				inner.Children(func() {
+					switch a.npPane {
+					case paneLyrics:
+						a.lyricsPane(c, tr, h)
+					default:
+						a.queuePane(c)
+					}
+				})
 			})
 		})
 	}
