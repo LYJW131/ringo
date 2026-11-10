@@ -133,10 +133,14 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 	} else {
 		c.AnimationFrame() // not laid out yet: the next frame sets them
 	}
-	if ty.set(lines, width, st) {
+	if ty.set(lines, width, st) || box.H != flow.height {
 		// Set anew, as in a window resized, they are laid out in this frame:
-		// the next brings the focus into place again, without a wave.
-		flow.seen, flow.jumped = false, true
+		// the next brings the focus into place again, without a wave. So
+		// does a pane grown taller or shorter, the focus being a third of
+		// the way down it: Now Playing opens with the pane a little taller
+		// than it comes to be, and the line sung stayed that much too low
+		// until the next.
+		flow.seen, flow.jumped, flow.height = false, true, box.H
 	}
 	browsing, left := flow.browsing(now, a.bars.bar("lyrics").until)
 	if browsing {

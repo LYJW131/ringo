@@ -220,6 +220,7 @@ type lyricFlow struct {
 		focus lyricFocus
 	}
 	set    float32 // the offset it set
+	height float32 // how tall the pane was as the focus was brought into place
 	moving bool
 	// jumped says this frame set the offset: the lines' places are still
 	// the last frame's, before it.

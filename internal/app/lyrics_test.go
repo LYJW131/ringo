@@ -201,3 +201,26 @@ func TestLyricsScrolledOnTheirWay(t *testing.T) {
 		t.Errorf("scrolled up on their way to %v, the lyrics are at %v", going, a.lyricScroll.Y)
 	}
 }
+
+// Now Playing opened on a line has it where the lyrics bring a line as the
+// song gets to it. The pane is a little taller in its first frames than it
+// comes to be, and the line stayed a third of the way down that, some 15
+// DIPs too low, until the next line.
+func TestLyricsOpenWhereTheyFollow(t *testing.T) {
+	at := func(a *app, tt *ui.Tester) float32 {
+		r, ok := tt.Find("第05句")
+		if !ok {
+			t.Fatalf("no line: %q", tt.Texts())
+		}
+		return r.Y
+	}
+	a, tt := lyricsApp(26 * time.Second)
+	opened := at(a, tt)
+	a, tt = lyricsApp(21 * time.Second)
+	a.pl.Seek(26 * time.Second)
+	settled(tt)
+	settled(tt)
+	if followed := at(a, tt); opened < followed-1 || opened > followed+1 {
+		t.Errorf("opened on it, the line is at %.1f; followed to, at %.1f", opened, followed)
+	}
+}
