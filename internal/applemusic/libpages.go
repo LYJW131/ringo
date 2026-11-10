@@ -128,6 +128,8 @@ func (s *Source) libraryPage(page, next string) (*music.Browse, error) {
 	if err := s.needAccount(); err != nil {
 		return nil, err
 	}
+	full := page
+	page, view := music.ParseLibraryPage(page)
 	list, ok := libraryLists[page]
 	if folder, isFolder := strings.CutPrefix(page, "library-folder:"); isFolder {
 		list, ok = libraryList{"/library/playlist-folders/" + folder + "/children", params{"limit": "100"}, func() string { return "" }, music.ShelfGrid, func() string { return "" }}, true
@@ -136,6 +138,15 @@ func (s *Source) libraryPage(page, next string) (*music.Browse, error) {
 		return nil, fail("unavailable", i18n.T("No such page"))
 	}
 	p := s.mapped(list.params)
+	if full != page {
+		if !sortable[page] {
+			return nil, fail("unavailable", i18n.T("No such page"))
+		}
+		viewParams(p, view)
+		if view.Term != "" {
+			return s.libraryFound(full, list, p, view)
+		}
+	}
 	var b *body
 	var err error
 	if next != "" {
@@ -150,10 +161,12 @@ func (s *Source) libraryPage(page, next string) (*music.Browse, error) {
 	out := &music.Browse{Sections: []music.Section{{Style: list.style, Items: items}}}
 	if next == "" {
 		out.Title = list.title()
-		out.Sections[0].Empty = list.empty()
+		if !view.Favorites {
+			out.Sections[0].Empty = list.empty()
+		}
 	}
 	if b.Next != "" {
-		out.Next = page + "|" + b.Next
+		out.Next = full + "|" + b.Next
 	}
 	s.listed(songItems(items), nil)
 	return out, nil

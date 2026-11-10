@@ -5,6 +5,15 @@ package i18n
 // Hi-Res Lossless, Apple Digital Master) are not Apple Music's words: its texts
 // have none for them.
 var ringoChinese = map[string]string{
+	"All Albums":                           "所有专辑",
+	"All Songs":                            "所有歌曲",
+	"Ascending":                            "升序",
+	"Descending":                           "降序",
+	"Favorites Only":                       "仅喜爱",
+	"Find in Albums":                       "在专辑中查找",
+	"Find in Songs":                        "在歌曲中查找",
+	"Sort Options":                         "排序选项",
+	"Title":                                "标题",
 	"%d Songs":                             "%d 首歌曲",
 	"%d hr %d min":                         "%d 小时 %d 分钟",
 	"%d-bit/%s kHz ALAC":                   "%d 位/%s kHz ALAC",
