@@ -157,16 +157,30 @@ func (a *app) likeCurrent() {
 // likeButton is the star that makes tr a favorite: filled in the accent once
 // it is. Starring pops it in on a spring while a ring swells around it and
 // confetti flies out; unstarring lets it give a little.
+//
+// A song that isn't in the listener's library has a plus in its place, which
+// adds it, as Apple Music has it: a song is added before it's a favorite,
+// and the plus turns into its star as it is. Until its source says which it
+// is, the button holds its place empty (addsFirst).
 func (a *app) likeButton(c *ui.Context, tr *music.Track, size float32, color ui.Color) ui.Element {
 	lib := a.library
 	a.wantLike(tr)
 	liked := a.isLiked(tr)
+	add, known := a.addsFirst(tr, liked)
 	icon, label := iconStar, T("Favorite")
-	if liked {
+	switch {
+	case liked:
 		icon, color, label = iconStarFill, a.pal.accent, T("Undo Favorite")
+	case add:
+		icon, label = iconPlus, T("Add to Library")
 	}
 	// The burst goes on a wrapper, which the star's pop does not scale.
 	wrap := ui.Box(c).Center()
+	if !known {
+		// A place of the button's size, and nothing in it to press.
+		wrap.Size(size+16, size+16)
+		return wrap
+	}
 	var b ui.Element
 	wrap.Children(func() { b = iconButton(c, icon, size, color, label) })
 	scale := b.AnimateTo("pop", 1, ui.Animation{Spring: ui.SpringOptions{Duration: 550 * time.Millisecond, Bounce: 0.55}})
@@ -174,6 +188,11 @@ func (a *app) likeButton(c *ui.Context, tr *music.Track, size float32, color ui.
 	burst := ui.Local(wrap, "burst", func() time.Time { return time.Time{} })
 	if b.Clicked() {
 		switch {
+		case add:
+			// The star it turns into comes up from a little smaller.
+			b.Jump("pop", 0.6)
+			a.setInLibrary(lib, trackKind(tr), tr.ID, true)
+			return wrap
 		case lib.signedOut():
 		case liked:
 			b.Jump("pop", 0.8)

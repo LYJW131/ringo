@@ -368,8 +368,18 @@ func wait[T any](t *testing.T, ch chan T, what string) T {
 	}
 }
 
-// song is a track of a source's, as its answers have them.
+// song is a track of a source's, as its answers have them, and as a page of
+// the listener's library has it: in the library, so that it shows its star.
+// stray is one that hasn't said.
 func song(id, name string, artists ...string) music.Track {
+	tr := stray(id, name, artists...)
+	tr.Saved, tr.SavedKnown = true, true
+	return tr
+}
+
+// stray is a song that doesn't say whether it's in the listener's library,
+// as one of a search or a station: its source is asked.
+func stray(id, name string, artists ...string) music.Track {
 	tr := music.Track{ID: id, Name: name, Duration: 200000}
 	for _, ar := range artists {
 		tr.Artists = append(tr.Artists, music.Artist{Name: ar})

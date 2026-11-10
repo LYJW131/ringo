@@ -1,10 +1,6 @@
 package app
 
 import (
-	"time"
-
-	"github.com/egoist/mygo/ui"
-
 	"mygo-music/internal/music"
 )
 
@@ -13,6 +9,10 @@ import (
 // of the rest, those shown are asked about, a frame's at a time, once each,
 // as hearts are (ui_like.go). The answers go where adding and deleting from
 // the app go (setInLibrary), so the one says what the other did.
+//
+// It decides what a song's button is, as in Apple Music, where a song is
+// added before it's a favorite: the plus that adds it while it isn't in the
+// library, and its star once it is (likeButton).
 
 // keptSong is a song or a music video to ask about.
 type keptSong struct{ kind, id string }
@@ -84,6 +84,17 @@ func (a *app) askInLibrary() {
 		for kind, ids := range byKind {
 			in, err := lib.src.InLibrary(kind, ids)
 			if err != nil {
+				// Not known, and not to be: their stars show (addsFirst).
+				a.post(func() {
+					if lib.listener() != who {
+						return
+					}
+					for kind, ids := range byKind {
+						for _, id := range ids {
+							lib.unsaid[itemKey(kind, id)] = true
+						}
+					}
+				})
 				return
 			}
 			answers[kind] = in
@@ -133,61 +144,22 @@ func (a *app) doubtPlayer(lib *library) {
 	}
 }
 
-// keepButton adds tr to the library, beside its star: a plus, which turns
-// into a fainter check once it's in, which does nothing, as deleting it is
-// for its menu, away from a stray click. Until its source says whether it's
-// in, it holds its place empty, so the star and the dots beside it stay
-// where they are as its icon fades in. A song that can't be added, as one
-// the catalog no longer has, shows none.
-func (a *app) keepButton(c *ui.Context, tr *music.Track, size float32, color ui.Color) ui.Element {
+// addsFirst reports whether tr's button is the plus that adds it to the
+// library (add), not yet its star, and whether which it is is known: it
+// isn't while its source hasn't said whether the song is in the library. A
+// favorite has its star whatever the library says. So has a song that can't
+// be added: signed out, where the star asks to sign in, an upload, which is
+// in the library, one the catalog no longer has, and one its source failed
+// to answer of.
+func (a *app) addsFirst(tr *music.Track, liked bool) (add, known bool) {
 	lib := a.library
-	if !lib.canKeep(tr) || tr.Unavailable {
-		return ui.Element{}
+	if liked || !lib.canKeep(tr) || tr.Unavailable {
+		return false, true
 	}
 	a.wantInLibrary(tr)
 	in, known := a.songInLibrary(tr)
-	kind := trackKind(tr)
-	// A song of its own, so that another's icon doesn't turn into its.
-	wrap := ui.Box(c.Key(kind+":"+tr.ID)).Size(size+16, size+16).Center().Shrink(0)
-	shown := wrap.AnimateTo("shown", oneIf(known), ui.Animation{Duration: 220 * time.Millisecond, NonMotion: true})
-	turn := wrap.AnimateTo("in", oneIf(in), ui.Animation{Spring: ui.SpringOptions{Duration: 320 * time.Millisecond, Bounce: 0.2}})
-	if !known {
-		return wrap
+	if !known && lib.unsaid[itemKey(trackKind(tr), tr.ID)] {
+		return false, true
 	}
-	icons := func() {
-		ui.Box(c).Size(size, size).Children(func() {
-			for _, icon := range []struct {
-				svg   *ui.SVG
-				color ui.Color
-				shown float32
-			}{{iconPlus, color, 1 - turn}, {iconCheck, color.Alpha(0.6), turn}} {
-				if icon.shown <= 0.01 {
-					continue
-				}
-				s := 0.6 + 0.4*icon.shown
-				ui.Icon(c, icon.svg).Absolute().Top(0).Left(0).Size(size, size).Scale(s, s).
-					TextColor(icon.color).Opacity(min(icon.shown, 1) * shown)
-			}
-		})
-	}
-	wrap.Children(func() {
-		if in {
-			ui.Box(c).Size(size+16, size+16).Center().Label(T("Added to Library")).Children(icons)
-			return
-		}
-		b := roundButton(c, size, color, T("Add to Library"))
-		b.Children(icons)
-		if b.Clicked() {
-			a.setInLibrary(lib, kind, tr.ID, true)
-		}
-	})
-	return wrap
-}
-
-// oneIf is 1 for true, for what animates between two states.
-func oneIf(on bool) float32 {
-	if on {
-		return 1
-	}
-	return 0
+	return known && !in, known
 }

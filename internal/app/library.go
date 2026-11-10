@@ -93,10 +93,12 @@ type library struct {
 	favorites, kept, busy map[string]bool
 	// kept also holds what the source answered of songs shown whose own
 	// word wasn't known (songInLibrary): wantKept are those of this frame,
-	// askedKept those asked, which aren't asked again. doubted are the
-	// player's songs as another listener signed in, whose word was theirs.
+	// askedKept those asked, which aren't asked again, and unsaid those
+	// the source failed to answer of. doubted are the player's songs as
+	// another listener signed in, whose word was theirs.
 	wantKept  []keptSong
 	askedKept map[string]bool
+	unsaid    map[string]bool
 	doubted   map[string]bool
 }
 
@@ -119,6 +121,7 @@ func (l *library) forget() {
 	l.liked = nil
 	l.favorites, l.kept, l.busy = map[string]bool{}, map[string]bool{}, map[string]bool{}
 	l.wantKept, l.askedKept, l.doubted = nil, map[string]bool{}, map[string]bool{}
+	l.unsaid = map[string]bool{}
 	l.likedList, l.likedPaged, l.likedAt = nil, paged{}, time.Time{}
 	l.warm = newWarmQueue()
 }

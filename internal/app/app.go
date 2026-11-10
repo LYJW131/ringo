@@ -154,6 +154,9 @@ type app struct {
 	// (pageBars): a list that doesn't say how far it's scrolled shows it.
 	markY     float32
 	markBuilt bool
+	// justKept is what a page's button just added to the library, by
+	// itemKey, for the star that takes the button's place to come in.
+	justKept string
 	// bars are the main window's scroll bars, and settingsBars those of
 	// the settings' window: shown as each is scrolled.
 	bars, settingsBars barSet

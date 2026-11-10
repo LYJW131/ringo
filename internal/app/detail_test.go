@@ -169,8 +169,10 @@ func TestShowCompleteAlbum(t *testing.T) {
 	}
 }
 
-// Add to Library adds the album with the source at once, reading Added;
-// one the source refuses goes back, saying so.
+// Add to Library adds the album with the source at once, and the star that
+// makes it a favorite takes the button's place: an album is added before
+// it's a favorite. Deleting it is for its menu; a delete the source refuses
+// goes back, saying so.
 func TestAlbumAddToLibrary(t *testing.T) {
 	type call struct {
 		kind, id string
@@ -183,6 +185,9 @@ func TestAlbumAddToLibrary(t *testing.T) {
 	fake(a).addToLibrary = func(kind, id string, on bool) error { calls <- call{kind, id, on}; return answer }
 	tt := ui.NewTester(a.view, 1180, 900)
 	tt.Frame()
+	if _, ok := tt.Find("Favorite"); ok {
+		t.Fatal("a star on an album that isn't in the library")
+	}
 	if err := tt.Click("Add to Library"); err != nil {
 		t.Fatal(err)
 	}
@@ -190,26 +195,39 @@ func TestAlbumAddToLibrary(t *testing.T) {
 		t.Fatalf("asked for %+v", c)
 	}
 	tt.Frame()
-	if _, ok := tt.Find("Added"); !ok {
-		t.Fatal("not Added at once")
+	if _, ok := tt.Find("Favorite"); !ok {
+		t.Fatal("no star at once")
 	}
-	runPost(t, ch)
+	if _, ok := tt.Find("Add to Library"); ok {
+		t.Fatal("still offered to be added")
+	}
+	// Among what's posted is what the source said of the songs shown.
+	for a.library.busy[itemKey(music.ItemAlbum, "1440755169")] {
+		runPost(t, ch)
+	}
 	tt.Frame()
 
 	answer = errors.New("offline")
 	a.toast = ""
-	if err := tt.Click("Added"); err != nil {
+	if err := tt.Click("More"); err != nil {
 		t.Fatal(err)
 	}
+	if err := tt.ChooseMenuItem("Delete From Library"); err != nil {
+		t.Fatalf("%v: %q", err, tt.Menu())
+	}
+	tt.Frame()
 	if c := wait(t, calls, "the deleting"); c.on {
 		t.Fatalf("asked for %+v", c)
 	}
-	runPost(t, ch)
+	// Among what's posted is what the source said of the songs shown.
+	for a.library.busy[itemKey(music.ItemAlbum, "1440755169")] {
+		runPost(t, ch)
+	}
 	if a.toast == "" {
 		t.Error("a delete the source refused said nothing")
 	}
 	tt.Frame()
-	if _, ok := tt.Find("Added"); !ok {
+	if _, ok := tt.Find("Favorite"); !ok {
 		t.Error("a delete the source refused stayed")
 	}
 }
@@ -306,15 +324,12 @@ func TestAlbumFavorite(t *testing.T) {
 }
 
 // An album in the library with songs the listener uploaded isn't offered to
-// be deleted from it, from its menu or its Added button: the uploads
-// couldn't be added back. One without is.
+// be deleted from it: the uploads couldn't be added back. One without is.
 func TestAlbumWithUploadsStays(t *testing.T) {
 	for _, uploads := range []bool{true, false} {
-		asked := make(chan bool, 4)
 		a := albumApp()
 		page := a.albums["1440755169"].album
 		page.Album.Saved, page.Album.Uploaded = true, uploads
-		fake(a).addToLibrary = func(kind, id string, on bool) error { asked <- on; return nil }
 		tt := ui.NewTester(a.view, 1180, 900)
 		tt.Frame()
 		if err := tt.Click("More"); err != nil {
@@ -324,24 +339,6 @@ func TestAlbumWithUploadsStays(t *testing.T) {
 			t.Errorf("uploads %v: the menu shows %q", uploads, tt.Menu())
 		}
 		tt.CloseMenu()
-		tt.Frame()
-		if !uploads {
-			continue
-		}
-		if err := tt.Click("Added"); err != nil {
-			t.Fatal(err)
-		}
-		tt.Frame()
-		tt.Advance(400 * time.Millisecond)
-		tt.Frame()
-		select {
-		case on := <-asked:
-			t.Errorf("asked the source to set it in the library: %v", on)
-		default:
-		}
-		if _, ok := tt.Find("Songs you uploaded can't be added back once deleted, so this album stays in your library"); !ok {
-			t.Error("no word of why")
-		}
 	}
 }
 
@@ -596,6 +593,8 @@ func TestDetailFrames(t *testing.T) {
 		{"album-part", func() *app {
 			a := albumApp()
 			a.albums["1440755169"].album.Complete = "1"
+			// In the library: the star in place of Add to Library.
+			a.albums["1440755169"].album.Album.Saved = true
 			return a
 		}},
 		{"artist-wide", func() *app { return artistApp(true) }},

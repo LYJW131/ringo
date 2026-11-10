@@ -199,30 +199,46 @@ func (a *app) notes(c *ui.Context, text string) {
 	})
 }
 
-// libraryButton adds what kind and id name to the listener's library, or
-// says it's there, which a click undoes. compact, it is its icon alone, its
-// words its label and tooltip. What stays in the library, as an album with
-// uploads, says why instead.
-func (a *app) libraryButton(c *ui.Context, lib *library, kind, id string, was, stays, compact bool) {
+// libraryButton adds what kind and id name to the listener's library; once
+// it's there, it is the star that makes it a favorite instead, as Apple
+// Music has it, where a thing is added before it's a favorite. Deleting it
+// from the library is for its menu. compact, the button to add is its icon
+// alone, its words its label and tooltip. was and favorite are what the
+// source said of it.
+func (a *app) libraryButton(c *ui.Context, lib *library, kind, id string, was, favorite, compact bool) {
 	p := a.pal
-	icon, label := iconPlus, T("Add to Library")
-	in := lib.inLibrary(kind, id, was)
-	if in {
-		icon, label = iconCheck, T("Added")
+	if lib.inLibrary(kind, id, was) {
+		on := lib.isFavorite(kind, id, favorite)
+		icon, color, label := iconStar, p.text, T("Favorite")
+		if on {
+			icon, color, label = iconStarFill, p.accent, T("Undo Favorite")
+		}
+		b := a.roundHeaderButton(c.Key("favorite"), label)
+		b.Tooltip(label).Children(func() { ui.Icon(c, icon).Size(15, 15).TextColor(color) })
+		// It comes where the button that added it was, up from a little smaller.
+		scale := b.AnimateTo("pop", 1, ui.Animation{Spring: ui.SpringOptions{Duration: 450 * time.Millisecond, Bounce: 0.4}})
+		b.Scale(scale, scale)
+		if a.justKept == itemKey(kind, id) {
+			a.justKept = ""
+			b.Jump("pop", 0.6)
+		}
+		if b.Clicked() {
+			b.Jump("pop", 0.8)
+			a.setFavorite(lib, kind, id, !on)
+		}
+		return
 	}
+	label := T("Add to Library")
 	var b ui.Element
 	if compact {
 		b = a.roundHeaderButton(c.Key("library"), label)
-		b.Tooltip(label).Children(func() { ui.Icon(c, icon).Size(14, 14) })
+		b.Tooltip(label).Children(func() { ui.Icon(c, iconPlus).Size(14, 14) })
 	} else {
-		b = pillButton(c.Key("library"), icon, label, p.hover.Over(p.bg), p.text)
+		b = pillButton(c.Key("library"), iconPlus, label, p.hover.Over(p.bg), p.text)
 	}
 	if b.Clicked() {
-		if in && stays {
-			a.toast = T("Songs you uploaded can't be added back once deleted, so this album stays in your library")
-			return
-		}
-		a.setInLibrary(lib, kind, id, !in)
+		a.justKept = itemKey(kind, id)
+		a.setInLibrary(lib, kind, id, true)
 	}
 }
 

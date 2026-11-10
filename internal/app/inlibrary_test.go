@@ -1,8 +1,10 @@
 package app
 
 import (
+	"errors"
 	"image"
 	"image/draw"
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -40,28 +42,33 @@ func rect(t *testing.T, tt *ui.Tester, s string) ui.Rect {
 	return r
 }
 
-// Beside the star in Now Playing, a song not known to be in the library
-// holds an empty place until its source says; a plus then adds it, and
-// turns into a check, which a click leaves as it is. The star and the dots
+// A song not known to be in the library holds an empty place in Now Playing
+// until its source says. One that isn't there has a plus, not a star: a
+// song is added before it's a favorite. The plus adds it, and its star
+// takes the plus's place, which then makes it a favorite. The dots beside
 // stay where they are throughout.
-func TestKeepButton(t *testing.T) {
+func TestPlusBeforeStar(t *testing.T) {
 	added := make(chan bool, 4)
-	a, tt, ch := keepApp(t, song("7", "宝船", "DOUDOU"), map[string]bool{})
+	liked := make(chan bool, 4)
+	a, tt, ch := keepApp(t, stray("7", "宝船", "DOUDOU"), map[string]bool{})
 	fake(a).addToLibrary = func(kind, id string, on bool) error { added <- on; return nil }
+	fake(a).like = func(id string, like bool) error { liked <- like; return nil }
 
-	if _, ok := tt.Find("Add to Library"); ok {
-		t.Fatal("a plus before the source said")
+	more := rect(t, tt, "More")
+	for _, label := range []string{"Add to Library", "Favorite"} {
+		if _, ok := tt.Find(label); ok {
+			t.Fatalf("%s before the source said", label)
+		}
 	}
-	star, more := rect(t, tt, "Favorite"), rect(t, tt, "More")
 	runPost(t, ch)
 	tt.Advance(time.Second)
 	tt.Frame()
 	plus := rect(t, tt, "Add to Library")
-	if rect(t, tt, "Favorite") != star || rect(t, tt, "More") != more {
-		t.Error("the star or the dots moved as the plus came")
+	if _, ok := tt.Find("Favorite"); ok {
+		t.Fatal("a star on a song that isn't in the library")
 	}
-	if left, right := plus.X-(star.X+star.W), more.X-(plus.X+plus.W); left != right || left < 0 {
-		t.Errorf("the plus %v from the star and %v from the dots", left, right)
+	if rect(t, tt, "More") != more {
+		t.Error("the dots moved as the plus came")
 	}
 
 	if err := tt.Click("Add to Library"); err != nil {
@@ -73,42 +80,58 @@ func TestKeepButton(t *testing.T) {
 	runPost(t, ch)
 	tt.Advance(time.Second)
 	tt.Frame()
-	if rect(t, tt, "Added to Library") != plus {
-		t.Error("the check isn't where the plus was")
+	if _, ok := tt.Find("Add to Library"); ok {
+		t.Fatal("still a plus on a song that was added")
 	}
-	if rect(t, tt, "Favorite") != star || rect(t, tt, "More") != more {
-		t.Error("the star or the dots moved as the song was added")
+	// The star comes up on a spring, a hair off its size till it rests.
+	if star := rect(t, tt, "Favorite"); math.Abs(float64(star.X-plus.X)) > 0.5 || math.Abs(float64(star.Y-plus.Y)) > 0.5 || rect(t, tt, "More") != more {
+		t.Errorf("the star at %v, not where the plus was, %v, or the dots moved, to %v from %v", star, plus, rect(t, tt, "More"), more)
 	}
-	tt.Click("Added to Library")
-	tt.Frame()
-	select {
-	case on := <-added:
-		t.Errorf("the check asked the source again, to add: %v", on)
-	case <-time.After(100 * time.Millisecond):
+	if err := tt.Click("Favorite"); err != nil {
+		t.Fatal(err)
+	}
+	if on := wait(t, liked, "the favorite"); !on {
+		t.Error("asked to undo a favorite")
 	}
 }
 
-// A song uploaded to the library shows no plus, and leaves no place for one.
-func TestKeepButtonNotForUploads(t *testing.T) {
-	tr := song("7", "宝船", "DOUDOU")
-	_, tt, _ := keepApp(t, tr, map[string]bool{"7": true})
-	star := rect(t, tt, "Favorite")
+// A song uploaded to the library has its star at once, without its source
+// being asked: it's in the library, and can't be added to it.
+func TestStarForUploads(t *testing.T) {
+	up := stray("i.8", "Demo", "DOUDOU")
+	up.Uploaded = true
+	_, tt, _ := keepApp(t, up, nil)
+	rect(t, tt, "Favorite")
+	if _, ok := tt.Find("Add to Library"); ok {
+		t.Error("an upload offered to be added")
+	}
+}
 
-	up := song("i.8", "Demo", "DOUDOU")
-	up.Uploaded, up.Saved, up.SavedKnown = true, true, true
-	_, tt, _ = keepApp(t, up, nil)
-	if _, ok := tt.Find("Added to Library"); ok {
-		t.Error("an upload shows the check")
+// A song its source fails to answer of has its star, not an empty place
+// for good.
+func TestStarWhereTheSourceFails(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	fake(a).inLibrary = func(string, []string) (map[string]bool, error) { return nil, errors.New("offline") }
+	a.account, a.accountAsked = &music.Account{ID: "1"}, true
+	a.pl.Cue([]music.Track{stray("7", "宝船", "DOUDOU")})
+	a.pl.SetLyrics(nil)
+	a.nowPlaying = true
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Advance(time.Second)
+	tt.Frame()
+	if _, ok := tt.Find("Favorite"); ok {
+		t.Fatal("a star before the source answered")
 	}
-	if got := rect(t, tt, "Favorite"); got.X <= star.X {
-		t.Errorf("the star at %v with an upload, as at %v with a place for the plus", got.X, star.X)
-	}
+	runPost(t, ch)
+	tt.Frame()
+	rect(t, tt, "Favorite")
 }
 
 // A song's menu offers to delete it from the library once its source said
 // it's there, and to add it until then.
 func TestSongMenuFollowsLibrary(t *testing.T) {
-	_, tt, ch := keepApp(t, song("7", "宝船", "DOUDOU"), map[string]bool{"7": true})
+	_, tt, ch := keepApp(t, stray("7", "宝船", "DOUDOU"), map[string]bool{"7": true})
 	tt.Click("More")
 	if menu := tt.Menu(); !contains(menu, "Add to Library") || contains(menu, "Delete From Library") {
 		t.Errorf("before the source said, the menu shows %q", menu)
@@ -127,7 +150,7 @@ func TestSongMenuFollowsLibrary(t *testing.T) {
 // undo the add.
 func TestKeepClickBeatsAnswer(t *testing.T) {
 	added := make(chan bool, 1)
-	a, tt, ch := keepApp(t, song("7", "宝船", "DOUDOU"), map[string]bool{})
+	a, tt, ch := keepApp(t, stray("7", "宝船", "DOUDOU"), map[string]bool{})
 	fake(a).addToLibrary = func(kind, id string, on bool) error { added <- on; return nil }
 	a.askInLibrary()
 	// Asked at the end of the first frame, so it's on its way: the listener
@@ -151,7 +174,7 @@ func TestKeepAskedAnewForTheNextListener(t *testing.T) {
 	tr := song("7", "宝船", "DOUDOU")
 	tr.Saved, tr.SavedKnown = true, true
 	a, tt, _ := keepApp(t, tr, map[string]bool{})
-	rect(t, tt, "Added to Library")
+	rect(t, tt, "Favorite")
 	a.account = &music.Account{ID: "2"}
 	a.afterAccount(a.library)
 	if _, known := a.songInLibrary(a.pl.Current()); known {
@@ -169,23 +192,24 @@ func contains(list []string, s string) bool {
 }
 
 // With MM_FRAMES set, saves the row under the cover in Now Playing, dark,
-// with a song not in the library, in it, not known yet, and uploaded; then
-// the stage's bar and the wall with one in it.
+// with a song not in the library (its plus), in it (its star), not known
+// yet (an empty place), and uploaded (its star); then the stage's bar and
+// the wall with one in it.
 func TestKeepButtonFrames(t *testing.T) {
 	dir := os.Getenv("MM_FRAMES")
 	if dir == "" {
 		t.Skip()
 	}
-	upload := song("i.8", "宝船", "DOUDOU")
-	upload.Uploaded, upload.Saved, upload.SavedKnown = true, true, true
+	upload := stray("i.8", "宝船", "DOUDOU")
+	upload.Uploaded = true
 	var rows []image.Image
 	for _, c := range []struct {
 		tr     music.Track
 		answer bool
 	}{
-		{song("7", "宝船", "DOUDOU"), true},
-		{song("7", "宝船", "DOUDOU"), false},
-		{song("7", "宝船", "DOUDOU"), false},
+		{stray("7", "宝船", "DOUDOU"), true},
+		{stray("7", "宝船", "DOUDOU"), false},
+		{stray("7", "宝船", "DOUDOU"), false},
 		{upload, false},
 	} {
 		in := map[string]bool{}

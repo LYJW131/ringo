@@ -33,7 +33,7 @@ func keepingApp(dir, who string) *app {
 // keptSample is a few pages of what a listener has, whose parts all say
 // something, for the round trip through the file to lose none of it.
 func keptSample() (home *music.Browse, albums *music.Browse, pl *music.Playlist, liked []music.Track) {
-	tr := song("s1", "A Song", "An Artist")
+	tr := stray("s1", "A Song", "An Artist")
 	tr.Album = music.Album{ID: "al1", Name: "An Album", ImageURL: "https://example.com/art.jpg"}
 	tr.Explicit, tr.Number = true, 3
 	home = &music.Browse{Title: "Home", Sections: []music.Section{

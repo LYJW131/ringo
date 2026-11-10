@@ -57,7 +57,6 @@ var ringoChinese = map[string]string{
 	"Wrapper Address":              "Wrapper 地址",
 	"Wrapper Key":                  "Wrapper 密钥",
 	"Add to Library":               "添加到资料库",
-	"Added":                        "已添加",
 	"Added to Favorites":           "已添加到个人收藏",
 	"Added to Library":             "已添加到资料库",
 	"All Playlists":                "所有播放列表",
