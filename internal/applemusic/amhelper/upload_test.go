@@ -32,11 +32,18 @@ func (f *fakeBlobstore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.most = max(f.most, f.now)
 	broken := f.broken
 	f.mu.Unlock()
-	defer func() {
-		f.mu.Lock()
-		f.now--
-		f.mu.Unlock()
-	}()
+	// A part is over, to whoever asked for it, as its last byte comes; and
+	// they may ask for the next before this handler has returned. So it's
+	// counted out before that byte is sent, and never beside the next.
+	var once sync.Once
+	over := func() {
+		once.Do(func() {
+			f.mu.Lock()
+			f.now--
+			f.mu.Unlock()
+		})
+	}
+	defer over()
 	if broken || !strings.HasPrefix(r.URL.Path, "/song.m4a") {
 		http.Error(w, "gone", http.StatusForbidden)
 		return
@@ -54,7 +61,10 @@ func (f *fakeBlobstore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", from, to, len(f.song)))
 	w.Header().Set("Content-Length", strconv.FormatInt(to-from+1, 10))
 	w.WriteHeader(http.StatusPartialContent)
-	w.Write(f.song[from : to+1])
+	part := f.song[from : to+1]
+	w.Write(part[:len(part)-1])
+	over()
+	w.Write(part[len(part)-1:])
 }
 
 func startWithBlobstore(t *testing.T, f *fakeBlobstore, dir string) *Server {
