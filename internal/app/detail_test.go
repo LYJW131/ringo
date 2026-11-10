@@ -20,6 +20,7 @@ func speakNow() *music.AlbumPage {
 	ts := music.Artist{ID: "159260351", Name: "Taylor Swift", URL: "https://music.apple.com/cn/artist/159260351"}
 	al := music.Album{ID: "1440755169", Name: "Speak Now", Artists: []music.Artist{ts}, ImageURL: "cover:1",
 		Released: "2010-01-01", Genre: "Pop", Copyright: "℗ 2010 Taylor Swift", TrackCount: 6,
+		Label: "Big Machine Records", LabelPage: "label:1",
 		Traits: music.Traits{Lossless: true, DigitalMaster: true}, Colors: music.Colors{BG: "2b1a14", Text1: "f7e9e1"},
 		Notes: "Taylor Swift's third album is named for its songs' theme: things she should have said, and now says.\nIt was going to be called Enchanted.",
 		URL:   "https://music.apple.com/cn/album/1440755169"}
@@ -109,20 +110,63 @@ func TestAlbumUnavailableSongSaysWhy(t *testing.T) {
 func TestAlbumRowsByDisc(t *testing.T) {
 	tracks := speakNow().Tracks
 	var got []string
-	for _, r := range albumRows(tracks, 2) {
+	for _, r := range albumRows(tracks, false, 2) {
 		got = append(got, fmt.Sprint(r.kind, ":", r.i))
 	}
-	want := []string{"0:1", "1:0", "1:1", "1:2", "1:3", "0:2", "1:4", "1:5", "2:0", "3:0", "3:1"}
+	want := []string{"0:1", "1:0", "1:1", "1:2", "1:3", "0:2", "1:4", "1:5", "2:0", "4:0", "4:1"}
 	if !slices.Equal(got, want) {
 		t.Errorf("rows %q, want %q", got, want)
 	}
 	for i := range tracks {
 		tracks[i].Disc = 1
 	}
-	for _, r := range albumRows(tracks, 0) {
+	for _, r := range albumRows(tracks, false, 0) {
 		if r.kind == albumDisc {
 			t.Fatal("a disc's number on an album of one")
 		}
+	}
+}
+
+// The label under an album's copyright opens the label's page.
+func TestAlbumLabelOpensItsPage(t *testing.T) {
+	a := albumApp()
+	fake(a).browse = func(string) (*music.Browse, error) { return nil, errors.New("not now") }
+	tt := ui.NewTester(a.view, 1180, 900)
+	tt.Frame()
+	if err := tt.Click("Big Machine Records"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.route.page != pageBrowse || a.route.id != "label:1" {
+		t.Fatalf("opened %+v", a.route)
+	}
+}
+
+// An album of the library with some of its songs has Show Complete Album
+// after them, which opens the whole album; one with all of them hasn't.
+func TestShowCompleteAlbum(t *testing.T) {
+	a := albumApp()
+	page := a.albums["1440755169"].album
+	page.Album.ID, page.Complete = "l.part", "1440755169"
+	a.albums["l.part"] = a.albums["1440755169"]
+	delete(a.albums, "1440755169")
+	a.route = route{page: pageAlbum, src: "fake", id: "l.part"}
+	fake(a).album = func(string) (*music.AlbumPage, error) { return nil, errors.New("not now") }
+	tt := ui.NewTester(a.view, 1180, 1200)
+	tt.Frame()
+	if err := tt.Click(T("Show Complete Album")); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.route != (route{page: pageAlbum, src: "fake", id: "1440755169"}) {
+		t.Fatalf("opened %+v", a.route)
+	}
+
+	b := albumApp()
+	tt = ui.NewTester(b.view, 1180, 900)
+	tt.Frame()
+	if _, ok := tt.Find(T("Show Complete Album")); ok {
+		t.Error("Show Complete Album on an album that is whole")
 	}
 }
 
@@ -558,6 +602,11 @@ func TestDetailFrames(t *testing.T) {
 		app  func() *app
 	}{
 		{"album", albumApp},
+		{"album-part", func() *app {
+			a := albumApp()
+			a.albums["1440755169"].album.Complete = "1"
+			return a
+		}},
 		{"artist-wide", func() *app { return artistApp(true) }},
 		{"artist", func() *app { return artistApp(false) }},
 		{"playlist", func() *app {
@@ -574,7 +623,11 @@ func TestDetailFrames(t *testing.T) {
 			a := c.app()
 			shelfArt(a)
 			h := 1000
-			if c.name != "playlist" && c.name != "album" {
+			switch {
+			case strings.HasPrefix(c.name, "album"):
+				// Down to the shelves, past the foot.
+				h = 1200
+			case c.name != "playlist":
 				// Down to the artist's biography.
 				h = 1700
 			}

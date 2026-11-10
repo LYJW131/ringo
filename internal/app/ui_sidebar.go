@@ -40,8 +40,8 @@ func (a *app) libraryItems() []sidebarItem {
 	return a.browseItems(
 		sidebarItem{iconClock, T("Recently Added"), route{page: pageBrowse, id: music.PageRecentlyAdded}},
 		sidebarItem{iconMic, T("Artists"), route{page: pageBrowse, id: music.PageLibraryArtist}},
-		sidebarItem{iconAlbumStack, T("Albums"), route{page: pageBrowse, id: music.PageLibraryAlbums}},
-		sidebarItem{iconNote, T("Songs"), route{page: pageBrowse, id: music.PageLibrarySongs}},
+		sidebarItem{iconAlbumStack, T("Albums"), route{page: pageBrowse, id: a.libraryPage(music.PageLibraryAlbums)}},
+		sidebarItem{iconNote, T("Songs"), route{page: pageBrowse, id: a.libraryPage(music.PageLibrarySongs)}},
 		sidebarItem{iconForYou, T("Made for You"), route{page: pageBrowse, id: music.PageMadeForYou}},
 	)
 }
@@ -119,7 +119,8 @@ func (a *app) navFade(nav ui.Element) {
 
 func (a *app) navItem(c *ui.Context, icon *ui.SVG, label string, r route) {
 	p := a.pal
-	selected := !a.nowPlaying && a.route.page == r.page && a.route.id == r.id
+	// A list of the library is itself however it's sorted.
+	selected := !a.nowPlaying && a.route.page == r.page && (a.route.id == r.id || r.page == pageBrowse && sameLibraryPage(a.route.id, r.id))
 	b := ui.ButtonBase(c.Key(label)).Height(32).PaddingX(10).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
 	bg := ui.Transparent
 	switch {

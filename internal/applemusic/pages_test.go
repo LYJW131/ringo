@@ -2,6 +2,7 @@ package applemusic
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -426,6 +427,136 @@ func TestAlbumPage(t *testing.T) {
 	}
 	if len(titles) == 0 || titles[0] != "More By Taylor Swift" {
 		t.Errorf("shelves %q", titles)
+	}
+	// The label as its page names it, not as the album's line has it.
+	if a.Label != "Big Machine Label Group" || a.LabelPage != "label:1552967199" {
+		t.Errorf("label %q, page %q", a.Label, a.LabelPage)
+	}
+	// See All on a shelf Apple has more of: the album asked for with that
+	// shelf alone, which has its title, then the shelf's next parts.
+	if page.Sections[0].MorePage != "view:albums:1440935467:more-by-artist" {
+		t.Fatalf("See All of the first shelf: %q", page.Sections[0].MorePage)
+	}
+	all := browse(t, ts, page.Sections[0].MorePage)
+	if all.Title != "More By Taylor Swift" || len(all.Sections) != 1 || len(all.Sections[0].Items) == 0 || !strings.HasPrefix(all.Next, "view:albums:1440935467:more-by-artist|/v1/catalog/us/albums/1440935467/view/more-by-artist") {
+		t.Errorf("all of it: %q, %d sections, next %q", all.Title, len(all.Sections), all.Next)
+	}
+}
+
+// A record label's page is its banner, its name, what it says of itself and
+// its releases, top first as in Music, each shelf's See All the label asked
+// for with that shelf alone, which has its title.
+func TestRecordLabelPage(t *testing.T) {
+	ts, a := newApple(t)
+	label := func(views map[string]any) map[string]any {
+		return map[string]any{
+			"data": []any{map[string]any{"id": "77", "type": "record-labels"}},
+			"resources": map[string]any{
+				"record-labels": map[string]any{"77": map[string]any{"id": "77", "type": "record-labels",
+					"attributes": map[string]any{"name": "JVR Music", "description": map[string]any{"standard": "Just Very Romantic."},
+						"editorialArtwork": map[string]any{"bannerUber": map[string]any{"url": "b/{w}x{h}sr.{f}", "bgColor": "1a1718"}}},
+					"views": views}},
+				"albums": map[string]any{"1": map[string]any{"id": "1", "type": "albums", "attributes": map[string]any{"name": "Fantasy"}}},
+			},
+		}
+	}
+	shelf := func(title, next string) map[string]any {
+		return map[string]any{"attributes": map[string]any{"title": title}, "next": next, "data": []any{map[string]any{"id": "1", "type": "albums"}}}
+	}
+	a.routes = append(a.routes, route{regexp.MustCompile(`^/v1/catalog/us/record-labels/77$`), func(r *http.Request) any {
+		if r.URL.Query().Get("views") == "top-releases" {
+			return label(map[string]any{"top-releases": shelf("Top Releases", "/v1/catalog/us/record-labels/77/view/top-releases?offset=30")})
+		}
+		return label(map[string]any{
+			"latest-releases": shelf("Latest Releases", ""),
+			"top-releases":    shelf("Top Releases", "/v1/catalog/us/record-labels/77/view/top-releases?offset=10"),
+		})
+	}})
+	b := browse(t, ts, "label:77")
+	if b.Title != "JVR Music" || b.Description != "Just Very Romantic." || !strings.Contains(b.WideURL, "{w}x{h}") {
+		t.Errorf("label %q, %q, banner %q", b.Title, b.Description, b.WideURL)
+	}
+	if len(b.Sections) != 2 || b.Sections[0].Title != "Top Releases" || b.Sections[1].Title != "Latest Releases" {
+		t.Fatalf("shelves %+v", b.Sections)
+	}
+	if b.Sections[0].MorePage != "view:record-labels:77:top-releases" || b.Sections[1].MorePage != "" {
+		t.Errorf("See All: %q, %q", b.Sections[0].MorePage, b.Sections[1].MorePage)
+	}
+	all := browse(t, ts, b.Sections[0].MorePage)
+	if all.Title != "Top Releases" || len(all.Sections) != 1 || len(all.Sections[0].Items) != 1 || !strings.HasPrefix(all.Next, "view:record-labels:77:top-releases|/v1/catalog/us/record-labels/77/view/top-releases") {
+		t.Errorf("all of it: %q, %+v, next %q", all.Title, all.Sections, all.Next)
+	}
+}
+
+// A library album with some of its songs has its catalog album's shelves
+// and the ID that Show Complete Album opens; found by a song of it when the
+// library album doesn't say, as of Ao No Hako's second soundtrack it didn't.
+// One with all its songs has the shelves and nothing to complete. Either
+// takes when it came out and how it sounds from the catalog's, as its own
+// may not say.
+func TestLibraryAlbumOfCatalog(t *testing.T) {
+	whole := func(count int) map[string]any {
+		return map[string]any{
+			"data": []any{map[string]any{"id": "900", "type": "albums"}},
+			"resources": map[string]any{"albums": map[string]any{
+				"900": map[string]any{"id": "900", "type": "albums",
+					"attributes": map[string]any{"name": "Whole", "trackCount": count, "releaseDate": "2025-03-20", "audioTraits": []string{"lossy-stereo", "lossless"}},
+					"views": map[string]any{"more-by-artist": map[string]any{
+						"attributes": map[string]any{"title": "More By Hiroaki"},
+						"data":       []any{map[string]any{"id": "901", "type": "albums"}}}}},
+				"901": map[string]any{"id": "901", "type": "albums", "attributes": map[string]any{"name": "Another"}},
+			}},
+		}
+	}
+	song := func(n int) string {
+		return fmt.Sprintf(`{"id":"i.%d","type":"library-songs","attributes":{"name":"s%d","trackNumber":%d,"playParams":{"id":"i.%d","kind":"song","isLibrary":true,"catalogId":"8%02d"}}}`, n, n, n, n, n)
+	}
+	for _, c := range []struct {
+		name, catalog string
+		have, count   int
+		complete      string
+	}{
+		{"some, said by a song", `[]`, 2, 27, "900"},
+		{"some, said by the album", `[{"id":"900","type":"albums"}]`, 2, 27, "900"},
+		{"all", `[{"id":"900","type":"albums"}]`, 4, 4, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			ts, a := newApple(t)
+			ts.storage.set(userTokenKey, "token")
+			var songs []string
+			for n := 26; n < 26+c.have; n++ {
+				songs = append(songs, song(n))
+			}
+			list := "[" + strings.Join(songs, ",") + "]"
+			a.routes = append(a.routes,
+				route{regexp.MustCompile(`^/v1/me/storefront$`), func(*http.Request) any { return usStorefront }},
+				route{regexp.MustCompile(`^/v1/me/library/albums/l\.part$`), func(*http.Request) any {
+					return json.RawMessage(`{"data":[{"id":"l.part","type":"library-albums","attributes":{"name":"Part","trackCount":` + fmt.Sprint(c.have) + `},"relationships":{"catalog":{"data":` + c.catalog + `},"tracks":{"data":` + list + `}}}]}`)
+				}},
+				route{regexp.MustCompile(`^/v1/me/library/albums/l\.part/tracks$`), func(*http.Request) any { return json.RawMessage(`{"data":` + list + `}`) }},
+				route{regexp.MustCompile(`^/v1/catalog/us/songs/826$`), func(*http.Request) any {
+					return json.RawMessage(`{"data":[{"id":"826","type":"songs","relationships":{"albums":{"data":[{"id":"900","type":"albums"}]}}}]}`)
+				}},
+				route{regexp.MustCompile(`^/v1/catalog/us/albums/900$`), func(*http.Request) any { return whole(c.count) }},
+			)
+			page, err := ts.Album("l.part")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if page.Complete != c.complete {
+				t.Errorf("complete %q", page.Complete)
+			}
+			if len(page.Sections) != 1 || page.Sections[0].Title != "More By Hiroaki" || len(page.Sections[0].Items) != 1 {
+				t.Errorf("sections %+v", page.Sections)
+			}
+			if page.Album.ID != "l.part" || len(page.Tracks) != c.have || page.Tracks[0].Number != 26 {
+				t.Errorf("album %+v, songs %+v", page.Album, page.Tracks)
+			}
+			// What the library's album doesn't say, the catalog's does.
+			if page.Album.Released != "2025-03-20" || !page.Album.Traits.Lossless {
+				t.Errorf("album %+v, songs %+v", page.Album, page.Tracks)
+			}
+		})
 	}
 }
 

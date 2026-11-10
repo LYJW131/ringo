@@ -60,7 +60,9 @@ type Album struct {
 	Genre   string `json:"genre,omitempty"`
 	// Label and Copyright are as the album's page ends: who released it,
 	// and the line that starts with ℗.
-	Label      string `json:"label,omitempty"`
+	Label string `json:"label,omitempty"`
+	// LabelPage is the Browse page of the record label, if it has one.
+	LabelPage  string `json:"labelPage,omitempty"`
 	Copyright  string `json:"copyright,omitempty"`
 	TrackCount int    `json:"trackCount,omitempty"`
 	Single     bool   `json:"single,omitempty"`
@@ -204,6 +206,10 @@ type AlbumPage struct {
 	// Sections follow the songs: more by the artist, other versions, what
 	// it's featured on, and what else a listener might like.
 	Sections []Section `json:"sections,omitempty"`
+	// Complete is, for an album of the listener's library that has only
+	// some of its songs, the ID of the whole album, which Show Complete
+	// Album opens.
+	Complete string `json:"complete,omitempty"`
 }
 
 // Account is who is signed in to a source.

@@ -20,6 +20,8 @@ import (
 //	search:<term>                     all a search finds
 //	search-more:<group>:<term>        all it found of one kind
 //	artist-view:<id>:<view>           all of a shelf of an artist's page
+//	label:<id>                        a record label's page
+//	view:<type>:<id>:<view>           all of a shelf of an album's or a label's page
 //	rec:<id>                          all of a shelf of Home
 //	library:…                         the library's pages (libpages.go)
 //	library-artist:<id>               an artist of the library
@@ -139,6 +141,13 @@ func (s *Source) makePage(page string) (*music.Browse, error) {
 	case kind == "artist-view":
 		id, view, _ := strings.Cut(arg, ":")
 		return s.artistView(id, view, next)
+	case kind == "label":
+		return s.recordLabel(arg)
+	case kind == "view":
+		parts := strings.SplitN(arg, ":", 3)
+		if len(parts) == 3 {
+			return s.viewPage(parts[0], parts[1], parts[2], next)
+		}
 	case kind == "rec":
 		return s.seeAll(arg)
 	case kind == "library-artist":

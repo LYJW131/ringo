@@ -1,6 +1,7 @@
 package applemusic
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"strings"
@@ -97,7 +98,7 @@ func markPopular(refs []*resource, songs []music.Track) {
 func (s *Source) album(id string) (*music.AlbumPage, error) {
 	s.warm()
 	if strings.HasPrefix(id, "l.") {
-		b, err := s.me("/library/albums/"+id, params{"include": "tracks"}, reqOpts{})
+		b, err := s.me("/library/albums/"+id, params{"include": "catalog,tracks"}, reqOpts{})
 		if err != nil {
 			return nil, err
 		}
@@ -105,7 +106,21 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Under a library album, Apple's app shows its catalog album's
+		// shelves, and Show Complete Album when the library has only some
+		// of its songs: that album is asked for while the songs are.
+		var (
+			wg         sync.WaitGroup
+			whole      *body
+			wholeAlbum *resource
+		)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			whole, wholeAlbum = s.catalogAlbum(b, item)
+		}()
 		tracks, err := s.allPages("/v1/me/library/albums/"+id+"/tracks", params{"limit": "100"}, 1000, nil)
+		wg.Wait()
 		if err != nil {
 			return nil, err
 		}
@@ -116,7 +131,23 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 		for _, song := range songs {
 			a.Uploaded = a.Uploaded || song.Uploaded
 		}
-		return &music.AlbumPage{Album: a, Tracks: songs}, nil
+		if wholeAlbum != nil {
+			// The library's album may not say when it came out or how it
+			// sounds; the catalog's does, and Music's page shows it.
+			w := s.toAlbum(wholeAlbum)
+			a.Released = cmp.Or(a.Released, w.Released)
+			if a.Traits == (music.Traits{}) {
+				a.Traits = w.Traits
+			}
+		}
+		page := &music.AlbumPage{Album: a, Tracks: songs}
+		if wholeAlbum != nil {
+			page.Sections = s.albumSections(whole, wholeAlbum)
+			if wholeAlbum.attrs().TrackCount > len(tracks) {
+				page.Complete = wholeAlbum.ID
+			}
+		}
+		return page, nil
 	}
 	p := albumParams()
 	asked := s.askInLibrary(p)
@@ -150,16 +181,142 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 	s.prefetch(songs, nil)
 	a := s.toAlbum(item)
 	a.Saved, a.Favorite = own != nil, favorite
-	if labels := b.all(item.related("record-labels").Data); a.Label == "" && len(labels) > 0 {
-		a.Label = labels[0].attrs().Name
+	// Music names the label as the label's page does, not as the album's
+	// line of who released it may: of Fantasy, in China, that line says
+	// JVR MUSIC INTERNATIONAL LTD., and Music the label's Chinese name.
+	if labels := b.all(item.related("record-labels").Data); len(labels) > 0 {
+		a.Label, a.LabelPage = cmp.Or(labels[0].attrs().Name, a.Label), "label:"+labels[0].ID
 	}
-	page := &music.AlbumPage{Album: a, Tracks: songs}
-	for _, v := range albumViews {
-		if sec, ok := s.viewSection(b, item.Views[v.name], v.style); ok {
-			page.Sections = append(page.Sections, sec)
+	return &music.AlbumPage{Album: a, Tracks: songs, Sections: s.albumSections(b, item)}, nil
+}
+
+// albumSections are the shelves that follow a catalog album's songs.
+func (s *Source) albumSections(b *body, item *resource) []music.Section {
+	return s.pageSections(b, "albums", item, albumViews)
+}
+
+// pageSections are the shelves of a catalog page of typ that its views
+// give, in order, each with See All when Apple has more of it than it gave,
+// as Music's have.
+func (s *Source) pageSections(b *body, typ string, item *resource, views []struct{ name, style string }) []music.Section {
+	var out []music.Section
+	for _, v := range views {
+		view := item.Views[v.name]
+		if sec, ok := s.viewSection(b, view, v.style); ok {
+			if view.Next != "" {
+				sec.MorePage = "view:" + typ + ":" + item.ID + ":" + v.name
+			}
+			out = append(out, sec)
 		}
 	}
-	return page, nil
+	return out
+}
+
+// viewPage is all of one of the shelves of a catalog page of typ: the page
+// asked for with that view alone, which has its title, then the view's
+// next parts.
+func (s *Source) viewPage(typ, id, view, next string) (*music.Browse, error) {
+	base := params{"art[url]": "f", "include[albums]": "artists", "include[songs]": "artists", "fields[artists]": "name,url"}
+	prefix := "view:" + typ + ":" + id + ":" + view
+	if next != "" {
+		return s.more(prefix, next, base)
+	}
+	p := s.mapped(withSongAssets(base))
+	p["views"], p["limit[view."+view+"]"] = view, "30"
+	b, err := s.catalog("/"+typ+"/"+id, p)
+	if err != nil {
+		return nil, err
+	}
+	item, err := first(b)
+	if err != nil {
+		return nil, err
+	}
+	if item = b.get(item); item == nil || item.Views[view] == nil {
+		return nil, fail("unavailable", i18n.T("Apple Music doesn't have this"))
+	}
+	v := item.Views[view]
+	items := s.items(b, v.Data)
+	out := &music.Browse{Title: v.title(), Sections: []music.Section{{Style: gridStyle(items), Items: items}}}
+	if v.Next != "" {
+		out.Next = prefix + "|" + v.Next
+	}
+	s.listed(songItems(items), nil)
+	return out, nil
+}
+
+// The shelves of a record label's page, in the order Music's has them.
+var labelViews = []struct{ name, style string }{
+	{"top-releases", music.ShelfSquare},
+	{"latest-releases", music.ShelfSquare},
+}
+
+// recordLabel is a record label's page: its banner, its name and what it
+// says of itself, and its releases.
+func (s *Source) recordLabel(id string) (*music.Browse, error) {
+	var views []string
+	for _, v := range labelViews {
+		views = append(views, v.name)
+	}
+	b, err := s.catalog("/record-labels/"+id, s.mapped(params{"views": strings.Join(views, ","), "extend": "editorialArtwork", "art[url]": "f"}))
+	if err != nil {
+		return nil, err
+	}
+	item, err := first(b)
+	if err != nil {
+		return nil, err
+	}
+	if item = b.get(item); item == nil {
+		return nil, fail("unavailable", i18n.T("Apple Music doesn't have this"))
+	}
+	a := item.attrs()
+	out := &music.Browse{Title: a.Name, Description: plain(a.Description.long())}
+	if u, w := wide(a, "bannerUber"); u != "" {
+		out.WideURL, out.Colors = u, colors(w)
+	} else {
+		out.ImageURL = art(a.Artwork)
+	}
+	out.Sections = s.pageSections(b, "record-labels", item, labelViews)
+	return out, nil
+}
+
+// catalogAlbum is the catalog album a library album is of, asked for with
+// its shelves, or nil when it can't be told. The library album says which
+// only sometimes (of Ao No Hako's second soundtrack, in 2026-11, it
+// doesn't); its songs always say theirs, and theirs is its.
+func (s *Source) catalogAlbum(b *body, lib *resource) (*body, *resource) {
+	id := ""
+	if d := lib.related("catalog").Data; len(d) > 0 && d[0] != nil {
+		id = d[0].ID
+	}
+	if id == "" {
+		for _, song := range b.all(lib.related("tracks").Data) {
+			if sid := songID(song); isCatalogID(sid) {
+				sb, err := s.catalog("/songs/"+sid, params{"include": "albums"})
+				if err != nil {
+					return nil, nil
+				}
+				if r, err := first(sb); err == nil {
+					id = albumIDOf(r)
+				}
+				break
+			}
+		}
+	}
+	if !isCatalogID(id) {
+		return nil, nil
+	}
+	cb, err := s.catalog("/albums/"+id, albumParams())
+	if err != nil {
+		return nil, nil
+	}
+	r, err := first(cb)
+	if err != nil {
+		return nil, nil
+	}
+	if r = cb.get(r); r == nil {
+		return nil, nil
+	}
+	return cb, r
 }
 
 // viewSection is a view of a page as a shelf, titled as Apple titles it.

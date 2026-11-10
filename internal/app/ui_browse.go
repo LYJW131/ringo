@@ -171,6 +171,9 @@ var pageTitles = map[string]string{
 // an artist's page is.
 func (a *app) browseHeader(c *ui.Context, page *music.Browse, id string) {
 	p := a.pal
+	if a.libraryHeader(c, page, id) {
+		return
+	}
 	if page.Title == "" && pageTitles[id] != "" {
 		titled := *page
 		titled.Title = T(pageTitles[id])

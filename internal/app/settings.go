@@ -49,6 +49,9 @@ type settings struct {
 	// StageSparks throws sparks off each word on the stage as it is sung,
 	// whatever its style.
 	StageSparks bool `json:"stageSparks,omitempty"`
+	// LibraryViews are how the library's lists were last sorted and
+	// filtered: each list's page, by the list's own (ui_libsort.go).
+	LibraryViews map[string]string `json:"libraryViews,omitempty"`
 	// Volume is where the volume was left, from 0 to 1.
 	Volume float64 `json:"volume"`
 	// Normalize evens out the loudness of tracks, by what their source

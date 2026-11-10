@@ -42,10 +42,11 @@ func (a *app) loadAlbum(lib *library, id string) {
 
 // The rows of an album's page, after its header.
 const (
-	albumDisc  = iota // "Disc 2", over its songs, of an album of more than one
-	albumTrack        // a song
-	albumFoot         // when it came out, how long it is, and its copyright
-	albumShelf        // a row of its sections
+	albumDisc     = iota // "Disc 2", over its songs, of an album of more than one
+	albumTrack           // a song
+	albumFoot            // when it came out, how long it is, and its copyright
+	albumComplete        // Show Complete Album, under a library album with some of its songs
+	albumShelf           // a row of its sections
 )
 
 type albumRow struct {
@@ -54,8 +55,9 @@ type albumRow struct {
 }
 
 // albumRows lays an album's page out after its header: its songs, under
-// their discs' numbers if there are several, its foot and its sections.
-func albumRows(tracks []music.Track, shelves int) []albumRow {
+// their discs' numbers if there are several, its foot, Show Complete Album
+// if the library has only some of it, and its sections.
+func albumRows(tracks []music.Track, complete bool, shelves int) []albumRow {
 	discs := false
 	for i := range tracks {
 		if tracks[i].Disc > 1 {
@@ -72,6 +74,9 @@ func albumRows(tracks []music.Track, shelves int) []albumRow {
 		rows = append(rows, albumRow{albumTrack, i})
 	}
 	rows = append(rows, albumRow{albumFoot, 0})
+	if complete {
+		rows = append(rows, albumRow{albumComplete, 0})
+	}
 	for i := range shelves {
 		rows = append(rows, albumRow{albumShelf, i})
 	}
@@ -96,7 +101,7 @@ func (a *app) albumPage(c *ui.Context) {
 	}
 	page := d.album
 	shelves := a.shelfRows(c, page.Sections)
-	rows := albumRows(page.Tracks, len(shelves))
+	rows := albumRows(page.Tracks, page.Complete != "", len(shelves))
 	various := variousArtists(page)
 	a.detailList(c, len(rows)+1, page.Album.Colors, func(i int) {
 		if i == 0 {
@@ -111,6 +116,8 @@ func (a *app) albumPage(c *ui.Context) {
 			a.albumTrackRow(c, page.Tracks, r.i, various)
 		case albumFoot:
 			a.albumFoot(c, page)
+		case albumComplete:
+			a.albumComplete(c, page.Complete)
 		case albumShelf:
 			a.sectionsRow(c, page.Sections, shelves, r.i)
 		}
@@ -258,7 +265,54 @@ func (a *app) albumFoot(c *ui.Context, page *music.AlbumPage) {
 		if al.Copyright != "" {
 			ui.Text(c, al.Copyright).FontSize(12.5).TextColor(p.muted)
 		}
+		if al.Label != "" {
+			a.albumLabel(c, al)
+		}
 	})
+}
+
+// albumLabel is who released an album, under its copyright as in Music:
+// a heading, and the label's name, which opens its page if it has one.
+func (a *app) albumLabel(c *ui.Context, al *music.Album) {
+	p := a.pal
+	ui.Text(c, T("Record Label")).FontSize(11.5).FontWeight(600).TextColor(p.muted).Margin(14, 0, 0, 0)
+	if al.LabelPage == "" {
+		ui.Text(c, al.Label).FontSize(12.5).TextColor(p.text)
+		return
+	}
+	b := ui.ButtonBase(c.Key("label")).AlignSelf(ui.Start).Gap(2).AlignItems(ui.Center).FocusRing(false).Label(al.Label)
+	color := p.accent
+	if b.Hovered() {
+		color = p.accent.Mix(p.text, 0.3)
+	}
+	b.Children(func() {
+		ui.Text(c, al.Label).FontSize(12.5).TextColor(color)
+		ui.Icon(c, iconForward).Size(11, 11).TextColor(color)
+	})
+	if b.Clicked() {
+		a.open(route{page: pageBrowse, id: al.LabelPage})
+	}
+}
+
+// albumComplete is the bar under an album of the listener's library that
+// has only some of its songs, which opens the whole album, as Music's does.
+func (a *app) albumComplete(c *ui.Context, id string) {
+	p := a.pal
+	label := T("Show Complete Album")
+	bar := ui.ButtonBase(c.Key("complete")).Height(44).Margin(22, 12, 0, 12).PaddingX(16).Radius(10).
+		AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(label)
+	bg := p.hover
+	if bar.Pressed() {
+		bg = p.press
+	} else if bar.Hovered() {
+		bg = p.hover.Mix(p.press, 0.5)
+	}
+	bar.Background(bar.AnimateColor("bg", bg, ui.Animation{Duration: 100 * time.Millisecond})).Children(func() {
+		ui.Text(c, label).FontSize(13).FontWeight(600).TextColor(p.accent)
+	})
+	if bar.Clicked() {
+		a.open(route{page: pageAlbum, src: a.route.src, id: id})
+	}
 }
 
 // albumGrid shows albums as cards, each opening its page.

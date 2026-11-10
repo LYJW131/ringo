@@ -154,7 +154,7 @@ func (a *app) shelfSkeletonWith(c *ui.Context, s shimmer, portrait bool) {
 // its songs in rows, or its cards in a grid, without a title over them, as
 // the page has none.
 func (a *app) librarySkeleton(c *ui.Context, s shimmer, id string) {
-	if id == music.PageLibrarySongs {
+	if base, _ := music.ParseLibraryPage(id); base == music.PageLibrarySongs {
 		_, h := c.Size()
 		for i := range max(8, int(h/54)) {
 			a.trackRowSkeleton(c.Key(i), s, i, true)

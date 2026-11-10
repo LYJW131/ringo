@@ -119,6 +119,8 @@ type app struct {
 	settingsPage      string // the settings' page that shows
 	settingsQuery     string // what's searched for in the settings
 	settingsSearchBox ui.Handle
+	libFind           libraryFind // what a list of the library looks for (ui_libsort.go)
+	libFindBox        ui.Handle
 	settingsUnderTop  bool // the settings' page has scrolled under its top edge
 
 	suggestions suggestState // what the search field's query may be after
