@@ -15,9 +15,14 @@ import (
 // lines, 第00句 to 第29句, one every 5 seconds and sung for 4, held at pos
 // and come to rest there.
 func lyricsApp(pos time.Duration) (*app, *ui.Tester) {
+	return lyricsAppFrom(0, pos)
+}
+
+// lyricsAppFrom is lyricsApp of a song whose first line begins at first.
+func lyricsAppFrom(first, pos time.Duration) (*app, *ui.Tester) {
 	var lines []lyrics.Line
 	for i := range 30 {
-		at := time.Duration(i) * 5 * time.Second
+		at := first + time.Duration(i)*5*time.Second
 		lines = append(lines, lyrics.Line{At: at, End: at + 4*time.Second, Text: fmt.Sprintf("第%02d句", i)})
 	}
 	a := newTestApp()
@@ -222,5 +227,33 @@ func TestLyricsOpenWhereTheyFollow(t *testing.T) {
 	settled(tt)
 	if followed := at(a, tt); opened < followed-1 || opened > followed+1 {
 		t.Errorf("opened on it, the line is at %.1f; followed to, at %.1f", opened, followed)
+	}
+}
+
+// The first lines of a song are sung where every other is, a third of the
+// way down the pane, and the first waits about there for the song to get to
+// it. They were sung at the pane's top, one under another, having nothing
+// over them to scroll away, and only the fourth came to where the rest are.
+func TestLyricsFirstLinesAtTheFocus(t *testing.T) {
+	top := func(tt *ui.Tester, line int) float32 {
+		r, ok := tt.Find(fmt.Sprintf("第%02d句", line))
+		if !ok {
+			t.Fatalf("no line %d: %q", line, tt.Texts())
+		}
+		return r.Y
+	}
+	_, tt := lyricsApp(26 * time.Second)
+	want := top(tt, 5)
+	for line := range 3 {
+		_, tt := lyricsApp(time.Duration(line)*5*time.Second + time.Second)
+		if got := top(tt, line); got < want-1 || got > want+1 {
+			t.Errorf("line %d is sung at %.1f; the sixth at %.1f", line, got, want)
+		}
+	}
+	// Before a first line that begins at 4 s, it is no higher than where it
+	// will be sung, and lower by no more than the room a line sung has.
+	_, tt = lyricsAppFrom(4*time.Second, time.Second)
+	if got := top(tt, 0); got < want-1 || got > want+2*lyricBreath+1 {
+		t.Errorf("before it is sung, the first line is at %.1f; sung, a line is at %.1f", got, want)
 	}
 }

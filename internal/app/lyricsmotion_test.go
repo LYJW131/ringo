@@ -240,3 +240,15 @@ func TestLyricsMotionCost(t *testing.T) {
 		}
 	}
 }
+
+// With MM_FRAMES set, saves the lyrics as a song begins: before its first
+// line, as the first is sung, and as the second is.
+func TestLyricsFirstLineFrames(t *testing.T) {
+	dir := framesDir(t)
+	// The first line begins at 6 s, the second at 11.2 s.
+	for name, pos := range map[string]time.Duration{"first-waiting.png": 3 * time.Second, "first-sung.png": 7500 * time.Millisecond, "second-sung.png": 12700 * time.Millisecond} {
+		a, tt, _ := motionApp(motionSongs()["ja"], pos-time.Second)
+		playFrames(a, tt, pos-time.Second, time.Second/30, 31, func(int) {})
+		saveFrame(t, dir, name, tt.Image())
+	}
+}

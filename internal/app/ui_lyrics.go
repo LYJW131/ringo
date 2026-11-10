@@ -198,6 +198,11 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 	}
 	var lead ui.Element
 	scroll.Children(func() {
+		// Room over the first line, as Music has over it: the first lines
+		// are sung where every other is, a third of the way down, and the
+		// first waits there for the song to get to it. Without it they were
+		// sung at the pane's top, having nothing over them to scroll away.
+		ui.Box(c.Key("head")).Height(max(0, box.H*lyricFocusY-lyricBreath))
 		ui.Column(c).Gap(6).Children(func() {
 			for i := range lines {
 				row := a.lyricLine(c, lines, i, pos, focus, browsing)
