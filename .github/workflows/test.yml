@@ -46,7 +46,20 @@ jobs:
             ${{ steps.go-env.outputs.mod }}
           key: test-go-${{ matrix.name }}-${{ hashFiles('go.mod', 'go.sum') }}
           restore-keys: test-go-${{ matrix.name }}-
+      # gofmt prints the files it would change, and nothing when there are none.
+      - name: Format
+        if: matrix.name == 'Linux'
+        run: test -z "$(gofmt -l internal icon main.go | tee /dev/stderr)"
+      - name: Vet
+        run: go vet ./...
       - name: Build
         run: go build -o /dev/null .
+      # The apps of every platform compile from any one machine, without cgo.
+      - name: Build for the other platforms
+        if: matrix.name == 'Linux'
+        run: |
+          for platform in darwin/arm64 darwin/amd64 windows/amd64 windows/arm64 linux/arm64; do
+            GOOS=${platform%/*} GOARCH=${platform#*/} go build -o /dev/null .
+          done
       - name: Test
-        run: go test ./internal/...
+        run: go test ./...
