@@ -11,7 +11,8 @@ import (
 )
 
 // Lyrics: Apple's TTML, word by word where Apple has it, with the
-// translation into the listener's language when there is one.
+// translation into the listener's language when there is one, and how the
+// lines are said, in Latin letters, when they're written in others.
 
 func lyricsLanguage() string {
 	if i18n.Language() == i18n.Chinese {
@@ -68,6 +69,7 @@ var (
 	spaces     = regexp.MustCompile(`\s+`)
 
 	translationBlock = regexp.MustCompile(`<translation\b([^>]*)>([\s\S]*?)</translation>`)
+	pronunciations   = regexp.MustCompile(`<transliteration\b[^>]*>([\s\S]*?)</transliteration>`)
 	textBlock        = regexp.MustCompile(`<text\b([^>]*)>([\s\S]*?)</text>`)
 	paragraph        = regexp.MustCompile(`<p\b([^>]*)>([\s\S]*?)</p>`)
 	background       = regexp.MustCompile(`<span\b[^>]*ttm:role="x-bg"[^>]*>([\s\S]*?)</span>\s*</span>|<span\b[^>]*ttm:role="x-bg"[^>]*>([\s\S]*?)</span>`)
@@ -105,7 +107,9 @@ func attr(tag, name string) string {
 
 func stripTags(s string) string { return unescapeXML(anyTag.ReplaceAllString(s, "")) }
 
-// parseTTML is TTML's lines, with the translation into language (zh, en) where there is one.
+// parseTTML is TTML's lines, with the translation into language (zh, en)
+// where there is one, and their pronunciation where Apple sends it: asked
+// for a script (l[script]), it does for lines written in another.
 func parseTTML(ttml, language string) *music.Lyrics {
 	// Translations, by the line they're for.
 	translations := map[string]string{}
@@ -124,6 +128,16 @@ func parseTTML(ttml, language string) *music.Lyrics {
 		}
 		break
 	}
+	// How the lines are said, by the line: a line's own words again, span
+	// for span, in Latin letters.
+	said := map[string]string{}
+	if b := pronunciations.FindStringSubmatch(ttml); b != nil {
+		for _, m := range textBlock.FindAllStringSubmatch(b[1], -1) {
+			if key := attr(m[1], "for"); key != "" {
+				said[key] = m[2]
+			}
+		}
+	}
 	b := ttml
 	if at := strings.Index(ttml, "<body"); at >= 0 {
 		b = ttml[at:]
@@ -135,26 +149,9 @@ func parseTTML(ttml, language string) *music.Lyrics {
 	var lines []music.LyricLine
 	for _, m := range paragraph.FindAllStringSubmatch(b, -1) {
 		key := attr(m[1], "itunes:key")
-		inner := m[2]
-		// Background vocals are spans inside a span: kept apart from the
-		// line's own words, which they're sung behind.
-		var behind []music.LyricWord
-		for _, bg := range background.FindAllStringSubmatch(inner, -1) {
-			if bg[1] != "" {
-				behind = append(behind, timedWords(bg[1]+"</span>")...)
-			} else if text := strings.TrimSpace(stripTags(bg[2])); text != "" {
-				behind = append(behind, music.LyricWord{Text: text})
-			}
-		}
-		main := background.ReplaceAllString(inner, "")
-		words := timedWords(main)
-		text := strings.TrimSpace(spaces.ReplaceAllString(stripTags(main), " "))
+		text, words, behind := lineParts(m[2])
 		if text == "" {
-			// A line of nothing but backing vocals is theirs, as written.
-			if text = strings.TrimSpace(spaces.ReplaceAllString(stripTags(inner), " ")); text == "" {
-				continue
-			}
-			words, behind = behind, nil
+			continue
 		}
 		line := music.LyricLine{Start: milliseconds(attr(m[1], "begin")), End: milliseconds(attr(m[1], "end")), Text: text}
 		line.Words, line.Background = words, unbracketed(behind, line.Start, line.End)
@@ -167,6 +164,11 @@ func parseTTML(ttml, language string) *music.Lyrics {
 		if key != "" && translations[key] != "" {
 			line.Translation = translations[key]
 		}
+		// A line in Latin letters already comes said as it is written:
+		// that isn't shown twice.
+		if p, pw, _ := lineParts(said[key]); key != "" && !strings.EqualFold(p, text) {
+			line.Pronunciation, line.Pronounced = p, pw
+		}
 		lines = append(lines, line)
 	}
 	// Lyrics that aren't timed at all come as lines at 0: shown still.
@@ -174,6 +176,26 @@ func parseTTML(ttml, language string) *music.Lyrics {
 		return nil
 	}
 	return &music.Lyrics{Lines: lines}
+}
+
+// lineParts are the text of a line, as its spans have it, its words where
+// they are timed, and the words sung behind it. Background vocals are spans
+// inside a span: kept apart from the line's own words, which they're sung
+// behind. A line of nothing but backing vocals is theirs, as written.
+func lineParts(inner string) (text string, words, behind []music.LyricWord) {
+	for _, bg := range background.FindAllStringSubmatch(inner, -1) {
+		if bg[1] != "" {
+			behind = append(behind, timedWords(bg[1]+"</span>")...)
+		} else if text := strings.TrimSpace(stripTags(bg[2])); text != "" {
+			behind = append(behind, music.LyricWord{Text: text})
+		}
+	}
+	main := background.ReplaceAllString(inner, "")
+	words = timedWords(main)
+	if text = strings.TrimSpace(spaces.ReplaceAllString(stripTags(main), " ")); text == "" {
+		return strings.TrimSpace(spaces.ReplaceAllString(stripTags(inner), " ")), behind, nil
+	}
+	return text, words, behind
 }
 
 // timedWords are the words of a line's spans that say when they're sung, a

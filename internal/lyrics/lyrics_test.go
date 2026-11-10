@@ -98,3 +98,25 @@ func TestFromSourceSung(t *testing.T) {
 		t.Errorf("a line with no words of its own: %+v", l)
 	}
 }
+
+// How a line is said keeps the times the source gives its words, and where
+// it gives none they share the line's, as the line's own do.
+func TestFromSourcePronounced(t *testing.T) {
+	lines := FromSource(&music.Lyrics{Lines: []music.LyricLine{
+		{Start: 1000, End: 3000, Text: "夜明け", Pronunciation: "yoake", Pronounced: []music.LyricWord{
+			{Start: 1000, End: 1400, Text: "yo"},
+			{Start: 1400, End: 3000, Text: "ake"},
+		}},
+		{Start: 4000, End: 6000, Text: "白い息", Pronunciation: "shiroi iki"},
+		{Start: 7000, End: 9000, Text: "Stay here"},
+	}})
+	if l := lines[0]; l.Pronunciation != "yoake" || len(l.Pronounced) != 2 || l.Pronounced[1].Start != 1400*time.Millisecond {
+		t.Errorf("timed: %q %+v", l.Pronunciation, l.Pronounced)
+	}
+	if l := lines[1]; len(l.Pronounced) != 2 || l.Pronounced[0].Start != 4*time.Second || l.Pronounced[1].End > 6*time.Second {
+		t.Errorf("not timed: %+v", l.Pronounced)
+	}
+	if l := lines[2]; l.Pronunciation != "" || len(l.Pronounced) != 0 {
+		t.Errorf("none: %q %+v", l.Pronunciation, l.Pronounced)
+	}
+}

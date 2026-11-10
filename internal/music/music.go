@@ -411,6 +411,11 @@ type LyricLine struct {
 	// Background are the words sung behind the line, by the backing
 	// vocals, which aren't among its Words or in its Text.
 	Background []LyricWord `json:"background,omitempty"`
+	// Pronunciation is how the line is said, in Latin letters, where it is
+	// written in others: romaji, pinyin. Pronounced are its words as they
+	// are sung, where the source times them.
+	Pronunciation string      `json:"pronunciation,omitempty"`
+	Pronounced    []LyricWord `json:"pronounced,omitempty"`
 }
 
 // LyricWord is a word of a line, as it's sung.

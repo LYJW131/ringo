@@ -168,3 +168,39 @@ func TestTTMLSingers(t *testing.T) {
 		t.Errorf("a line of backing vocals: %+v", l)
 	}
 }
+
+// A line comes with how it is said, in Latin letters, where Apple sends
+// that: word for word where the line is timed so, without the vocals sung
+// behind it, and not for a line that is said as it's written.
+func TestTTMLPronunciation(t *testing.T) {
+	ns := ` xmlns="http://www.w3.org/ns/ttml"`
+	ttml := `<tt itunes:timing="Word" xml:lang="ja"><head><metadata><iTunesMetadata>` +
+		`<translations><translation type="subtitle" xml:lang="en-US"><text for="L1">At the station at dawn</text></translation></translations>` +
+		`<transliterations><transliteration xml:lang="ja-Latn">` +
+		`<text for="L1"><span begin="1" end="1.4"` + ns + `>yo</span><span begin="1.4" end="2"` + ns + `>ake</span> <span begin="2" end="2.2"` + ns + `>no</span> <span begin="2.2" end="3"` + ns + `>eki</span> <span xmlns:ttm="http://www.w3.org/ns/ttml#metadata" ttm:role="x-bg"` + ns + `><span begin="3" end="3.5">(kaze)</span></span></text>` +
+		`<text for="L2">shiroi iki</text>` +
+		`<text for="L3"><span begin="7" end="8"` + ns + `>Stay </span><span begin="8" end="9"` + ns + `>here</span></text>` +
+		`</transliteration></transliterations></iTunesMetadata></metadata></head><body><div>` +
+		`<p begin="1" end="3.5" itunes:key="L1"><span begin="1" end="1.4">夜</span><span begin="1.4" end="2">明け</span><span begin="2" end="2.2">の</span><span begin="2.2" end="3">駅</span><span ttm:role="x-bg"><span begin="3" end="3.5">(風)</span></span></p>` +
+		`<p begin="4" end="6" itunes:key="L2">白い息</p>` +
+		`<p begin="7" end="9" itunes:key="L3"><span begin="7" end="8">Stay</span> <span begin="8" end="9">here</span></p>` +
+		`<p begin="10" end="12" itunes:key="L4">朝が来る</p>` +
+		`</div></body></tt>`
+	parsed := parseTTML(ttml, "en")
+	if parsed == nil || len(parsed.Lines) != 4 {
+		t.Fatalf("lines: %+v", parsed)
+	}
+	l := parsed.Lines[0]
+	want := []music.LyricWord{{Start: 1000, End: 1400, Text: "yo"}, {Start: 1400, End: 2000, Text: "ake "}, {Start: 2000, End: 2200, Text: "no "}, {Start: 2200, End: 3000, Text: "eki"}}
+	if l.Pronunciation != "yoake no eki" || !slices.Equal(l.Pronounced, want) || l.Translation != "At the station at dawn" {
+		t.Errorf("a line timed word by word: %q, %+v, translated %q", l.Pronunciation, l.Pronounced, l.Translation)
+	}
+	if l := parsed.Lines[1]; l.Pronunciation != "shiroi iki" || len(l.Pronounced) != 0 || l.Translation != "" {
+		t.Errorf("a line timed as a whole: %q, %+v, translated %q", l.Pronunciation, l.Pronounced, l.Translation)
+	}
+	for _, l := range parsed.Lines[2:] {
+		if l.Pronunciation != "" || len(l.Pronounced) != 0 {
+			t.Errorf("%q is said %q, %+v", l.Text, l.Pronunciation, l.Pronounced)
+		}
+	}
+}

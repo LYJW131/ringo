@@ -10,8 +10,8 @@ import (
 	"ringo/internal/music"
 )
 
-// A Line is a line of timed lyrics, with its translation if any, and
-// when each of its words is sung.
+// A Line is a line of timed lyrics, with its translation and how it is
+// said, if any, and when each of its words is sung.
 type Line struct {
 	At          time.Duration
 	End         time.Duration
@@ -25,6 +25,10 @@ type Line struct {
 	Other bool
 	// Behind are the words sung behind the line, by the backing vocals.
 	Behind []Word
+	// Pronunciation is how the line is said, in Latin letters, where the
+	// source has it, and Pronounced its words, with when each is sung.
+	Pronunciation string
+	Pronounced    []Word
 }
 
 // A Word is a word of a line, or a character of Chinese or Japanese,
@@ -44,6 +48,10 @@ func FromSource(l *music.Lyrics) []Line {
 	out := make([]Line, 0, len(l.Lines))
 	for _, sl := range l.Lines {
 		line := Line{At: ms(sl.Start), End: ms(sl.End), Text: strings.TrimSpace(sl.Text), Translation: sl.Translation, Other: sl.Other}
+		line.Pronunciation = strings.TrimSpace(sl.Pronunciation)
+		for _, w := range sl.Pronounced {
+			line.Pronounced = append(line.Pronounced, Word{Text: w.Text, Start: ms(w.Start), End: ms(w.End)})
+		}
 		for _, w := range sl.Words {
 			line.Words = append(line.Words, Word{Text: w.Text, Start: ms(w.Start), End: ms(w.End)})
 		}
@@ -75,6 +83,9 @@ func FromSource(l *music.Lyrics) []Line {
 		}
 		if len(l.Words) == 0 {
 			l.Words = SpreadWords(l.Text, l.At, l.End)
+		}
+		if len(l.Pronounced) == 0 {
+			l.Pronounced = SpreadWords(l.Pronunciation, l.At, l.End)
 		}
 	}
 	return out
