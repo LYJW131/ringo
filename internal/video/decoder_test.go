@@ -8,6 +8,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/egoist/mygo/ui"
 )
 
 // testdata/clip.mp4 is FFmpeg's own test pattern, made here and free of any
@@ -28,8 +30,9 @@ func clip(t *testing.T) []byte {
 	return b
 }
 
-// frames decodes what's left of d, keeping a copy of the first frame.
-func frames(t *testing.T, d *Decoder) (int, []byte) {
+// frames decodes what's left of d, keeping a copy of the first frame, its
+// rows packed.
+func frames(t *testing.T, d ui.VideoDecoder) (int, []byte) {
 	t.Helper()
 	n := 0
 	var first []byte
@@ -46,23 +49,22 @@ func frames(t *testing.T, d *Decoder) (int, []byte) {
 			t.Fatalf("frame %d: %v for %v", n, img.Rect, f.Duration)
 		}
 		if n == 0 {
-			first = bytes.Clone(img.Pix)
+			for y := range 160 {
+				first = append(first, img.Pix[y*img.Stride:y*img.Stride+160*4]...)
+			}
 		}
 		n++
 	}
 }
 
-// Every frame comes out, the B-frames the decoder holds back too, and
-// Rewind plays it again from the same first frame.
-func TestDecoderPlaysAndRewinds(t *testing.T) {
-	if !Supported() {
-		t.Skip("no compiler for this machine")
-	}
-	d, err := Open(clip(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+// playsAndRewinds checks that d gives every frame of testdata/clip.mp4, and
+// gives them again from the same first frame once rewound; and that the
+// first frame's colors are FFmpeg's own for it, testdata/clip-first.png,
+// made with ffmpeg -i clip.mp4 -frames:v 1 -sws_flags
+// accurate_rnd+full_chroma_int, as a cover read with the wrong matrix or
+// range isn't. Edges differ a little, as chroma is spread differently.
+func playsAndRewinds(t *testing.T, d ui.VideoDecoder) {
+	t.Helper()
 	n, first := frames(t, d)
 	if n != 36 {
 		t.Errorf("%d frames, want 36", n)
@@ -77,10 +79,6 @@ func TestDecoderPlaysAndRewinds(t *testing.T) {
 	if again != 36 || !bytes.Equal(first, first2) {
 		t.Errorf("played again: %d frames, the same first %v", again, bytes.Equal(first, first2))
 	}
-	// Its colors are FFmpeg's own for it, testdata/clip-first.png, made with
-	// ffmpeg -i clip.mp4 -frames:v 1 -sws_flags accurate_rnd+full_chroma_int,
-	// as a cover read with the wrong matrix or range isn't. Edges differ a
-	// little, as chroma is spread differently.
 	f, err := os.Open("testdata/clip-first.png")
 	if err != nil {
 		t.Fatal(err)
@@ -104,6 +102,40 @@ func TestDecoderPlaysAndRewinds(t *testing.T) {
 	}
 	if mean := float64(sum) / float64(count); mean > 6 {
 		t.Errorf("first frame off FFmpeg's by %.1f on average", mean)
+	}
+}
+
+// Every frame comes out, the B-frames the decoder holds back too, and
+// Rewind plays it again from the same first frame.
+func TestDecoderPlaysAndRewinds(t *testing.T) {
+	if !Supported() {
+		t.Skip("no compiler for this machine")
+	}
+	d, err := Open(clip(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	playsAndRewinds(t, d)
+}
+
+// The Mac's own decoder, which plays covers there, gives the same frames
+// in the same colors, and lets go of the file it reads from once closed.
+func TestHardwarePlaysAndRewinds(t *testing.T) {
+	if !Hardware() {
+		t.Skip("no hardware decoder here")
+	}
+	d, err := openHardware(clip(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	playsAndRewinds(t, d)
+	path := d.(*hardware).path
+	if err := d.(io.Closer).Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("its file stayed: %v", err)
 	}
 }
 

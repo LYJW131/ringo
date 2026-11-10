@@ -96,6 +96,18 @@ type Decoder struct {
 	img      image.RGBA
 }
 
+// Play opens data, an MP4 of H.264, for a player: with the machine's
+// video decoder where there is one (Hardware), else with FFmpeg's, as also
+// where the machine's won't take it.
+func Play(data []byte) (ui.VideoDecoder, error) {
+	if Hardware() {
+		if d, err := openHardware(data); err == nil {
+			return d, nil
+		}
+	}
+	return Open(data)
+}
+
 // Open makes a decoder of a fragmented MP4 holding H.264, as Apple's
 // moving covers are. data stays in use until the decoder closes.
 func Open(data []byte) (*Decoder, error) {

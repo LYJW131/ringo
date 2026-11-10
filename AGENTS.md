@@ -8,7 +8,7 @@ Ringo is a desktop client for Apple Music: one Go program, its windows drawn by 
 - `internal/applemusic`: the one source. It asks what the web player at music.apple.com asks. `amhelper` decrypts audio and serves it on 127.0.0.1 for the player; `widevine` and `fairplay` get it its keys.
 - `internal/app`: the windows. `ui_sidebar.go`, `ui_shelf.go` and `ui_detail.go` are where Apple Music's layout lives.
 - `internal/player`, `internal/lyrics`, `internal/i18n`: playing, lyrics, and the app's text.
-- `internal/video`: the covers that move. Apple's are H.264, which nothing in Go decodes whole, so `wasm/h264.wasm` is FFmpeg's decoder alone, built by `wasm/build.sh` and run by wazero: WebAssembly, not cgo, and the same on every platform.
+- `internal/video`: the covers that move. Apple's are H.264. On the Mac, AVFoundation decodes them on the machine's video decoder, reached through purego (`hardware_darwin.go`). Elsewhere, and where that fails, `wasm/h264.wasm` is FFmpeg's decoder alone, built by `wasm/build.sh` and run by wazero: WebAssembly, not cgo, and the same on every platform.
 - `internal/heaac`: High Efficiency. It is HE-AAC, which MyGo's AAC decoder doesn't decode, so `wasm/aac.wasm` is FFmpeg's AAC decoder alone, built and run as the covers' H.264 is. AAC-LC stays with MyGo's decoder.
 - `icon/`, `brand/`: the icons and the mark, drawn by `go run ./icon` and `go run ./icon/tray` (`brand/README.md`).
 
