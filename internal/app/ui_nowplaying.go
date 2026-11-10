@@ -689,7 +689,7 @@ func (a *app) queueItems(tr *music.Track, i int, toPlay bool) func(m *ui.Menu) {
 
 // queuePane lists the whole queue in play order, the track playing marked
 // among the others: a click plays one there, and the list stays as it is.
-// AutoPlay's switch ends it.
+// AutoPlay ends it, on glass.
 func (a *app) queuePane(c *ui.Context) {
 	pl := a.pl
 	order, at := pl.PlayOrder()
@@ -727,7 +727,7 @@ func (a *app) queuePane(c *ui.Context) {
 	}
 	queue := ui.List(c.Key("queue"), &a.queueList, len(order)+1, func(r int) {
 		if r == len(order) {
-			a.autoplaySwitch(c)
+			a.queueFoot(c)
 			return
 		}
 		i := order[r]

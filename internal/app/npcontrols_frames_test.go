@@ -288,3 +288,40 @@ func TestNowPlayingControlsFrames(t *testing.T) {
 	tt.Release(x, y)
 	step("play", 10)
 }
+
+// With MM_FRAMES set, saves the foot of Up Next, under the last songs
+// queued: with AutoPlay off and on, and with nothing after the song
+// playing.
+func TestQueueFootFrames(t *testing.T) {
+	dir := framesDir(t)
+	defer i18n.SetLanguage(i18n.English)
+	i18n.SetLanguage(i18n.Chinese)
+	for _, s := range []struct {
+		name     string
+		autoplay bool
+		songs    int
+	}{{"off", false, 5}, {"on", true, 5}, {"last", true, 1}} {
+		a := newTestApp()
+		a.account = &music.Account{ID: "1", Name: "Alex"}
+		a.settings.Autoplay = s.autoplay
+		a.pl.Cue(framesTracks(a)[:s.songs])
+		a.pl.SetLyrics(nil)
+		a.pl.Hold(61 * time.Second)
+		a.nowPlaying, a.npPane = true, paneQueue
+		tt := ui.NewTester(a.view, 1440, 900)
+		tt.SetScale(2)
+		tt.SetDark(true)
+		tt.Advance(2 * time.Second)
+		tt.Frame()
+		foot, ok := tt.Find(T("AutoPlay"))
+		if !ok {
+			t.Fatal("no AutoPlay under the queue")
+		}
+		// The pane beside the cover, which is as wide as it goes here.
+		const scale, w = 2, 1440
+		left := npSideX(w) + 440 + 72
+		img := tt.Image()
+		crop := image.Rect(int((left-24)*scale), int(max(foot.Y-150, 0)*scale), int((w-npSideX(w)+24)*scale), min(int((foot.Y+foot.H+60)*scale), img.Bounds().Max.Y))
+		saveFrame(t, dir, "npc-queue-foot-"+s.name+".png", img.SubImage(crop))
+	}
+}

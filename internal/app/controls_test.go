@@ -142,3 +142,18 @@ func TestNowPlayingVolume(t *testing.T) {
 		t.Errorf("unmuted, the volume is %v", a.volume)
 	}
 }
+
+// AutoPlay's slip of glass, under the songs of Up Next, turns AutoPlay on
+// and off.
+func TestAutoPlayPill(t *testing.T) {
+	a, tt := controlsOpen(paneQueue)
+	for _, want := range []bool{true, false} {
+		if err := tt.Click("AutoPlay"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if a.settings.Autoplay != want {
+			t.Fatalf("clicked, AutoPlay is %v", a.settings.Autoplay)
+		}
+	}
+}

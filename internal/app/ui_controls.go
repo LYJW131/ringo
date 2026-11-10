@@ -101,6 +101,29 @@ func glassOn(c *ui.Context, e ui.Element, tint ui.Color, button bool) ui.Element
 	return e.Material(glass.Glass{Style: glass.Clear, Tint: tint, Interactive: button})
 }
 
+// glassPill is a button of words on a slip of glass, after an icon if it
+// has one: lit, as a glassToggle that is on, its words are in ink.
+func glassPill(c *ui.Context, icon *ui.SVG, text string, lit bool, ink ui.Color) ui.Element {
+	b := ui.ButtonBase(c).Height(30).PaddingX(13).Gap(6).Radius(999).AlignItems(ui.Center).Shrink(0).Label(text)
+	tint, fg := ui.Transparent, white.Alpha(0.9)
+	switch {
+	case lit:
+		tint, fg = glassLit, ink
+	case b.Pressed():
+		tint = glassPress
+	case b.Hovered():
+		tint = glassHover
+	}
+	glassOn(c, b, tint, true).TextColor(b.AnimateColor("ink", fg, ui.Animation{Duration: hoverFade}))
+	b.Children(func() {
+		if icon != nil {
+			ui.Icon(c, icon).Size(15, 15)
+		}
+		ui.Text(c, text).FontSize(13).FontWeight(600).SingleLine()
+	})
+	return b
+}
+
 // glyphButton is a bare icon button over a cover's colors: a disc of
 // light shows under the pointer, pad past the icon at each side, and it
 // gives as it is pressed.
@@ -243,6 +266,15 @@ func (l barLook) dimmed() barLook {
 // the colors of a cover whose accent is accent: their dark.
 func glassInk(accent ui.Color) ui.Color {
 	return accent.Mix(ui.RGB(0, 0, 0), 0.78)
+}
+
+// npInk is glassInk over the colors of the cover Now Playing shows.
+func (a *app) npInk() ui.Color {
+	tint := ui.RGB(120, 120, 130)
+	if a.npArt != nil && !a.npArt.failed {
+		tint = a.npArt.tint
+	}
+	return glassInk(tint.Mix(white, 0.45))
 }
 
 // badgeGold is the color of the badge of how a stream sounds, on glass:

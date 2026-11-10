@@ -79,3 +79,7 @@ var (
 	iconSpeakerLoud = strokeIcon(speakerBody + `<path stroke-width="2" d="M15.5 9.2a4.6 4.6 0 0 1 0 5.6"/><path stroke-width="2" d="M18.7 6.4a8.6 8.6 0 0 1 0 11.2"/>`)
 	iconSpeakerMute = strokeIcon(speakerBody + `<path stroke-width="2" d="m21.5 9.5-5 5"/><path stroke-width="2" d="m16.5 9.5 5 5"/>`)
 )
+
+// iconInfinity marks AutoPlay, which goes on without end, as Apple Music's
+// does.
+var iconInfinity = strokeIcon(`<path d="M6 16c5 0 7-8 12-8a4 4 0 0 1 0 8c-5 0-7-8-12-8a4 4 0 1 0 0 8"/>`)

@@ -48,18 +48,18 @@ func (a *app) autoplay(got func([]music.Track)) bool {
 	return true
 }
 
-// autoplaySwitch ends Up Next with the switch of AutoPlay.
-func (a *app) autoplaySwitch(c *ui.Context) {
-	tr := a.pl.Current()
-	if tr == nil {
+// queueFoot ends Up Next with AutoPlay on a slip of glass, lit while it is
+// on, as shuffle and repeat are under the cover: a click turns it on and
+// off. What it does is said under the pointer.
+func (a *app) queueFoot(c *ui.Context) {
+	if a.pl.Current() == nil {
 		return
 	}
-	ui.Row(c.Key("autoplay")).Padding(18, 10, 0, 10).Gap(14).AlignItems(ui.Center).Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
-			ui.Text(c, T("AutoPlay")).FontSize(14).FontWeight(600)
-			ui.Text(c, T("Similar music will keep playing")).FontSize(12.5).TextColor(white.Alpha(0.55)).SingleLine()
-		})
-		if ui.Switch(c.Key("switch"), &a.settings.Autoplay).Label(T("AutoPlay")).Changed() {
+	ui.Row(c.Key("queue-foot")).Padding(18, 10, 0, 10).Gap(8).AlignItems(ui.Center).Children(func() {
+		auto := glassPill(c.Key("autoplay"), iconInfinity, T("AutoPlay"), a.settings.Autoplay, a.npInk()).
+			Checked(a.settings.Autoplay).Tooltip(T("Similar music will keep playing"))
+		if auto.Clicked() {
+			a.settings.Autoplay = !a.settings.Autoplay
 			a.settings.save()
 		}
 	})

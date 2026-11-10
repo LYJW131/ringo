@@ -71,7 +71,7 @@ var ringoChinese = map[string]string{
 	"Apple Digital Master":         "Apple Digital Master",
 	"Apple Music needs setting up": "Apple Music 需要先进行设置",
 	"Are you sure you want to delete this playlist from your Library? This will delete it from all your devices.": "你确定要从资料库中删除此歌单吗？此歌单将从你的所有设备上删除。",
-	"AutoPlay":                          "自动连播",
+	"AutoPlay":                          "无限连播",
 	"Born":                              "出生日期",
 	"Clear":                             "清除",
 	"Clear Searches":                    "清除搜索内容",
