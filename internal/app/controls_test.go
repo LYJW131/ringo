@@ -157,3 +157,26 @@ func TestAutoPlayPill(t *testing.T) {
 		}
 	}
 }
+
+// Clear, under the songs of Up Next, takes out those after the song
+// playing, which plays on: going to the next plays none of them, and with
+// nothing left to clear the button does nothing.
+func TestClearUpNext(t *testing.T) {
+	a, tt := controlsOpen(paneQueue)
+	if err := tt.Click("Clear"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if q := a.pl.Queue(); len(q) != 1 || a.pl.Current().ID != "1" || !a.pl.Playing() {
+		t.Fatalf("cleared, %d songs are queued, on %s, playing %v", len(q), a.pl.Current().ID, a.pl.Playing())
+	}
+	if _, ok := tt.Find("二"); ok {
+		t.Error("a song cleared is still listed")
+	}
+	tt.Click("Clear")
+	tt.Frame()
+	a.pl.Next()
+	if q := a.pl.Queue(); len(q) != 1 || a.pl.Current().ID != "1" {
+		t.Errorf("Next plays %s of %d songs", a.pl.Current().ID, len(q))
+	}
+}

@@ -552,6 +552,40 @@ func (p *Player) Current() *music.Track { return p.track }
 // Queue returns the tracks queued, in the order they were given.
 func (p *Player) Queue() []music.Track { return p.queue }
 
+// ClearNext takes out of the queue what was to play after the track
+// playing, in the order it plays in: that track plays on, what played
+// before it stays behind it, and nothing is after it. What was asked for
+// ahead of the next one is let go. The queue then ends with the track
+// playing, and what goes on from a queue's end, a radio or AutoPlay, is
+// asked anew: what it was asked for before followed songs that are gone.
+func (p *Player) ClearNext() {
+	if p.at < 0 || p.at+1 >= len(p.order) {
+		return
+	}
+	// Those kept stay in the order they were given, which shuffle going
+	// off puts them back in.
+	order := slices.Clone(p.order[:p.at+1])
+	given := slices.Clone(order)
+	slices.Sort(given)
+	queue, to := make([]music.Track, len(given)), make(map[int]int, len(given))
+	for n, i := range given {
+		queue[n], to[i] = p.queue[i], n
+	}
+	for k, i := range order {
+		order[k] = to[i]
+	}
+	p.queue, p.order = queue, order
+	p.radioGen++
+	p.feeding, p.moreAsked = false, false
+	if p.out != nil {
+		p.getAhead(p.quality)
+	} else {
+		p.dropAhead()
+	}
+	p.refill()
+	p.sync()
+}
+
 // Playing reports what the listener wants: false while paused.
 func (p *Player) Playing() bool { return p.playing }
 

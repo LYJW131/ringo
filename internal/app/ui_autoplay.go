@@ -48,14 +48,20 @@ func (a *app) autoplay(got func([]music.Track)) bool {
 	return true
 }
 
-// queueFoot ends Up Next with AutoPlay on a slip of glass, lit while it is
-// on, as shuffle and repeat are under the cover: a click turns it on and
-// off. What it does is said under the pointer.
+// queueFoot ends Up Next with two buttons on glass. Clear takes out what was
+// to play after the song playing, which plays on: with nothing after it,
+// there is nothing to clear. AutoPlay is lit while it is on, as shuffle and
+// repeat are under the cover, and a click turns it on and off; what it
+// does is said under the pointer.
 func (a *app) queueFoot(c *ui.Context) {
 	if a.pl.Current() == nil {
 		return
 	}
 	ui.Row(c.Key("queue-foot")).Padding(18, 10, 0, 10).Gap(8).AlignItems(ui.Center).Children(func() {
+		order, at := a.pl.PlayOrder()
+		if glassPill(c.Key("clear"), nil, T("Clear"), false, a.npInk()).Disabled(at+1 >= len(order)).Clicked() {
+			a.pl.ClearNext()
+		}
 		auto := glassPill(c.Key("autoplay"), iconInfinity, T("AutoPlay"), a.settings.Autoplay, a.npInk()).
 			Checked(a.settings.Autoplay).Tooltip(T("Similar music will keep playing"))
 		if auto.Clicked() {
