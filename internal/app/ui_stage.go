@@ -156,10 +156,13 @@ func (a *app) stage(c *ui.Context, tr *music.Track, accent ui.Color) {
 				a.stageLine(c, &lines[cur], pos, f, w, h, 1, accent)
 			}
 
-			// The translation, and the line coming next, along the foot.
+			// The line's translation or how it is said, as the listener chose,
+			// and the line coming next, along the foot.
 			ui.Column(c).Absolute().Left(0).Right(0).Bottom(24).AlignItems(ui.Center).Gap(8).PassThrough().Children(func() {
-				if cur >= 0 && lines[cur].Translation != "" {
-					ui.Text(c.Key("translation"), lines[cur].Translation).Lang(c.Locale()).FontSize(18).FontWeight(600).TextColor(white.Alpha(0.72)).TextAlign(ui.Center)
+				if cur >= 0 {
+					if under := a.under(&lines[cur]); under != "" {
+						ui.Text(c.Key("under"), under).Lang(c.Locale()).FontSize(18).FontWeight(600).TextColor(white.Alpha(0.72)).TextAlign(ui.Center)
+					}
 				}
 				if cur+1 < len(lines) {
 					ui.Text(c.Key("next"), lines[cur+1].Text).FontSize(14).TextColor(white.Alpha(0.32)).TextAlign(ui.Center).SingleLine()

@@ -175,12 +175,16 @@ func (a *app) wallSong(c *ui.Context, tr *music.Track, art *artwork, top, h floa
 			if pl.Playing() && cur+1 < len(lines) {
 				c.After(lines[cur+1].At - pos + 20*time.Millisecond)
 			}
-			sung := ""
+			sung, under := "", ""
 			if cur >= 0 {
-				sung = lines[cur].Text
+				sung, under = lines[cur].Text, a.under(&lines[cur])
 			}
 			lang := lyrics.Lang(lines)
 			ui.Text(c, sung).Lang(lang).FontSize(17).FontWeight(700).TextColor(white.Alpha(0.85)).MaxLines(2).Margin(14, 0, 0, 0)
+			// Its translation or how it is said, as the listener chose.
+			if under != "" {
+				ui.Text(c.Key("under"), under).FontSize(13.5).FontWeight(600).TextColor(white.Alpha(0.6)).SingleLine()
+			}
 			if cur+1 < len(lines) {
 				ui.Text(c, lines[cur+1].Text).Lang(lang).FontSize(14).FontWeight(600).TextColor(white.Alpha(0.38)).SingleLine()
 			}

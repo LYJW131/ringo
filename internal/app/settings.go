@@ -48,6 +48,11 @@ type settings struct {
 	// LyricsStage shows lyrics on the stage, Folia's style, in Now
 	// Playing, rather than scrolling.
 	LyricsStage bool `json:"lyricsStage"`
+	// LyricsExtra is what shows under a line of lyrics (extraOff and on): its
+	// translation, how it is said, or neither. Anything else, as in settings
+	// kept before there was a choice, reads as the translation, which was
+	// what showed then.
+	LyricsExtra string `json:"lyricsExtra,omitempty"`
 	// StageStyle is how the stage sets its lyrics (stageStyles): empty for
 	// Folia's classic, or the id of another of its visualizers.
 	StageStyle string `json:"stageStyle,omitempty"`
@@ -180,6 +185,23 @@ func (s settings) atmos() string {
 // quality is what's asked of sources (music.Ask): the level, and how songs
 // with a Dolby Atmos version play.
 func (s settings) quality() string { return music.Ask(s.level(), s.atmos()) }
+
+// What can show under a line of lyrics, where Apple Music has it for the
+// song: one of them, never both.
+const (
+	extraOff           = "off"
+	extraPronunciation = "pronunciation"
+	extraTranslation   = "translation"
+)
+
+// lyricsExtra is what shows under a line of lyrics: its translation, for
+// anything the settings keep that isn't one of those.
+func (s settings) lyricsExtra() string {
+	if s.LyricsExtra == extraOff || s.LyricsExtra == extraPronunciation {
+		return s.LyricsExtra
+	}
+	return extraTranslation
+}
 
 // cacheLimits are the sizes the song cache may take, in megabytes.
 var cacheLimits = []struct {

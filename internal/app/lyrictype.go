@@ -72,16 +72,20 @@ type lyricType struct {
 	lines []*lyricText
 	// behind are the backing vocals of the lines that have them.
 	behind []*lyricText
+	// extra is what shows under the lines (extraOff and on), and said how the
+	// lines that have it are said, set only while that is what shows.
+	extra string
+	said  []*lyricText
 }
 
-// set sets lines in type for a pane width wide, unless they are, and
-// reports whether it did: the lines are then other sizes than they were
-// laid out at.
-func (ty *lyricType) set(lines []lyrics.Line, width float32, st linesStyle) bool {
-	if len(lines) == len(ty.lines) && ty.of == &lines[0] && ty.width == width && ty.st == st {
+// set sets lines in type for a pane width wide, with extra under them,
+// unless they are, and reports whether it did: the lines are then other
+// sizes than they were laid out at.
+func (ty *lyricType) set(lines []lyrics.Line, width float32, st linesStyle, extra string) bool {
+	if len(lines) == len(ty.lines) && ty.of == &lines[0] && ty.width == width && ty.st == st && ty.extra == extra {
 		return false
 	}
-	*ty = lyricType{of: &lines[0], width: width, st: st, lang: lyrics.Lang(lines)}
+	*ty = lyricType{of: &lines[0], width: width, st: st, lang: lyrics.Lang(lines), extra: extra}
 	for i := range lines {
 		ty.duet = ty.duet || lines[i].Other
 	}
@@ -92,7 +96,10 @@ func (ty *lyricType) set(lines []lyrics.Line, width float32, st linesStyle) bool
 	}
 	main := ui.Font{Size: st.size, Weight: st.weight, Lang: ty.lang, LineHeight: st.lineHeight}
 	small := ui.Font{Size: float32(math.Round(float64(st.size) * 0.6)), Weight: 700, Lang: ty.lang, LineHeight: 1.3}
-	ty.lines, ty.behind = make([]*lyricText, len(lines)), make([]*lyricText, len(lines))
+	// How a line is said is in the app's own font, as its translation is,
+	// and as large: Latin letters, whatever the lyrics are written in.
+	under := ui.Font{Size: float32(math.Round(float64(st.size) * 0.57)), Weight: 600, LineHeight: 1.3}
+	ty.lines, ty.behind, ty.said = make([]*lyricText, len(lines)), make([]*lyricText, len(lines)), make([]*lyricText, len(lines))
 	for i := range lines {
 		l := &lines[i]
 		align := ui.Start
@@ -102,6 +109,10 @@ func (ty *lyricType) set(lines []lyrics.Line, width float32, st linesStyle) bool
 		ty.lines[i] = setLyric(l.Text, l.Words, l.Sung, main, -0.4, w, align)
 		if len(l.Behind) > 0 {
 			ty.behind[i] = setLyric("", l.Behind, true, small, -0.2, w, align)
+		}
+		if extra == extraPronunciation && l.Pronunciation != "" {
+			// Its long notes don't swell: the line's own do, over it.
+			ty.said[i] = setLyric(l.Pronunciation, l.Pronounced, false, under, 0, w, align)
 		}
 	}
 	return true

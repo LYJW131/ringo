@@ -19,6 +19,8 @@ import (
 // duet's other singer keeps to the right, and a break in the song shows
 // three dots that breathe until the next line. Scrolled by the listener,
 // the lines stay put and sharp, to read, and follow again a moment after.
+// Under a line is its translation or how it is said, as the listener
+// chooses, where Apple Music has it for the song.
 
 // linePadX is the room on either side of a line's text, inside the line.
 const linePadX = 12
@@ -84,12 +86,25 @@ func (a *app) stillLines(c *ui.Context, lines []lyrics.Line, st linesStyle, foot
 		for i, l := range lines {
 			ui.Column(c.Key(i)).AlignItems(ui.Start).Padding(7, 12).Gap(4).Children(func() {
 				ui.Text(c, l.Text).Lang(lang).FontSize(st.size).FontWeight(st.weight).LineHeight(st.lineHeight).LetterSpacing(-0.3).TextColor(white.Alpha(0.86))
-				if l.Translation != "" {
-					ui.Text(c, l.Translation).FontSize(st.size * 0.62).FontWeight(600).TextColor(white.Alpha(0.6))
+				if under := a.under(&l); under != "" {
+					ui.Text(c, under).FontSize(st.size * 0.62).FontWeight(600).TextColor(white.Alpha(0.6))
 				}
 			})
 		}
 	})
+}
+
+// under is what shows under line l, as the listener chose: its translation,
+// how it is said, or nothing. A song that hasn't what was chosen shows
+// nothing, rather than the other, which wasn't asked for.
+func (a *app) under(l *lyrics.Line) string {
+	switch a.settings.lyricsExtra() {
+	case extraPronunciation:
+		return l.Pronunciation
+	case extraTranslation:
+		return l.Translation
+	}
+	return ""
 }
 
 // linesStyle is how timedLines sets its lines: the size, weight and
@@ -133,13 +148,13 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 	} else {
 		c.AnimationFrame() // not laid out yet: the next frame sets them
 	}
-	if ty.set(lines, width, st) || box.H != flow.height {
-		// Set anew, as in a window resized, they are laid out in this frame:
-		// the next brings the focus into place again, without a wave. So
-		// does a pane grown taller or shorter, the focus being a third of
-		// the way down it: Now Playing opens with the pane a little taller
-		// than it comes to be, and the line sung stayed that much too low
-		// until the next.
+	if ty.set(lines, width, st, a.settings.lyricsExtra()) || box.H != flow.height {
+		// Set anew, as in a window resized or with something else under
+		// them, they are laid out in this frame: the next brings the focus
+		// into place again, without a wave. So does a pane grown taller or
+		// shorter, the focus being a third of the way down it: Now Playing
+		// opens with the pane a little taller than it comes to be, and the
+		// line sung stayed that much too low until the next.
 		flow.seen, flow.jumped, flow.height = false, true, box.H
 	}
 	browsing, left := flow.browsing(now, a.bars.bar("lyrics").until)
@@ -228,12 +243,17 @@ func (a *app) lyricLine(c *ui.Context, lines []lyrics.Line, i int, pos time.Dura
 				text.Blur(b)
 			}
 			text.Children(func() {
-				a.sungText(c.Key("words"), ty.lines[i], on)
+				a.sungText(c.Key("words"), ty.lines[i], on, true)
 				if behind := ty.behind[i]; behind != nil {
-					a.sungText(c.Key("behind"), behind, on).Opacity(0.72)
+					a.sungText(c.Key("behind"), behind, on, true).Opacity(0.72)
 				}
-				if l.Translation != "" {
-					ui.Text(c, l.Translation).FontSize(17).FontWeight(600).TextColor(white.Alpha(0.7)).TextAlign(side).Margin(2, 0, 0, 0)
+				// How the line is said follows the song as the line does, the
+				// light crossing it word for word; its translation is to read,
+				// and stays as it is.
+				if said := ty.said[i]; said != nil {
+					a.sungText(c.Key("said"), said, on, false).Opacity(0.72).Margin(2, 0, 0, 0)
+				} else if under := a.under(l); under != "" && ty.extra == extraTranslation {
+					ui.Text(c.Key("under"), under).FontSize(17).FontWeight(600).TextColor(white.Alpha(0.7)).TextAlign(side).Margin(2, 0, 0, 0)
 				}
 			})
 		})
@@ -248,16 +268,16 @@ func (a *app) lyricLine(c *ui.Context, lines []lyrics.Line, i int, pos time.Dura
 }
 
 // sungText shows t, a line set in type: as it is sung while on, the light
-// as far across it as the song has got, over the halo of what is lit, and
-// else as it rests.
-func (a *app) sungText(c *ui.Context, t *lyricText, on bool) ui.Element {
+// as far across it as the song has got, over the halo of what is lit if it
+// glows, and else as it rests.
+func (a *app) sungText(c *ui.Context, t *lyricText, on, glows bool) ui.Element {
 	box := ui.Box(c).Size(t.w, t.h)
 	if !on {
 		return box.Draw(func(p *ui.Painter, r ui.Rect) { p.TextLayout(t.layout, r.X, r.Y, white) })
 	}
 	still := c.Preferences().ReduceMotion
 	box.Children(func() {
-		if a.lyricsSoft() {
+		if glows && a.lyricsSoft() {
 			ui.Box(c.Key("halo")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Blur(t.size * 0.22).
 				Draw(func(p *ui.Painter, r ui.Rect) { t.paintHalo(p, r, a.pl.Position(), still) })
 		}
