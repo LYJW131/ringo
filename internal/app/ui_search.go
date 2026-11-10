@@ -24,7 +24,7 @@ func (a *app) searchFor(r route) {
 	a.dismissSuggestions()
 	if r == a.route {
 		a.nowPlaying = false
-		a.loadBrowse(a.library, browseID(r), true)
+		a.loadBrowse(browseID(r), true)
 		return
 	}
 	a.open(r)

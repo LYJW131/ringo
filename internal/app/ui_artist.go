@@ -77,7 +77,8 @@ const (
 	artistAlbums
 )
 
-func (a *app) loadArtist(lib *library, id string) {
+func (a *app) loadArtist(id string) {
+	lib := a.library
 	d := lib.artists[id]
 	if d == nil {
 		d = &artistData{}
@@ -92,7 +93,7 @@ func (a *app) loadArtist(lib *library, id string) {
 		a.post(func() {
 			d.loading = false
 			if err != nil {
-				d.err = a.problem(lib, err, T("Couldn't load this artist"))
+				d.err = a.problem(err, T("Couldn't load this artist"))
 				return
 			}
 			d.page, d.secs = ar, artistSections(ar)
@@ -116,15 +117,14 @@ func artistSections(page *music.ArtistPage) []music.Section {
 // artist of the library, lists their songs or their albums.
 func (a *app) artistPage(c *ui.Context) {
 	id := a.route.id
-	lib := a.library
 	d := a.artists[id]
 	if d == nil {
-		a.loadArtist(lib, id)
+		a.loadArtist(id)
 		d = a.artists[id]
 	}
 	if d.page == nil {
 		if !d.loading {
-			a.centered(c, d.err, func() { a.loadArtist(lib, id) })
+			a.centered(c, d.err, func() { a.loadArtist(id) })
 			return
 		}
 		// Most artists' pages are of shelves.
@@ -143,7 +143,7 @@ func (a *app) artistPage(c *ui.Context) {
 	rows := a.artistRows(c, secs)
 	a.detailList(c, len(rows)+1, d.page.Artist.Colors, func(i int) {
 		if i == 0 {
-			a.artistHeader(c, lib, d)
+			a.artistHeader(c, d)
 			return
 		}
 		r := rows[i-1]
@@ -242,17 +242,17 @@ const wideHeaderHeight = 400
 // moving where they have a video, their name over it, or their round photo
 // over their name; and the buttons that
 // play their top songs and make them a favorite.
-func (a *app) artistHeader(c *ui.Context, lib *library, d *artistData) {
+func (a *app) artistHeader(c *ui.Context, d *artistData) {
 	p := a.pal
 	ar := &d.page.Artist
 	if ar.WideURL == "" {
 		ui.Column(c).AlignItems(ui.Center).Gap(14).Margin(8, 12, 30, 12).Children(func() {
 			ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).
-				ContextMenu(a.artistItems(lib, *ar)).Children(func() {
+				ContextMenu(a.artistItems(*ar)).Children(func() {
 				a.coverFillWith(c, ar.ImageURL, 600, artistPhotoSize/2, iconUser)
 			})
 			ui.Text(c, ar.Name).FontSize(34).FontWeight(800).LetterSpacing(-0.8).MaxLines(2).TextAlign(ui.Center)
-			ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() { a.artistButtons(c, lib, d, p.muted) })
+			ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() { a.artistButtons(c, d, p.muted) })
 		})
 		return
 	}
@@ -263,7 +263,7 @@ func (a *app) artistHeader(c *ui.Context, lib *library, d *artistData) {
 	h := min(w*0.42, wideHeaderHeight)
 	ink := hexColor(ar.Colors.Text1, white)
 	head := ui.Box(c).Height(h).Margin(-(top + pageGap), 12-pagePad, 30, 12-pagePad).Background(hexColor(ar.Colors.BG, p.hover)).
-		ContextMenu(a.artistItems(lib, *ar))
+		ContextMenu(a.artistItems(*ar))
 	head.Children(func() {
 		// As wide as the head is at its tallest, which Apple crops around
 		// the artist; wider, the head cuts it from nearer its top, where
@@ -283,14 +283,14 @@ func (a *app) artistHeader(c *ui.Context, lib *library, d *artistData) {
 				{Color: ui.RGBA(0, 0, 0, 0.45), At: 1},
 			}})
 		ui.Row(c).Absolute().Left(pagePad).Right(pagePad).Bottom(26).Gap(16).AlignItems(ui.Center).Children(func() {
-			a.artistButtons(c, lib, d, ink.Alpha(0.85))
+			a.artistButtons(c, d, ink.Alpha(0.85))
 			ui.Text(c, ar.Name).FontSize(40).FontWeight(800).LetterSpacing(-1).TextColor(ink).SingleLine().Shrink(1).MinWidth(0)
 		})
 	})
 }
 
 // artistButtons play an artist's top songs and make them a favorite.
-func (a *app) artistButtons(c *ui.Context, lib *library, d *artistData, color ui.Color) {
+func (a *app) artistButtons(c *ui.Context, d *artistData, color ui.Color) {
 	p := a.pal
 	ar := &d.page.Artist
 	if songs := d.page.Tracks; len(songs) > 0 {
@@ -304,7 +304,7 @@ func (a *app) artistButtons(c *ui.Context, lib *library, d *artistData, color ui
 			a.pl.PlayQueue(songs, firstPlayable(songs), artistOrigin(ar.ID))
 		}
 	}
-	a.favoriteButton(c.Key("favorite"), lib, music.ItemArtist, ar.ID, ar.Favorite, 20, color)
+	a.favoriteButton(c.Key("favorite"), music.ItemArtist, ar.ID, ar.Favorite, 20, color)
 }
 
 // bioLines is how many lines of an artist's biography show, until More
@@ -428,7 +428,6 @@ const artistPhotoSize = 180
 func (a *app) artistListsHeader(c *ui.Context, d *artistData) {
 	p := a.pal
 	songs := d.page.Tracks
-	lib := a.library
 	ar := &d.page.Artist
 	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 8, 0).Children(func() {
 		ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
@@ -450,7 +449,7 @@ func (a *app) artistListsHeader(c *ui.Context, d *artistData) {
 				if len(songs) > 0 {
 					a.playButtons(c, songs)
 				}
-				a.favoriteButton(c.Key("favorite"), lib, music.ItemArtist, ar.ID, ar.Favorite, 18, p.muted)
+				a.favoriteButton(c.Key("favorite"), music.ItemArtist, ar.ID, ar.Favorite, 18, p.muted)
 			})
 		})
 	})

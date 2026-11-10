@@ -58,7 +58,7 @@ func TestLikeClickBeatsAnswer(t *testing.T) {
 	fake(a).isLiked = func([]string) (map[string]bool, error) { return map[string]bool{"4": true}, nil }
 	a.account = &music.Account{ID: "1"}
 	a.liked = map[string]bool{}
-	a.askLiked(a.library, []string{"3", "4"})
+	a.askLiked([]string{"3", "4"})
 	a.toggleLike(&music.Track{ID: "3"})
 	runPost(t, ch)
 	runPost(t, ch)
@@ -75,8 +75,8 @@ func TestLikeAnswerAfterSignOut(t *testing.T) {
 	fake(a).isLiked = func([]string) (map[string]bool, error) { return map[string]bool{"5": true}, nil }
 	a.account = &music.Account{ID: "1"}
 	a.liked = map[string]bool{}
-	a.askLiked(a.library, []string{"5"})
-	a.signOut(a.library)
+	a.askLiked([]string{"5"})
+	a.signOut()
 	// The answer and Home: signed out, no playlists are asked for.
 	for range 2 {
 		runPost(t, ch)
@@ -94,7 +94,7 @@ func TestLikeAnswerForTheNextListener(t *testing.T) {
 	fake(a).isLiked = func([]string) (map[string]bool, error) { return map[string]bool{"6": true}, nil }
 	a.account = &music.Account{ID: "1"}
 	a.liked = map[string]bool{}
-	a.askLiked(a.library, []string{"6"})
+	a.askLiked([]string{"6"})
 	a.account = &music.Account{ID: "2"}
 	a.liked = map[string]bool{}
 	runPost(t, ch)
@@ -111,7 +111,7 @@ func TestLikeRefusedAfterSignOut(t *testing.T) {
 	fake(a).like = func(string, bool) error { return errors.New("offline") }
 	a.account = &music.Account{ID: "1"}
 	a.toggleLike(&music.Track{ID: "3"})
-	a.signOut(a.library)
+	a.signOut()
 	// The refusal and Home: signed out, no playlists are asked for.
 	for range 2 {
 		runPost(t, ch)

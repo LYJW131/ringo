@@ -215,7 +215,7 @@ func (a *app) playlistRows(c *ui.Context, lists []music.Playlist, mine bool) {
 		case !mine:
 			b.ContextMenu(func(m *ui.Menu) {
 				if m.Item(T("Delete From Library")).Chosen() {
-					a.setInLibrary(a.library, music.ItemPlaylist, pl.ID, false)
+					a.setInLibrary(music.ItemPlaylist, pl.ID, false)
 				}
 			})
 		}

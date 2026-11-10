@@ -117,7 +117,7 @@ func TestHomeErrorRetries(t *testing.T) {
 		}
 		return &music.Browse{Sections: []music.Section{{Title: "Shelf", Albums: []music.Album{{ID: "1", Name: "Answered"}}}}}, nil
 	}
-	a.loadHome(a.library)
+	a.loadHome()
 	runPost(t, ch)
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()

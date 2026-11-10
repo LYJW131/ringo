@@ -58,7 +58,8 @@ func (a *app) isSaved(pl *music.Playlist) bool {
 // loadMine loads the playlists the listener made and saved, once someone
 // is signed in: signed out, there are none to ask for, and asking would only
 // be told to sign in, which the listener didn't ask to.
-func (a *app) loadMine(lib *library) {
+func (a *app) loadMine() {
+	lib := a.library
 	if lib.account == nil {
 		return
 	}
@@ -67,7 +68,7 @@ func (a *app) loadMine(lib *library) {
 		lists, err := lib.src.Playlists()
 		a.post(func() {
 			if err != nil {
-				a.problem(lib, err, T("Couldn't load your playlists"))
+				a.problem(err, T("Couldn't load your playlists"))
 				return
 			}
 			lib.mine, lib.saved = nil, nil
@@ -86,27 +87,27 @@ func (a *app) loadMine(lib *library) {
 					lib.saved = append(lib.saved, pl)
 				}
 			}
-			a.keepPages(lib)
-			a.warmPages(lib)
+			a.keepPages()
+			a.warmPages()
 		})
 	}()
 }
 
 // playlistChanged forgets what was loaded of playlist id, which its source
 // changed: loaded anew if shown, and the sidebar's covers with it.
-func (a *app) playlistChanged(lib *library, id string) {
-	delete(lib.playlists, id)
+func (a *app) playlistChanged(id string) {
+	delete(a.library.playlists, id)
 	if a.route.page == pagePlaylist && a.route.id == id {
-		a.loadPlaylist(lib, id, false)
+		a.loadPlaylist(id, false)
 	}
-	a.loadMine(lib)
+	a.loadMine()
 }
 
 // newPlaylist asks for the name of a playlist to make, then adds tr to it
 // if set. Signed out, it asks the listener to sign in.
 func (a *app) newPlaylist(tr *music.Track) {
 	if a.library.signedOut() {
-		a.promptSignIn(a.library)
+		a.promptSignIn()
 		return
 	}
 	a.naming = nameDialog{open: true, add: tr}
@@ -140,12 +141,12 @@ func (a *app) submitName() {
 			a.post(func() {
 				if err != nil {
 					lib.setPlaylistName(id, old)
-					a.actionFailed(lib, err, T("Couldn't rename the playlist. Try again later."))
+					a.actionFailed(err, T("Couldn't rename the playlist. Try again later."))
 					return
 				}
 				// The sidebar's list asked for before the change may have come
 				// back meanwhile: asked again, the source has the new name.
-				a.loadMine(lib)
+				a.loadMine()
 			})
 		}()
 		return
@@ -157,7 +158,7 @@ func (a *app) submitName() {
 		a.post(func() {
 			a.naming.busy = false
 			if err != nil {
-				a.actionFailed(lib, err, T("Couldn't create the playlist. Try again later."))
+				a.actionFailed(err, T("Couldn't create the playlist. Try again later."))
 				return
 			}
 			a.naming.open = false
@@ -167,7 +168,7 @@ func (a *app) submitName() {
 			lib.playlists[pl.ID] = pl
 			a.open(route{page: pagePlaylist, id: pl.ID})
 			if add != nil {
-				a.addTo(lib, pl.ID, add)
+				a.addTo(pl.ID, add)
 			}
 		})
 	}()
@@ -209,13 +210,13 @@ func (a *app) deleteChosen() {
 			if err != nil {
 				lib.mine = slices.Insert(slices.Clone(lib.mine), min(i, len(lib.mine)), pl)
 				undoCards()
-				a.actionFailed(lib, err, T("Couldn't delete the playlist. Try again later."))
+				a.actionFailed(err, T("Couldn't delete the playlist. Try again later."))
 				return
 			}
 			delete(lib.playlists, id)
 			a.toast = T("Playlist deleted")
 			// As after a rename: the list may have come back from before.
-			a.loadMine(lib)
+			a.loadMine()
 		})
 	}()
 }
@@ -283,24 +284,25 @@ func (l *library) dropPlaylistCards(id string) (undo func()) {
 }
 
 // addTo adds tr to the listener's playlist pid; a toast says how it went.
-func (a *app) addTo(lib *library, pid string, tr *music.Track) {
+func (a *app) addTo(pid string, tr *music.Track) {
 	id := tr.ID
 	go func() {
-		err := lib.src.AddToPlaylist(pid, []string{id})
+		err := a.library.src.AddToPlaylist(pid, []string{id})
 		a.post(func() {
 			if err != nil {
-				a.actionFailed(lib, err, T("Couldn't add it to the playlist. Try again later."))
+				a.actionFailed(err, T("Couldn't add it to the playlist. Try again later."))
 				return
 			}
 			a.toast = T("Added to the playlist")
-			a.playlistChanged(lib, pid)
+			a.playlistChanged(pid)
 		})
 	}()
 }
 
 // removeFrom takes tr out of the listener's playlist pid, at once in the
 // app and then with its source, which may refuse: the song comes back then.
-func (a *app) removeFrom(lib *library, pid string, tr *music.Track) {
+func (a *app) removeFrom(pid string, tr *music.Track) {
+	lib := a.library
 	id := tr.ID
 	pl := lib.playlists[pid]
 	var before []music.Track
@@ -315,21 +317,22 @@ func (a *app) removeFrom(lib *library, pid string, tr *music.Track) {
 			if err != nil {
 				if pl != nil && lib.playlists[pid] == pl {
 					pl.Tracks = before
-					a.playlistRefused(lib, pid)
+					a.playlistRefused(pid)
 				}
-				a.actionFailed(lib, err, T("Couldn't remove it from the playlist. Try again later."))
+				a.actionFailed(err, T("Couldn't remove it from the playlist. Try again later."))
 				return
 			}
 			// The songs listed are right: only the sidebar's covers may
 			// have changed.
-			a.loadMine(lib)
+			a.loadMine()
 		})
 	}()
 }
 
 // moveTrack moves tr up or down the listener's playlist pid, at once in the
 // app and then with its source, which may refuse: it goes back then.
-func (a *app) moveTrack(lib *library, pid string, tr *music.Track, by int) {
+func (a *app) moveTrack(pid string, tr *music.Track, by int) {
+	lib := a.library
 	pl := lib.playlists[pid]
 	if pl == nil {
 		return
@@ -349,9 +352,9 @@ func (a *app) moveTrack(lib *library, pid string, tr *music.Track, by int) {
 			if err != nil {
 				if lib.playlists[pid] == pl {
 					pl.Tracks = before
-					a.playlistRefused(lib, pid)
+					a.playlistRefused(pid)
 				}
-				a.actionFailed(lib, err, T("Couldn't move the song. Try again later."))
+				a.actionFailed(err, T("Couldn't move the song. Try again later."))
 			}
 		})
 	}()
@@ -360,9 +363,9 @@ func (a *app) moveTrack(lib *library, pid string, tr *music.Track, by int) {
 // playlistRefused asks anew for playlist pid, whose source refused a change
 // to its songs: it may have changed elsewhere since it loaded. It shows as
 // it is until the answer comes.
-func (a *app) playlistRefused(lib *library, pid string) {
-	if lib.playlists[pid] != nil && !lib.freshPl[pid] {
-		a.freshenPlaylist(lib, pid)
+func (a *app) playlistRefused(pid string) {
+	if a.library.playlists[pid] != nil && !a.library.freshPl[pid] {
+		a.freshenPlaylist(pid)
 	}
 }
 
@@ -375,9 +378,9 @@ func (a *app) playlistItems(m *ui.Menu, tr *music.Track, pid string) bool {
 		return false
 	}
 	mine := lib.playlists[pid]
-	editing := pid != "" && lib == a.library && a.editable(pid) != nil
+	editing := pid != "" && a.editable(pid) != nil
 	m.Submenu(T("Add to Playlist"), func(m *ui.Menu) {
-		if lib == a.library && m.Item(T("New Playlist…")).Chosen() {
+		if m.Item(T("New Playlist…")).Chosen() {
 			a.newPlaylist(tr)
 		}
 		var to []*music.Playlist
@@ -391,7 +394,7 @@ func (a *app) playlistItems(m *ui.Menu, tr *music.Track, pid string) bool {
 		}
 		for _, pl := range to {
 			if m.Item(pl.Name).Chosen() {
-				a.addTo(lib, pl.ID, tr)
+				a.addTo(pl.ID, tr)
 			}
 		}
 	})
@@ -399,15 +402,15 @@ func (a *app) playlistItems(m *ui.Menu, tr *music.Track, pid string) bool {
 		return true
 	}
 	if m.Item(T("Remove from Playlist")).Chosen() {
-		a.removeFrom(lib, pid, tr)
+		a.removeFrom(pid, tr)
 	}
 	if mine != nil {
 		at := slices.IndexFunc(mine.Tracks, func(t music.Track) bool { return t.ID == tr.ID })
 		if at > 0 && m.Item(T("Move Up")).Chosen() {
-			a.moveTrack(lib, pid, tr, -1)
+			a.moveTrack(pid, tr, -1)
 		}
 		if at >= 0 && at+1 < len(mine.Tracks) && m.Item(T("Move Down")).Chosen() {
-			a.moveTrack(lib, pid, tr, 1)
+			a.moveTrack(pid, tr, 1)
 		}
 	}
 	return true

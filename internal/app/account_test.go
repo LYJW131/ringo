@@ -455,7 +455,7 @@ func TestSignInFails(t *testing.T) {
 	a := newTestApp()
 	ch := posts(a)
 	fake(a).signIn = func() (*music.Account, error) { return nil, errors.New("the code expired") }
-	a.promptSignIn(a.library)
+	a.promptSignIn()
 	a.startSignIn()
 	if !a.signIn.waiting {
 		t.Fatal("not waiting")
@@ -483,7 +483,7 @@ func TestSignInFailingAtOnceStaysPut(t *testing.T) {
 		return nil, errors.New(msg)
 	}
 	tt := ui.NewTester(func(c *ui.Context) { a.signInDialog(c, a.pal, false) }, 800, 600)
-	a.promptSignIn(a.library)
+	a.promptSignIn()
 	settled(tt)
 	if err := tt.Click(T("Sign In")); err != nil {
 		t.Fatal(err)
@@ -530,7 +530,7 @@ func TestSignInEndsAfterDialog(t *testing.T) {
 	f := fake(a)
 	f.signIn = func() (*music.Account, error) { return &music.Account{ID: "1", Name: "小明"}, nil }
 	f.playlists = func() ([]music.Playlist, error) { return []music.Playlist{{ID: "10", Name: "通勤", Mine: true}}, nil }
-	a.promptSignIn(a.library)
+	a.promptSignIn()
 	a.startSignIn()
 	a.signIn.open = false
 	until(t, ch, func() bool { return a.account != nil && len(a.mine) > 0 })
@@ -546,7 +546,7 @@ func TestAccountAskedOnStart(t *testing.T) {
 	ch := posts(a)
 	fake(a).account = func() (*music.Account, error) { return &music.Account{ID: "1", Name: "小明"}, nil }
 	a.library.started = false
-	a.startLibrary(a.library)
+	a.startLibrary()
 	until(t, ch, func() bool { return a.account != nil })
 	if a.signIn.open {
 		t.Error("asked the listener to sign in")
@@ -567,7 +567,7 @@ func TestFirstAccountLoadsNothingAgain(t *testing.T) {
 		return &music.Browse{Sections: []music.Section{{Title: "Picks"}}}, nil
 	}
 	a.library.started, a.library.accountAsked = false, false
-	a.startLibrary(a.library)
+	a.startLibrary()
 	wait(t, asked, "Home")
 	until(t, ch, func() bool { return a.account != nil })
 	close(answer)
@@ -592,7 +592,7 @@ func TestFirstAccountLoadsAgainWhatFailed(t *testing.T) {
 	}
 	f.home = func() (*music.Browse, error) { return nil, errors.New("not yet") }
 	a.library.started, a.library.accountAsked = false, false
-	a.startLibrary(a.library)
+	a.startLibrary()
 	until(t, ch, func() bool { return a.homeErr != "" })
 	f.home = func() (*music.Browse, error) {
 		return &music.Browse{Sections: []music.Section{{Title: "Picks"}}}, nil
@@ -617,7 +617,7 @@ func TestLikeAskedBeforeAccountAskedAgain(t *testing.T) {
 		return map[string]bool{"1": true}, nil
 	}
 	a.library.started, a.library.accountAsked = false, false
-	a.startLibrary(a.library)
+	a.startLibrary()
 	tr := song("1", "Song")
 	a.wantLike(&tr)
 	a.askLikes()
@@ -643,7 +643,7 @@ func TestSignedOutStartAsksNothing(t *testing.T) {
 		return nil, music.ErrSignIn
 	}
 	tt := ui.NewTester(a.view, 1200, 800)
-	a.startLibrary(lib)
+	a.startLibrary()
 	until(t, ch, func() bool { return lib.accountAsked && !lib.homeLoading })
 	settled(tt)
 	if a.signIn.open || len(asked) > 0 {
@@ -658,7 +658,7 @@ func TestSignedOutStartAsksNothing(t *testing.T) {
 		asked <- struct{}{}
 		return nil, nil
 	}
-	b.startLibrary(b.library)
+	b.startLibrary()
 	until(t, ch, func() bool { return len(asked) > 0 })
 }
 
@@ -682,7 +682,7 @@ func TestAccountRowWaitsForTheAccount(t *testing.T) {
 		}
 	}
 	check()
-	a.startLibrary(a.library)
+	a.startLibrary()
 	tt.Frame()
 	check()
 	close(answer)

@@ -66,12 +66,13 @@ func newWarmQueue() *warmQueue { return &warmQueue{keys: map[string]bool{}} }
 
 // warmPages queues what is due of what the sidebar opens, and starts it, once
 // the source has said whose pages these are.
-func (a *app) warmPages(lib *library) {
-	if lib == nil || lib != a.library || !lib.started || lib.accountUnknown() {
+func (a *app) warmPages() {
+	lib := a.library
+	if lib == nil || !lib.started || lib.accountUnknown() {
 		return
 	}
 	w := lib.warm
-	for _, j := range a.warmJobs(lib) {
+	for _, j := range a.warmJobs() {
 		if !w.keys[j.key] && j.due() {
 			w.keys[j.key] = true
 			w.jobs = append(w.jobs, j)
@@ -84,7 +85,7 @@ func (a *app) warmPages(lib *library) {
 			w.jobs = slices.Insert(slices.Delete(w.jobs, i, i+1), 0, j)
 		}
 	}
-	a.pumpWarm(lib)
+	a.pumpWarm()
 }
 
 // warmKey is the job that fetches the page r shows.
@@ -103,17 +104,18 @@ func warmKey(r route) string {
 }
 
 // warmJobs are all the pages the sidebar opens, in the order to fetch them.
-func (a *app) warmJobs(lib *library) []warmJob {
+func (a *app) warmJobs() []warmJob {
+	lib := a.library
 	signedIn := lib.account != nil
 	var jobs []warmJob
-	browse := func(page string) { jobs = append(jobs, a.warmBrowse(lib, page)) }
+	browse := func(page string) { jobs = append(jobs, a.warmBrowse(page)) }
 	playlists := func(from, to int) {
 		if !signedIn {
 			return
 		}
 		lists := append(append([]music.Playlist(nil), lib.mine...), lib.saved...)
 		for i := from; i < min(to, len(lists)); i++ {
-			jobs = append(jobs, a.warmPlaylist(lib, lists[i].ID))
+			jobs = append(jobs, a.warmPlaylist(lists[i].ID))
 		}
 	}
 	if signedIn {
@@ -122,7 +124,7 @@ func (a *app) warmJobs(lib *library) []warmJob {
 		for _, page := range []string{music.PageRecentlyAdded, a.libraryPage(music.PageLibraryAlbums), a.libraryPage(music.PageLibrarySongs), music.PageLibraryArtist} {
 			browse(page)
 		}
-		jobs = append(jobs, a.warmLiked(lib))
+		jobs = append(jobs, a.warmLiked())
 		for _, page := range []string{music.PageAllPlaylists, music.PageMadeForYou} {
 			browse(page)
 		}
@@ -137,9 +139,9 @@ func (a *app) warmJobs(lib *library) []warmJob {
 
 // pumpWarm starts what is queued while there's room, unless the listener is
 // waiting for the page they're on.
-func (a *app) pumpWarm(lib *library) {
-	w := lib.warm
-	for len(w.jobs) > 0 && w.flying < warmAtOnce && !a.listenerWaits(lib) {
+func (a *app) pumpWarm() {
+	w := a.library.warm
+	for len(w.jobs) > 0 && w.flying < warmAtOnce && !a.listenerWaits() {
 		j := w.jobs[0]
 		w.jobs = w.jobs[1:]
 		if !j.due() {
@@ -150,14 +152,15 @@ func (a *app) pumpWarm(lib *library) {
 		j.start(func() {
 			w.flying--
 			delete(w.keys, j.key)
-			a.pumpWarm(lib)
+			a.pumpWarm()
 		})
 	}
 }
 
 // listenerWaits reports whether the page the listener is on has nothing to
 // show yet, as it loads.
-func (a *app) listenerWaits(lib *library) bool {
+func (a *app) listenerWaits() bool {
+	lib := a.library
 	r := a.route
 	switch r.page {
 	case pageHome:
@@ -185,7 +188,7 @@ func (a *app) warmTick() {
 	time.AfterFunc(warmEvery, func() {
 		a.post(func() {
 			if a.win != nil && a.win.IsVisible() && !a.win.IsMinimized() {
-				a.warmPages(a.library)
+				a.warmPages()
 			}
 			a.warmTick()
 		})
@@ -218,7 +221,8 @@ func preloadLiked(src music.Source) (*music.Page, error) {
 // warmBrowse fetches the first part of a page. It takes the place of the
 // page's, unless the listener's own asking is on its way, or got there first,
 // or they've paged through what it is, which would go back to its start.
-func (a *app) warmBrowse(lib *library, page string) warmJob {
+func (a *app) warmBrowse(page string) warmJob {
+	lib := a.library
 	return warmJob{
 		key: "browse:" + page,
 		due: func() bool {
@@ -245,7 +249,7 @@ func (a *app) warmBrowse(lib *library, page string) warmJob {
 					}
 					d.page, d.at, d.err = b, time.Now(), ""
 					d.next, d.paged = paged{loaded: true, more: b.Next != ""}, false
-					a.keepPages(lib)
+					a.keepPages()
 				})
 			}()
 		},
@@ -253,7 +257,8 @@ func (a *app) warmBrowse(lib *library, page string) warmJob {
 }
 
 // warmPlaylist fetches a playlist, or fetches it anew, if it's old.
-func (a *app) warmPlaylist(lib *library, id string) warmJob {
+func (a *app) warmPlaylist(id string) warmJob {
+	lib := a.library
 	return warmJob{
 		key: "playlist:" + id,
 		due: func() bool {
@@ -264,7 +269,7 @@ func (a *app) warmPlaylist(lib *library, id string) warmJob {
 		},
 		start: func(done func()) {
 			if lib.playlists[id] != nil {
-				a.refreshPlaylist(lib, id, true, done)
+				a.refreshPlaylist(id, true, done)
 				return
 			}
 			w, at := lib.warm, time.Now()
@@ -280,7 +285,7 @@ func (a *app) warmPlaylist(lib *library, id string) warmJob {
 						return
 					}
 					lib.playlists[id], lib.plAt[id] = pl, at
-					a.keepPages(lib)
+					a.keepPages()
 				})
 			}()
 		},
@@ -289,7 +294,8 @@ func (a *app) warmPlaylist(lib *library, id string) warmJob {
 
 // warmLiked fetches the first part of the favorite songs, or fetches it anew,
 // if it's old and the listener hasn't gone on past it.
-func (a *app) warmLiked(lib *library) warmJob {
+func (a *app) warmLiked() warmJob {
+	lib := a.library
 	return warmJob{
 		key: "liked",
 		due: func() bool {
@@ -300,7 +306,7 @@ func (a *app) warmLiked(lib *library) warmJob {
 		},
 		start: func(done func()) {
 			if lib.likedPaged.loaded {
-				a.refreshLiked(lib, true, done)
+				a.refreshLiked(true, done)
 				return
 			}
 			w, at := lib.warm, time.Now()
@@ -315,8 +321,8 @@ func (a *app) warmLiked(lib *library) warmJob {
 					if lib.warm != w || lib.likedPaged.loaded || lib.likedPaged.loading {
 						return
 					}
-					a.setLiked(lib, page, at)
-					a.keepPages(lib)
+					a.setLiked(page, at)
+					a.keepPages()
 				})
 			}()
 		},

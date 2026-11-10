@@ -56,7 +56,7 @@ func TestLibraryScrollWaitsForNothing(t *testing.T) {
 	const speed = 6000
 	p := newPace(t, 400*time.Millisecond)
 	p.songsOf(1000, 3)
-	p.a.startLibrary(p.a.library)
+	p.a.startLibrary()
 	p.idle(2 * time.Second)
 	p.a.open(route{page: pageBrowse, id: music.PageLibrarySongs})
 	p.idle(time.Second)

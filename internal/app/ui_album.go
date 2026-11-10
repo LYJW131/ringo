@@ -17,7 +17,8 @@ type albumData struct {
 	err     string
 }
 
-func (a *app) loadAlbum(lib *library, id string) {
+func (a *app) loadAlbum(id string) {
+	lib := a.library
 	d := lib.albums[id]
 	if d == nil {
 		d = &albumData{}
@@ -32,7 +33,7 @@ func (a *app) loadAlbum(lib *library, id string) {
 		a.post(func() {
 			d.loading = false
 			if err != nil {
-				d.err = a.problem(lib, err, T("Couldn't load this album"))
+				d.err = a.problem(err, T("Couldn't load this album"))
 				return
 			}
 			d.album = al
@@ -85,15 +86,14 @@ func albumRows(tracks []music.Track, complete bool, shelves int) []albumRow {
 
 func (a *app) albumPage(c *ui.Context) {
 	id := a.route.id
-	lib := a.library
 	d := a.albums[id]
 	if d == nil {
-		a.loadAlbum(lib, id)
+		a.loadAlbum(id)
 		d = a.albums[id]
 	}
 	if d.album == nil {
 		if !d.loading {
-			a.centered(c, d.err, func() { a.loadAlbum(lib, id) })
+			a.centered(c, d.err, func() { a.loadAlbum(id) })
 			return
 		}
 		a.albumSkeleton(c, a.pageShimmer(c))
@@ -105,7 +105,7 @@ func (a *app) albumPage(c *ui.Context) {
 	various := variousArtists(page)
 	a.detailList(c, len(rows)+1, page.Album.Colors, func(i int) {
 		if i == 0 {
-			a.albumHeader(c, lib, page)
+			a.albumHeader(c, page)
 			return
 		}
 		r := rows[i-1]
@@ -136,7 +136,7 @@ func variousArtists(page *music.AlbumPage) bool {
 	return false
 }
 
-func (a *app) albumHeader(c *ui.Context, lib *library, page *music.AlbumPage) {
+func (a *app) albumHeader(c *ui.Context, page *music.AlbumPage) {
 	p := a.pal
 	al := &page.Album
 	lines := func() {
@@ -170,8 +170,8 @@ func (a *app) albumHeader(c *ui.Context, lib *library, page *music.AlbumPage) {
 		})
 	}
 	a.detailHeader(c, al.ImageURL, al.VideoURL, lines, al.Notes, page.Tracks, func(compact bool) {
-		a.libraryButton(c, lib, music.ItemAlbum, al.ID, al.Saved, al.Favorite, compact)
-		a.moreButton(c, a.albumItems(lib, *al))
+		a.libraryButton(c, music.ItemAlbum, al.ID, al.Saved, al.Favorite, compact)
+		a.moreButton(c, a.albumItems(*al))
 	})
 }
 
@@ -338,7 +338,7 @@ func artistNames(artists []music.Artist) string {
 func (a *app) albumCard(c *ui.Context, al *music.Album) {
 	p := a.pal
 	card := ui.ButtonBase(c).Column().Gap(10).AlignItems(ui.Stretch).FocusRing(false).Label(al.Name).
-		ContextMenu(a.albumItems(a.library, *al))
+		ContextMenu(a.albumItems(*al))
 	hovered := card.Hovered()
 	card.Children(func() {
 		art := ui.Box(c).AspectRatio(1).Radius(10)

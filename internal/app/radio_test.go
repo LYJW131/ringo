@@ -36,7 +36,7 @@ func TestStationPlaysAndGoesOn(t *testing.T) {
 		return b, nil
 	}
 	st := nightDrive
-	a.playStation(a.library, &st)
+	a.playStation(&st)
 	if id := wait(t, asked, "the first songs"); id != "st" {
 		t.Fatalf("asked station %q", id)
 	}
@@ -57,7 +57,7 @@ func TestStationPlayingGoesOn(t *testing.T) {
 	fake(a).stationNext = func(string) ([]music.Track, error) { t.Error("started it again"); return nil, nil }
 	a.pl.Cue([]music.Track{song("1", "一"), song("2", "二"), song("3", "三")})
 	a.pl.AttachRadio(radioName(&nightDrive), func(func([]music.Track)) {})
-	a.playStation(a.library, &nightDrive)
+	a.playStation(&nightDrive)
 	if a.radioStarting != "" {
 		t.Errorf("starting %q", a.radioStarting)
 	}
@@ -71,7 +71,7 @@ func TestStationWithNothingToPlay(t *testing.T) {
 	unavailable := song("1", "一")
 	unavailable.Unavailable = true
 	fake(a).stationNext = func(string) ([]music.Track, error) { asked++; return []music.Track{unavailable}, nil }
-	a.playStation(a.library, &nightDrive)
+	a.playStation(&nightDrive)
 	runPost(t, ch)
 	if asked != 3 || a.pl.Radio() != "" || a.pl.Current() != nil || a.toast == "" || a.radioStarting != "" {
 		t.Fatalf("asked %d times, radio %q, toast %q, starting %q", asked, a.pl.Radio(), a.toast, a.radioStarting)
@@ -79,7 +79,7 @@ func TestStationWithNothingToPlay(t *testing.T) {
 
 	a.toast = ""
 	fake(a).stationNext = func(string) ([]music.Track, error) { return nil, errors.New("offline") }
-	a.playStation(a.library, &nightDrive)
+	a.playStation(&nightDrive)
 	runPost(t, ch)
 	if a.pl.Radio() != "" || a.toast == "" {
 		t.Errorf("radio %q, toast %q", a.pl.Radio(), a.toast)
@@ -91,7 +91,7 @@ func TestStationSignedOut(t *testing.T) {
 	a, _ := radioApp()
 	a.account = nil
 	fake(a).stationNext = func(string) ([]music.Track, error) { t.Error("asked the station"); return nil, nil }
-	a.playStation(a.library, &nightDrive)
+	a.playStation(&nightDrive)
 	if !a.signIn.open {
 		t.Error("didn't ask to sign in")
 	}

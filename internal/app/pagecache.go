@@ -90,7 +90,8 @@ func pagesPath(dir string) string { return filepath.Join(dir, "pages.json") }
 
 // stagePages reads what was kept last time, as the source starts, and shows
 // it as the pages it was of, until the source says who's signed in (adoptPages).
-func (a *app) stagePages(lib *library) {
+func (a *app) stagePages() {
+	lib := a.library
 	if a.pagesDir == "" || lib.pages != nil {
 		return
 	}
@@ -118,13 +119,14 @@ func (a *app) stagePages(lib *library) {
 		}
 	}
 	if len(f.Liked) > 0 {
-		a.setLiked(lib, &music.Page{Tracks: f.Liked, More: f.LikedMore}, time.Time{})
+		a.setLiked(&music.Page{Tracks: f.Liked, More: f.LikedMore}, time.Time{})
 	}
 }
 
 // adoptPages is told who's signed in. What was staged for them stays; what
 // was for another is dropped, with what it showed.
-func (a *app) adoptPages(lib *library) {
+func (a *app) adoptPages() {
+	lib := a.library
 	st := lib.pages
 	if st == nil {
 		return
@@ -133,21 +135,22 @@ func (a *app) adoptPages(lib *library) {
 	f := lib.staged
 	lib.staged = nil
 	if f == nil {
-		a.keepPages(lib)
+		a.keepPages()
 		return
 	}
 	if st.account == f.Account {
-		a.keepPages(lib)
+		a.keepPages()
 		return
 	}
-	a.dropStaged(lib)
+	a.dropStaged()
 	if lib.account != nil {
 		a.reload(a.route)
 	}
 }
 
 // dropStaged takes back what stagePages showed, of whoever it was for.
-func (a *app) dropStaged(lib *library) {
+func (a *app) dropStaged() {
+	lib := a.library
 	lib.forget()
 	if lib.homeKept {
 		lib.home, lib.recent, lib.homeKept = nil, nil, false
@@ -160,14 +163,15 @@ func (a *app) dropStaged(lib *library) {
 
 // resetPages is for who's signed in having changed: what was kept is
 // deleted, and what's loaded from now on is kept for the one who is.
-func (a *app) resetPages(lib *library) {
+func (a *app) resetPages() {
+	lib := a.library
 	st := lib.pages
 	if st == nil {
 		return
 	}
 	if lib.staged != nil {
 		lib.staged = nil
-		a.dropStaged(lib)
+		a.dropStaged()
 	}
 	trashPages(st.path)
 	// A write on its way is for the account it started under.
@@ -183,8 +187,8 @@ func trashPages(path string) {
 
 // keepPages writes what's loaded a little after the last of it, on a
 // goroutine.
-func (a *app) keepPages(lib *library) {
-	st := lib.pages
+func (a *app) keepPages() {
+	st := a.library.pages
 	if st == nil || st.account == "" || st.pending {
 		return
 	}
@@ -192,8 +196,8 @@ func (a *app) keepPages(lib *library) {
 	time.AfterFunc(pagesDebounce, func() {
 		a.post(func() {
 			st.pending = false
-			if lib.pages == st {
-				a.savePages(lib, false)
+			if a.library.pages == st {
+				a.savePages(false)
 			}
 		})
 	})
@@ -202,16 +206,16 @@ func (a *app) keepPages(lib *library) {
 // flushPages writes what's loaded as the app quits, before it's gone.
 func (a *app) flushPages() {
 	if lib := a.library; lib.pages != nil && lib.pages.account != "" && lib.pages.pending {
-		a.savePages(lib, true)
+		a.savePages(true)
 	}
 }
 
 // savePages makes the file's content, on the main thread, where what's loaded
 // is changed in place, and writes it on another unless it's to be there on
 // return.
-func (a *app) savePages(lib *library, wait bool) {
-	st := lib.pages
-	data := encodePages(lib, st.account)
+func (a *app) savePages(wait bool) {
+	st := a.library.pages
+	data := a.encodePages(st.account)
 	if data == nil {
 		trashPages(st.path)
 		return
@@ -241,7 +245,8 @@ func (a *app) savePages(lib *library, wait bool) {
 
 // encodePages is what the library has of what's kept, for who's signed in,
 // or nil if there's nothing to keep.
-func encodePages(lib *library, account string) []byte {
+func (a *app) encodePages(account string) []byte {
+	lib := a.library
 	f := pageFile{Version: pagesVersion, Lang: i18n.Language(), Account: account, Home: lib.home, Mine: lib.mine, Saved: lib.saved}
 	f.Recent = lib.recent[:min(len(lib.recent), pagesRecent)]
 	for page, d := range lib.browses {

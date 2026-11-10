@@ -91,7 +91,7 @@ func (a *app) setLanguage(code string) {
 		a.settingsWin.SetTitle(T("Settings"))
 	}
 	// The source's pages are in the language they were asked in.
-	a.libraryChanged(a.library)
+	a.libraryChanged()
 }
 
 // choice is a select of labels, to translate, reporting the index of the one
@@ -421,7 +421,7 @@ func (a *app) settingsPages(c *ui.Context, p palette) []settingsPage {
 				if !on {
 					value = "off"
 				}
-				a.keepSetting(lib, historySetting, value)
+				a.keepSetting(historySetting, value)
 			}
 		})
 		row(T("Animated Art"), T("Album, playlist and artist artwork that Apple Music has in motion plays on its own, without sound"), func() {

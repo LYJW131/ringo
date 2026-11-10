@@ -84,7 +84,7 @@ func (a *app) view(c *ui.Context) {
 	}
 	a.toasts(c, !npOpen)
 	a.askLikes()
-	a.pumpWarm(a.library)
+	a.pumpWarm()
 	a.syncWindows()
 }
 
@@ -184,7 +184,7 @@ func (a *app) open(r route) {
 	// Opened anew, not gone back to, a page paged through starts over.
 	if id := browseID(r); id != "" {
 		if lib := a.library; lib.browses[id] != nil && lib.browses[id].paged {
-			a.loadBrowse(lib, id, true)
+			a.loadBrowse(id, true)
 		}
 	}
 }
@@ -205,18 +205,18 @@ func (a *app) load(r route) {
 	case pageHome:
 		a.freshenHome()
 	case pagePlaylist:
-		a.loadPlaylist(lib, r.id, false)
+		a.loadPlaylist(r.id, false)
 	case pageSearch, pageBrowse:
-		a.loadBrowse(lib, browseID(r), false)
+		a.loadBrowse(browseID(r), false)
 	case pageArtist:
-		a.loadArtist(lib, r.id)
+		a.loadArtist(r.id)
 	case pageAlbum:
-		a.loadAlbum(lib, r.id)
+		a.loadAlbum(r.id)
 	case pageLiked:
 		if !lib.likedPaged.loaded {
-			a.loadLikedPage(lib)
+			a.loadLikedPage()
 		} else {
-			a.freshenLiked(lib)
+			a.freshenLiked()
 		}
 	}
 }
@@ -493,7 +493,7 @@ func (a *app) remedy(c *ui.Context) {
 	case lib.needsSignIn && lib.signedOut():
 		// As Home's own, which says the same.
 		if pillButton(c.Key("sign-in"), iconUser, T("Sign In"), p.accent, p.onAccent).Clicked() {
-			a.promptSignIn(lib)
+			a.promptSignIn()
 		}
 	case lib.needsSetup:
 		if ui.PrimaryButton(c.Key("setup"), T("Open Settings")).Clicked() {
@@ -510,7 +510,8 @@ const homeFresh = time.Hour
 
 // loadHome loads what Home shows: Apple Music's page, or what was played
 // lately if that has nothing, the playlists being the sidebar's.
-func (a *app) loadHome(lib *library) {
+func (a *app) loadHome() {
+	lib := a.library
 	lib.homeLoading, lib.homeErr = true, ""
 	at := time.Now()
 	go func() {
@@ -533,11 +534,11 @@ func (a *app) loadHome(lib *library) {
 			lib.homeAt = at
 			switch {
 			case homeErr != nil:
-				lib.homeErr = a.problem(lib, homeErr, T("Couldn't load this page"))
+				lib.homeErr = a.problem(homeErr, T("Couldn't load this page"))
 			case recentErr != nil:
-				lib.homeErr = a.problem(lib, recentErr, T("Couldn't load this page"))
+				lib.homeErr = a.problem(recentErr, T("Couldn't load this page"))
 			default:
-				a.keepPages(lib)
+				a.keepPages()
 			}
 		})
 	}()
@@ -547,7 +548,7 @@ func (a *app) loadHome(lib *library) {
 func (a *app) freshenHome() {
 	lib := a.library
 	if !lib.homeLoading && !lib.homeAt.IsZero() && time.Since(lib.homeAt) > homeFresh {
-		a.loadHome(lib)
+		a.loadHome()
 	}
 }
 
@@ -559,13 +560,14 @@ const listsFresh = 30 * time.Second
 
 // loadPlaylist loads a playlist's page, and plays it once it has, if thenPlay.
 // Loaded a while ago, it shows as it was while it's asked for anew.
-func (a *app) loadPlaylist(lib *library, id string, thenPlay bool) {
+func (a *app) loadPlaylist(id string, thenPlay bool) {
+	lib := a.library
 	if pl := lib.playlists[id]; pl != nil {
 		if thenPlay {
 			a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks), playlistOrigin(pl))
 		}
 		if !lib.freshPl[id] && time.Since(lib.plAt[id]) > listsFresh {
-			a.freshenPlaylist(lib, id)
+			a.freshenPlaylist(id)
 		}
 		return
 	}
@@ -580,26 +582,27 @@ func (a *app) loadPlaylist(lib *library, id string, thenPlay bool) {
 		a.post(func() {
 			delete(lib.loadingPl, id)
 			if err != nil {
-				lib.plErr[id] = a.problem(lib, err, T("Couldn't load this playlist"))
+				lib.plErr[id] = a.problem(err, T("Couldn't load this playlist"))
 				return
 			}
 			lib.playlists[id], lib.plAt[id] = pl, at
 			if thenPlay {
 				a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks), playlistOrigin(pl))
 			}
-			a.keepPages(lib)
+			a.keepPages()
 		})
 	}()
 }
 
 // freshenPlaylist asks for a loaded playlist anew (refreshPlaylist).
-func (a *app) freshenPlaylist(lib *library, id string) { a.refreshPlaylist(lib, id, false, nil) }
+func (a *app) freshenPlaylist(id string) { a.refreshPlaylist(id, false, nil) }
 
 // refreshPlaylist asks for a loaded playlist anew, which shows as it was until
 // the answer takes its place. Failing, it stays as it was. quiet asks as for
 // the listener's sidebar before they open it (preloadPlaylist), and then is
 // called when it's over.
-func (a *app) refreshPlaylist(lib *library, id string, quiet bool, then func()) {
+func (a *app) refreshPlaylist(id string, quiet bool, then func()) {
+	lib := a.library
 	was := lib.playlists[id]
 	before := *was
 	lib.freshPl[id] = true
@@ -624,7 +627,7 @@ func (a *app) refreshPlaylist(lib *library, id string, quiet bool, then func()) 
 				return
 			}
 			lib.playlists[id], lib.plAt[id] = pl, at
-			a.keepPages(lib)
+			a.keepPages()
 		})
 	}()
 }
@@ -644,12 +647,12 @@ func (a *app) freshen() {
 		return
 	}
 	if time.Since(lib.mineAt) > listsFresh {
-		a.loadMine(lib)
+		a.loadMine()
 	}
 	if r := a.route; r.page == pagePlaylist || r.page == pageLiked {
 		a.load(r)
 	}
-	a.warmPages(lib)
+	a.warmPages()
 }
 
 func firstPlayable(tracks []music.Track) int {

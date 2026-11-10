@@ -21,7 +21,7 @@ func TestHomeShowsTheSourcesSections(t *testing.T) {
 			{Title: "Popular", Playlists: []music.Playlist{{ID: "42", Name: "飙升榜"}}},
 		}}, nil
 	}
-	a.loadHome(a.library)
+	a.loadHome()
 	runPost(t, ch)
 	tt := ui.NewTester(a.view, 1200, 1400)
 	tt.Frame()
@@ -181,8 +181,8 @@ func TestHomeFallsBackToRecentAndPlaylists(t *testing.T) {
 	a.account = &music.Account{ID: "1", Name: "Alex"}
 	fake(a).recent = func() ([]music.Track, error) { return []music.Track{song("1", "一")}, nil }
 	fake(a).playlists = func() ([]music.Playlist, error) { return []music.Playlist{{ID: "10", Name: "通勤", Mine: true}}, nil }
-	a.loadHome(a.library)
-	a.loadMine(a.library)
+	a.loadHome()
+	a.loadMine()
 	until(t, ch, func() bool { return len(a.recent) > 0 && len(a.mine) > 0 })
 	a.mineCollapsed = true // for the card to be the one thing showing it
 	tt := ui.NewTester(a.view, 1200, 800)
@@ -215,8 +215,8 @@ func TestHomeWaitsForTheSourcesOwn(t *testing.T) {
 	}
 	fake(a).playlists = func() ([]music.Playlist, error) { return []music.Playlist{{ID: "10", Name: "通勤", Mine: true}}, nil }
 	a.mineCollapsed = true // for the sidebar not to list it either
-	a.loadHome(a.library)
-	a.loadMine(a.library)
+	a.loadHome()
+	a.loadMine()
 	until(t, ch, func() bool { return len(a.mine) > 0 })
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -237,7 +237,7 @@ func TestHomeWithoutSectionsFallsBack(t *testing.T) {
 	ch := posts(a)
 	fake(a).home = func() (*music.Browse, error) { return &music.Browse{}, nil }
 	fake(a).recent = func() ([]music.Track, error) { return []music.Track{song("1", "一")}, nil }
-	a.loadHome(a.library)
+	a.loadHome()
 	runPost(t, ch)
 	if a.home != nil || len(a.recent) != 1 {
 		t.Errorf("home %+v, recent %+v", a.home, a.recent)
@@ -291,7 +291,7 @@ func TestLibraryChangedReloadsWhatShows(t *testing.T) {
 	a.home = &music.Browse{Sections: []music.Section{{Title: "Old Home"}}}
 	a.route = route{page: pageBrowse, id: "top"}
 
-	a.libraryChanged(a.library)
+	a.libraryChanged()
 	if a.home == nil || a.browses["top"].page == nil || a.browses["top"].page.Title != "Old" {
 		t.Errorf("what shows went: home %+v, page %+v", a.home, a.browses["top"].page)
 	}

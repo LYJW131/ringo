@@ -86,7 +86,7 @@ func TestPlayedFrom(t *testing.T) {
 
 	// An album's songs queued with Play Next keep to it.
 	a = albumApp()
-	a.tracksOf(a.library, music.ItemAlbum, a.route.id, func(tracks []music.Track, from music.Origin) {
+	a.tracksOf(music.ItemAlbum, a.route.id, func(tracks []music.Track, from music.Origin) {
 		if from != album || len(tracks) == 0 {
 			t.Errorf("an album's songs queued from %+v", from)
 		}

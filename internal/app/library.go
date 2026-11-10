@@ -138,20 +138,20 @@ func (l *library) name() string { return "Apple Music" }
 
 // boot loads the source's pages, and picks up playback where it was left.
 func (a *app) boot() {
-	a.startLibrary(a.library)
+	a.startLibrary()
 	a.restoreSession()
 }
 
 // startLibrary loads what the sidebar and Home show, once.
-func (a *app) startLibrary(lib *library) {
-	if lib.started {
+func (a *app) startLibrary() {
+	if a.library.started {
 		return
 	}
-	lib.started = true
-	a.stagePages(lib)
-	a.loadAccount(lib)
-	a.loadMine(lib)
-	a.loadHome(lib)
+	a.library.started = true
+	a.stagePages()
+	a.loadAccount()
+	a.loadMine()
+	a.loadHome()
 }
 
 // errNoAnswer stands for a source that answered nothing where it had to answer
@@ -170,14 +170,15 @@ func answered[T any](v *T, err error) (*T, error) {
 // error state or a toast: msg, with what the source said. ErrSignIn and
 // ErrSetup take the listener where they can fix it, the first time only if
 // nobody asked for this in particular.
-func (a *app) problem(lib *library, err error, msg string) string {
+func (a *app) problem(err error, msg string) string {
+	lib := a.library
 	log.Printf("%s: %v", msg, err)
 	switch {
 	case errors.Is(err, music.ErrSignIn):
 		lib.needsSignIn = true
 		if !lib.askedSignIn {
 			lib.askedSignIn = true
-			a.promptSignIn(lib)
+			a.promptSignIn()
 		}
 		return Tf("Sign in to %s to see this", lib.name())
 	case errors.Is(err, music.ErrSetup):
@@ -204,13 +205,13 @@ func (a *app) problem(lib *library, err error, msg string) string {
 
 // actionFailed says that something the listener did didn't work, taking them
 // where they can fix it if that's the reason.
-func (a *app) actionFailed(lib *library, err error, msg string) {
+func (a *app) actionFailed(err error, msg string) {
 	log.Printf("%s: %v", msg, err)
 	switch {
 	case errors.Is(err, music.ErrSignIn):
-		a.promptSignIn(lib)
+		a.promptSignIn()
 	case errors.Is(err, music.ErrSetup):
-		lib.needsSetup, lib.setupReason = true, music.Reason(err)
+		a.library.needsSetup, a.library.setupReason = true, music.Reason(err)
 		a.openAccountSettings()
 	case errors.Is(err, music.ErrUnsupported) && music.Reason(err) != "":
 		a.toast = music.Reason(err) // the source's word for why it won't
@@ -222,14 +223,15 @@ func (a *app) actionFailed(lib *library, err error, msg string) {
 // sourceFailed hears from the player that the source wants something of the
 // listener before it plays.
 func (a *app) sourceFailed(err error) {
-	a.problem(a.library, err, T("Couldn't play this song"))
+	a.problem(err, T("Couldn't play this song"))
 }
 
 // libraryChanged has what the source answers asked for anew, as after a
 // setting that changes it: other pages load anew as they open. The page
 // showing stays as it is, rather than going blank, but for a page the source
 // makes up, or Home, which take the new one in place as it comes.
-func (a *app) libraryChanged(lib *library) {
+func (a *app) libraryChanged() {
+	lib := a.library
 	was := *lib
 	lib.forget()
 	lib.home, lib.browses, lib.liked = was.home, was.browses, was.liked
@@ -255,15 +257,15 @@ func (a *app) libraryChanged(lib *library) {
 			delete(lib.browses, page)
 		}
 	}
-	a.loadMine(lib)
-	a.loadHome(lib)
+	a.loadMine()
+	a.loadHome()
 	a.reload(a.route)
 }
 
 // reload loads what the page of r shows anew.
 func (a *app) reload(r route) {
 	if id := browseID(r); id != "" {
-		a.loadBrowse(a.library, id, true)
+		a.loadBrowse(id, true)
 		return
 	}
 	a.load(r)

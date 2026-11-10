@@ -48,7 +48,7 @@ func (a *app) homePage(c *ui.Context) {
 	nothing := len(lib.recent) == 0 && len(lib.mine) == 0 && len(lib.saved) == 0 || loading
 	if nothing && !loading {
 		if lib.homeErr != "" {
-			a.centered(c, lib.homeErr, func() { a.loadHome(lib) })
+			a.centered(c, lib.homeErr, func() { a.loadHome() })
 			return
 		}
 		a.emptyHome(c)
@@ -99,7 +99,7 @@ func (a *app) emptyHome(c *ui.Context) {
 		case lib.signedOut():
 			ui.Text(c, Tf("Sign in to %s", lib.name())).FontSize(22).FontWeight(700).LetterSpacing(-0.3)
 			if pillButton(c.Key("sign-in"), iconUser, T("Sign In"), p.accent, p.onAccent).Margin(10, 0, 0, 0).Clicked() {
-				a.promptSignIn(lib)
+				a.promptSignIn()
 			}
 		default:
 			ui.Text(c, T("Nothing here yet")).FontSize(22).FontWeight(700).LetterSpacing(-0.3)
@@ -111,9 +111,8 @@ func (a *app) emptyHome(c *ui.Context) {
 // playlistCard is a square cover with the playlist's name below: it lifts
 // under the pointer, where a play button shows on it.
 func (a *app) playlistCard(c *ui.Context, pl *music.Playlist) {
-	lib := a.library
 	id := pl.ID
-	if a.coverCard(c, pl.Name, pl.ImageURL, playlistLine(pl), func() { a.loadPlaylist(lib, id, true) }) {
+	if a.coverCard(c, pl.Name, pl.ImageURL, playlistLine(pl), func() { a.loadPlaylist(id, true) }) {
 		a.open(route{page: pagePlaylist, id: id})
 	}
 }
@@ -231,7 +230,7 @@ func (a *app) playlistPage(c *ui.Context) {
 	pl := a.playlists[id]
 	if pl == nil {
 		if !a.loadingPl[id] {
-			a.centered(c, a.plErr[id], func() { a.loadPlaylist(a.library, id, false) })
+			a.centered(c, a.plErr[id], func() { a.loadPlaylist(id, false) })
 			return
 		}
 		a.playlistSkeleton(c, a.pageShimmer(c))
@@ -261,7 +260,6 @@ func (a *app) playlistPage(c *ui.Context) {
 
 func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 	p := a.pal
-	lib := a.library
 	lines := func() {
 		a.detailTitle(c, pl.Name, false)
 		if pl.Owner != "" {
@@ -282,9 +280,9 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 	}
 	a.detailHeader(c, pl.ImageURL, pl.VideoURL, lines, pl.Description, pl.Tracks, func(compact bool) {
 		if !pl.Mine && !pl.Fixed && !a.ownList(pl.ID) {
-			a.libraryButton(c, lib, music.ItemPlaylist, pl.ID, pl.Saved || a.isSaved(pl), pl.Favorite, compact)
+			a.libraryButton(c, music.ItemPlaylist, pl.ID, pl.Saved || a.isSaved(pl), pl.Favorite, compact)
 		}
-		a.moreButton(c, a.playlistItemsOf(lib, *pl))
+		a.moreButton(c, a.playlistItemsOf(*pl))
 	})
 }
 
@@ -436,25 +434,26 @@ func (a *app) likedPage(c *ui.Context) {
 	}
 	if !lib.likedPaged.loaded {
 		if lib.likedPaged.err != "" {
-			a.centered(c, lib.likedPaged.err, func() { a.loadLikedPage(lib) })
+			a.centered(c, lib.likedPaged.err, func() { a.loadLikedPage() })
 			return
 		}
 		a.trackSkeleton(c, a.pageShimmer(c), true, header)
 		return
 	}
 	a.trackRows(c, lib.likedList, true, header, func(c *ui.Context) {
-		a.pageFoot(c, &lib.likedPaged, func() { a.loadLikedPage(lib) })
+		a.pageFoot(c, &lib.likedPaged, func() { a.loadLikedPage() })
 		if len(lib.likedList) == 0 {
 			a.empty(c, T("Songs you favorite will show here"))
 		}
 	})
 	if p := &lib.likedPaged; p.more && !p.loading && p.err == "" && a.nearEnd(len(lib.likedList)+1) {
-		a.loadLikedPage(lib)
+		a.loadLikedPage()
 	}
 }
 
 // loadLikedPage loads the next page of the songs the listener likes.
-func (a *app) loadLikedPage(lib *library) {
+func (a *app) loadLikedPage() {
+	lib := a.library
 	if lib.likedPaged.loading {
 		return
 	}
@@ -468,7 +467,7 @@ func (a *app) loadLikedPage(lib *library) {
 		a.post(func() {
 			lib.likedPaged.loading = false
 			if err != nil {
-				lib.likedPaged.err = a.problem(lib, err, T("Couldn't load your favorite songs"))
+				lib.likedPaged.err = a.problem(err, T("Couldn't load your favorite songs"))
 				return
 			}
 			lib.likedList = append(lib.likedList, page.Tracks...)
@@ -479,7 +478,7 @@ func (a *app) loadLikedPage(lib *library) {
 			for i := range page.Tracks {
 				lib.liked[page.Tracks[i].ID] = true
 			}
-			a.keepPages(lib)
+			a.keepPages()
 		})
 	}()
 }
@@ -487,16 +486,18 @@ func (a *app) loadLikedPage(lib *library) {
 // freshenLiked asks for the first page of the liked songs anew, a while after
 // it was: it takes the place of what's listed, which shows until it comes.
 // Songs listed before and not now are asked about again as their hearts show.
-func (a *app) freshenLiked(lib *library) {
+func (a *app) freshenLiked() {
+	lib := a.library
 	if lib.likedFresh || lib.likedPaged.loading || time.Since(lib.likedAt) <= listsFresh {
 		return
 	}
-	a.refreshLiked(lib, false, nil)
+	a.refreshLiked(false, nil)
 }
 
 // setLiked takes page as the first part of the songs the listener likes,
 // before any was loaded, as one asked for ahead (prefetch.go) is.
-func (a *app) setLiked(lib *library, page *music.Page, at time.Time) {
+func (a *app) setLiked(page *music.Page, at time.Time) {
+	lib := a.library
 	lib.likedList = append([]music.Track(nil), page.Tracks...)
 	lib.likedPaged.loaded, lib.likedPaged.more = true, page.More && len(page.Tracks) > 0
 	lib.likedAt = at
@@ -511,7 +512,8 @@ func (a *app) setLiked(lib *library, page *music.Page, at time.Time) {
 // refreshLiked is freshenLiked, whatever its age. quiet asks as for the
 // listener's sidebar before they open it (preloadLiked), and then is called
 // when it's over.
-func (a *app) refreshLiked(lib *library, quiet bool, then func()) {
+func (a *app) refreshLiked(quiet bool, then func()) {
+	lib := a.library
 	lib.likedFresh, lib.likedAt = true, time.Now()
 	was := lib.likedList
 	who := lib.listener()
@@ -548,7 +550,7 @@ func (a *app) refreshLiked(lib *library, quiet bool, then func()) {
 					delete(lib.liked, was[i].ID)
 				}
 			}
-			a.keepPages(lib)
+			a.keepPages()
 		})
 	}()
 }

@@ -47,7 +47,8 @@ func browseID(r route) string {
 // as songs played lately, and shows as it was while it is: but not one the
 // listener paged through, which would go back to its first part as they
 // come back to it.
-func (a *app) loadBrowse(lib *library, page string, again bool) {
+func (a *app) loadBrowse(page string, again bool) {
+	lib := a.library
 	if lib == nil || page == "" {
 		return
 	}
@@ -65,25 +66,25 @@ func (a *app) loadBrowse(lib *library, page string, again bool) {
 		a.post(func() {
 			d.loading = false
 			if err != nil {
-				d.err = a.problem(lib, err, T("Couldn't load this page"))
+				d.err = a.problem(err, T("Couldn't load this page"))
 				return
 			}
 			d.page, d.at, d.next, d.paged = b, time.Now(), paged{loaded: true, more: b.Next != ""}, false
-			a.keepPages(lib)
+			a.keepPages()
 		})
 	}()
 }
 
 // loadNext loads the part of a page that follows what it has, its Next: its
 // sections go on from the last one's, items after items.
-func (a *app) loadNext(lib *library, d *browseData) {
+func (a *app) loadNext(d *browseData) {
 	if d.page == nil || d.page.Next == "" || d.next.loading {
 		return
 	}
 	was := d.page
 	d.next.loading, d.next.err = true, ""
 	go func() {
-		b, err := answered(lib.src.Browse(was.Next))
+		b, err := answered(a.library.src.Browse(was.Next))
 		a.post(func() {
 			d.next.loading = false
 			// Loaded anew meanwhile, from its start.
@@ -91,7 +92,7 @@ func (a *app) loadNext(lib *library, d *browseData) {
 				return
 			}
 			if err != nil {
-				d.next.err = a.problem(lib, err, T("Couldn't load this page"))
+				d.next.err = a.problem(err, T("Couldn't load this page"))
 				return
 			}
 			d.page, d.paged = joinPages(was, b), true
@@ -141,7 +142,7 @@ func (a *app) browseView(c *ui.Context, id string) {
 			ui.Box(c).PaddingX(12).Children(func() { a.browseHeader(c, &music.Browse{}, id) })
 			switch {
 			case failed:
-				a.failure(ui.Column(c).Padding(60, 12, 0, 12), c, d.err, func() { a.loadBrowse(lib, id, true) })
+				a.failure(ui.Column(c).Padding(60, 12, 0, 12), c, d.err, func() { a.loadBrowse(id, true) })
 			case strings.HasPrefix(id, "library:"):
 				a.librarySkeleton(c, a.pageShimmer(c), id)
 			default:
@@ -383,7 +384,6 @@ func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, heade
 	if foot {
 		rows++
 	}
-	lib := a.library
 	list := ui.List(c.Key(a.route), &a.trackList, rows, func(i int) {
 		if i == 0 {
 			ui.Column(c).PaddingX(12).Children(func() {
@@ -409,7 +409,7 @@ func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, heade
 		}
 		switch {
 		case i > len(layout)+pending:
-			a.pageFoot(c, &d.next, func() { a.loadNext(lib, d) })
+			a.pageFoot(c, &d.next, func() { a.loadNext(d) })
 		case i > len(layout):
 			a.pendingRow(c, page, i-len(layout)-1)
 		default:
@@ -418,7 +418,7 @@ func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, heade
 	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
 	a.pageBars(c, list, rows)
 	if d != nil && d.next.more && !d.next.loading && d.next.err == "" && a.wantsMore(page, len(layout)+1) {
-		a.loadNext(lib, d)
+		a.loadNext(d)
 	}
 }
 

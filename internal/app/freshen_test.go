@@ -109,9 +109,9 @@ func TestFreshPlaylistKeepsChangeMadeMeanwhile(t *testing.T) {
 		}}, nil
 	}
 	fake(a).removeFrom = func(string, []string) error { return nil }
-	a.loadPlaylist(a.library, "10", false)
+	a.loadPlaylist("10", false)
 	tr := a.playlists["10"].Tracks[1]
-	a.removeFrom(a.library, "10", &tr)
+	a.removeFrom("10", &tr)
 	// Whichever answers first, the song stays out.
 	runPost(t, ch)
 	runPost(t, ch)

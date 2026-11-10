@@ -121,7 +121,8 @@ func (a *app) askInLibrary() {
 
 // reaskInLibrary asks again whether tr is in the library, unless it's known
 // to be: liking a song may have added it.
-func (a *app) reaskInLibrary(lib *library, tr music.Track) {
+func (a *app) reaskInLibrary(tr music.Track) {
+	lib := a.library
 	if in, _ := a.songInLibrary(&tr); in || !lib.canKeep(&tr) {
 		return
 	}
@@ -131,7 +132,7 @@ func (a *app) reaskInLibrary(lib *library, tr music.Track) {
 
 // doubtPlayer has the songs the player holds asked about anew, as another
 // listener signed in: what they said of the library was the one before's.
-func (a *app) doubtPlayer(lib *library) {
+func (a *app) doubtPlayer() {
 	if a.pl == nil {
 		return
 	}
@@ -140,7 +141,7 @@ func (a *app) doubtPlayer(lib *library) {
 		tracks = append([]music.Track{*tr}, tracks...)
 	}
 	for i := range tracks {
-		lib.doubted[itemKey(trackKind(&tracks[i]), tracks[i].ID)] = true
+		a.library.doubted[itemKey(trackKind(&tracks[i]), tracks[i].ID)] = true
 	}
 }
 

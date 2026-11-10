@@ -358,7 +358,7 @@ func TestPlaylistEditsGoBack(t *testing.T) {
 	a = editTestApp()
 	ch = posts(a)
 	fake(a).removeFrom = func(string, []string) error { return offline }
-	a.removeFrom(a.library, "10", &a.playlists["10"].Tracks[1])
+	a.removeFrom("10", &a.playlists["10"].Tracks[1])
 	if len(a.playlists["10"].Tracks) != 1 {
 		t.Fatal("not taken out at once")
 	}

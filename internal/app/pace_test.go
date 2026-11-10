@@ -246,7 +246,7 @@ func (p *pace) opening(label, marker string) (time.Duration, int) {
 // been signed in for a few seconds: the source is asked for them before.
 func TestSidebarPagesWaitForNothing(t *testing.T) {
 	p := newPace(t, 400*time.Millisecond)
-	p.a.startLibrary(p.a.library)
+	p.a.startLibrary()
 	p.idle(4 * time.Second)
 	var total time.Duration
 	for _, e := range sidebarPages {

@@ -53,15 +53,15 @@ func loadKept(t *testing.T, a *app) {
 	t.Helper()
 	lib := a.library
 	home, albums, pl, liked := keptSample()
-	a.stagePages(lib)
+	a.stagePages()
 	lib.account = &music.Account{ID: "the-listener-1234"}
-	a.adoptPages(lib)
+	a.adoptPages()
 	lib.home, lib.homeKept = home, false
 	lib.mine = []music.Playlist{{ID: "p1", Name: "Mix", Mine: true}}
 	lib.browses[music.PageLibraryAlbums] = &browseData{page: albums, at: time.Now()}
 	lib.playlists["p1"] = pl
-	a.setLiked(lib, &music.Page{Tracks: liked, More: true}, time.Now())
-	a.savePages(lib, true)
+	a.setLiked(&music.Page{Tracks: liked, More: true}, time.Now())
+	a.savePages(true)
 }
 
 // What a listener's pages showed comes back as they were at the next start,
@@ -73,7 +73,7 @@ func TestKeptPagesComeBackAtTheNextStart(t *testing.T) {
 	home, albums, pl, liked := keptSample()
 
 	a := keepingApp(dir, "the-listener-1234")
-	a.stagePages(a.library)
+	a.stagePages()
 	lib := a.library
 	if !reflect.DeepEqual(lib.home, home) || !lib.homeKept {
 		t.Errorf("Home came back as %+v", lib.home)
@@ -89,7 +89,7 @@ func TestKeptPagesComeBackAtTheNextStart(t *testing.T) {
 	}
 
 	lib.account = &music.Account{ID: "the-listener-1234"}
-	a.adoptPages(lib)
+	a.adoptPages()
 	if lib.home == nil || lib.browses[music.PageLibraryAlbums] == nil {
 		t.Error("the same listener's pages went")
 	}
@@ -118,7 +118,7 @@ func TestKeptPagesAreNotAnotherListeners(t *testing.T) {
 		loadKept(t, keepingApp(dir, "the-listener-1234"))
 
 		a := keepingApp(dir, who)
-		a.stagePages(a.library)
+		a.stagePages()
 		lib := a.library
 		if lib.home == nil {
 			t.Fatal("nothing was kept")
@@ -126,7 +126,7 @@ func TestKeptPagesAreNotAnotherListeners(t *testing.T) {
 		if who != "" {
 			lib.account = &music.Account{ID: who}
 		}
-		a.adoptPages(lib)
+		a.adoptPages()
 		if lib.home != nil || len(lib.browses) > 0 || len(lib.playlists) > 0 || len(lib.mine) > 0 || len(lib.likedList) > 0 {
 			t.Errorf("as %q: the last listener's pages stayed: %+v", who, lib.home)
 		}
@@ -146,7 +146,7 @@ func TestKeptPagesGoWithTheAccount(t *testing.T) {
 	posts(a)
 
 	lib.account = &music.Account{ID: "another"}
-	a.afterAccount(lib)
+	a.afterAccount()
 	if _, err := os.Stat(pagesPath(dir)); err == nil {
 		t.Fatal("the last account's file stayed")
 	}
@@ -155,9 +155,9 @@ func TestKeptPagesGoWithTheAccount(t *testing.T) {
 	}
 
 	lib.account = nil
-	a.afterAccount(lib)
+	a.afterAccount()
 	lib.home = &music.Browse{Title: "Anonymous"}
-	a.keepPages(lib)
+	a.keepPages()
 	if lib.pages.pending {
 		t.Error("something signed out was kept")
 	}
@@ -180,7 +180,7 @@ func TestKeptPagesStayWithinTheCap(t *testing.T) {
 		lib.playlists[pl.ID] = pl
 		lib.mine = append(lib.mine, music.Playlist{ID: pl.ID, Mine: true})
 	}
-	data := encodePages(lib, "key")
+	data := a.encodePages("key")
 	if data == nil || len(data) > pagesMaxBytes {
 		t.Fatalf("%d bytes were kept", len(data))
 	}
@@ -189,7 +189,7 @@ func TestKeptPagesStayWithinTheCap(t *testing.T) {
 	}
 
 	lib.home.Description = strings.Repeat("y", pagesMaxBytes)
-	if data := encodePages(lib, "key"); data != nil {
+	if data := a.encodePages("key"); data != nil {
 		t.Errorf("%d bytes were kept past the cap", len(data))
 	}
 }
@@ -212,7 +212,7 @@ func TestWarmQueueRules(t *testing.T) {
 		}
 	}
 	queue(10)
-	a.pumpWarm(lib)
+	a.pumpWarm()
 	if started != warmAtOnce {
 		t.Fatalf("%d were started at once", started)
 	}
@@ -232,7 +232,7 @@ func TestWarmQueueRules(t *testing.T) {
 		t.Error("something was asked for ahead while the listener waited")
 	}
 	lib.browses["waited"].page = &music.Browse{}
-	a.pumpWarm(lib)
+	a.pumpWarm()
 	if started == before {
 		t.Error("nothing was asked for once the listener's page was up")
 	}
@@ -247,7 +247,7 @@ func TestKeptPagesLeaveOutWhatWasLookedFor(t *testing.T) {
 	const sorted = "library:albums?sort=-dateAdded"
 	lib.browses[sorted] = &browseData{page: albums}
 	lib.browses[sorted+"&term=jay"] = &browseData{page: albums}
-	data := encodePages(lib, "who")
+	data := a.encodePages("who")
 	var f pageFile
 	if err := json.Unmarshal(data, &f); err != nil {
 		t.Fatal(err)
@@ -268,7 +268,7 @@ func TestWarmLibraryListsAsLastSorted(t *testing.T) {
 	a.library.account = &music.Account{ID: "1"}
 	a.settings.LibraryViews = map[string]string{music.PageLibraryAlbums: "library:albums?favorites=1"}
 	keys := map[string]bool{}
-	for _, j := range a.warmJobs(a.library) {
+	for _, j := range a.warmJobs() {
 		keys[j.key] = true
 	}
 	if !keys["browse:library:albums?favorites=1"] || keys["browse:"+music.PageLibraryAlbums] {
@@ -293,14 +293,14 @@ func TestWarmPagesAreOnlyTheListeners(t *testing.T) {
 		return &music.Browse{Title: name, Sections: []music.Section{{Style: music.ShelfGrid, Items: []music.Item{{Kind: music.ItemAlbum, ID: "x", Title: name}}}}}, nil
 	}
 	lib := p.a.library
-	p.a.startLibrary(lib)
+	p.a.startLibrary()
 	p.idle(time.Second)
 	if p.ahead == 0 {
 		t.Fatal("nothing was being asked for ahead")
 	}
 	who.Store("new")
 	lib.account = &music.Account{ID: "2"}
-	p.a.afterAccount(lib)
+	p.a.afterAccount()
 	p.idle(8 * time.Second)
 	if len(lib.browses) == 0 {
 		t.Fatal("nothing was asked for after")
@@ -313,7 +313,7 @@ func TestWarmPagesAreOnlyTheListeners(t *testing.T) {
 
 	p = newPace(t, 400*time.Millisecond)
 	fake(p.a).account = func() (*music.Account, error) { p.answer("account"); return nil, nil }
-	p.a.startLibrary(p.a.library)
+	p.a.startLibrary()
 	p.idle(8 * time.Second)
 	if p.asked["liked"]+p.asked["playlist"]+p.asked["playlists"] > 0 || p.asked["browse"] != 3 {
 		t.Errorf("signed out, asked for %v", p.asked)
@@ -325,7 +325,7 @@ func TestWarmPagesAreOnlyTheListeners(t *testing.T) {
 func TestWarmRefreshReplacesInPlace(t *testing.T) {
 	p := newPace(t, 400*time.Millisecond)
 	lib := p.a.library
-	p.a.startLibrary(lib)
+	p.a.startLibrary()
 	p.idle(6 * time.Second)
 	page := music.PageNew
 	d := lib.browses[page]
@@ -334,7 +334,7 @@ func TestWarmRefreshReplacesInPlace(t *testing.T) {
 	}
 	old := d.page
 	d.at = time.Now().Add(-time.Hour)
-	p.a.warmPages(lib)
+	p.a.warmPages()
 	for range 40 {
 		p.step(16 * time.Millisecond)
 		if d.loading || d.page == nil {
@@ -353,7 +353,7 @@ func TestKeptHomeStaysWhenItFails(t *testing.T) {
 	a := keepingApp(dir, "the-listener-1234")
 	ch := posts(a)
 	fake(a).home = func() (*music.Browse, error) { return nil, errors.New("offline") }
-	a.startLibrary(a.library)
+	a.startLibrary()
 	until(t, ch, func() bool { return !a.homeLoading && a.accountAsked })
 	if a.home == nil || a.homeErr != "" {
 		t.Errorf("Home went: %+v, %q", a.home, a.homeErr)

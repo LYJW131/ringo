@@ -54,10 +54,10 @@ func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 		if lib.canKeep(tr) {
 			if in, _ := a.songInLibrary(tr); in {
 				if m.Item(T("Delete From Library")).Chosen() {
-					a.setInLibrary(lib, kind, tr.ID, false)
+					a.setInLibrary(kind, tr.ID, false)
 				}
 			} else if m.Item(T("Add to Library")).Chosen() {
-				a.setInLibrary(lib, kind, tr.ID, true)
+				a.setInLibrary(kind, tr.ID, true)
 			}
 			group = true
 		}

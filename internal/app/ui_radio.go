@@ -68,7 +68,7 @@ func (a *app) radioFeed(name string) func(got func([]music.Track)) {
 			}
 			a.post(func() {
 				if err != nil {
-					a.problem(lib, err, T("The station didn't answer"))
+					a.problem(err, T("The station didn't answer"))
 				}
 				got(tracks)
 			})
@@ -77,9 +77,9 @@ func (a *app) radioFeed(name string) func(got func([]music.Track)) {
 }
 
 // playStation plays a station, or goes on playing it.
-func (a *app) playStation(lib *library, st *music.Station) {
-	if lib.signedOut() {
-		a.promptSignIn(lib)
+func (a *app) playStation(st *music.Station) {
+	if a.library.signedOut() {
+		a.promptSignIn()
 		return
 	}
 	name := radioName(st)
@@ -116,8 +116,7 @@ func (a *app) exitRadio() {
 
 // stationCard is a station's cover over its name: a click plays it.
 func (a *app) stationCard(c *ui.Context, st *music.Station) {
-	lib := a.library
-	if a.coverCardWith(c, st.Name, st.ImageURL, iconRadio, st.Description, func() { a.playStation(lib, st) }) {
-		a.playStation(lib, st)
+	if a.coverCardWith(c, st.Name, st.ImageURL, iconRadio, st.Description, func() { a.playStation(st) }) {
+		a.playStation(st)
 	}
 }

@@ -30,7 +30,7 @@ func (a *app) accountGroups(c *ui.Context, p palette) []settingsGroup {
 			if ch.Shared {
 				text += " " + T("Wrapper")
 			}
-			block(text, func() { a.choiceRow(c, p, lib, ch) })
+			block(text, func() { a.choiceRow(c, p, ch) })
 		}
 		// The wrapper's accounts are left out while it doesn't answer, said
 		// quietly, as the rest are there all the same.
@@ -44,7 +44,7 @@ func (a *app) accountGroups(c *ui.Context, p palette) []settingsGroup {
 			})
 		}
 		block(T("Add Account…")+" "+T("Sign In on Apple's Page")+" "+T("Use a Media User Token")+" "+T("Media User Token"), func() {
-			a.addAccountRows(c, p, lib)
+			a.addAccountRows(c, p)
 		})
 	}})
 }
@@ -55,7 +55,7 @@ func (a *app) accountNote(c *ui.Context, p palette, text string, retry bool) {
 	ui.Row(c.Key("account-note")).Padding(10, 16).Gap(12).AlignItems(ui.Center).MinHeight(40).Children(func() {
 		ui.Text(c, text).FontSize(12).TextColor(p.muted).LineHeight(1.4).Grow(1).Shrink(1).MinWidth(0)
 		if retry && ui.Button(c.Key("retry"), T("Try Again")).Shrink(0).Disabled(a.library.choicesBusy).Clicked() {
-			a.loadAccounts(a.library, true)
+			a.loadAccounts(true)
 		}
 	})
 }
@@ -64,7 +64,7 @@ func (a *app) accountNote(c *ui.Context, p palette, text string, retry bool) {
 // whether the wrapper lends it, and a check on the current one. Choosing it
 // switches to it. One signed in to here, other than the current one, can be
 // removed from its menu, out of the way of a click on the row.
-func (a *app) choiceRow(c *ui.Context, p palette, lib *library, ch music.AccountChoice) {
+func (a *app) choiceRow(c *ui.Context, p palette, ch music.AccountChoice) {
 	ui.Row(c.Key("choice:" + ch.ID)).AlignItems(ui.Center).PaddingEnd(12).Children(func() {
 		b := ui.ButtonBase(c.Key("use")).Grow(1).MinWidth(0).MinHeight(52).Padding(10, 8, 10, 16).Gap(12).
 			AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(ch.Name)
@@ -84,14 +84,14 @@ func (a *app) choiceRow(c *ui.Context, p palette, lib *library, ch music.Account
 				}
 			})
 			switch {
-			case lib.switching == ch.ID:
+			case a.library.switching == ch.ID:
 				ui.Text(c, T("Switching…")).FontSize(12).TextColor(p.muted).Shrink(0)
 			case ch.Current:
 				ui.Icon(c, iconCheck).Size(15, 15).TextColor(p.accent).Shrink(0)
 			}
 		})
 		if b.Clicked() && !ch.Current {
-			a.useAccount(lib, ch.ID)
+			a.useAccount(ch.ID)
 		}
 		if ch.Shared || ch.Current {
 			ui.Box(c).Size(28, 28).Shrink(0)
@@ -104,7 +104,7 @@ func (a *app) choiceRow(c *ui.Context, p palette, lib *library, ch music.Account
 		m.Children(func() { ui.Icon(c, iconMore).Size(14, 14) })
 		m.Menu(func(menu *ui.Menu) {
 			if menu.Item(T("Remove Account")).Chosen() {
-				a.removeAccount(lib, ch.ID)
+				a.removeAccount(ch.ID)
 			}
 		})
 	})
@@ -113,7 +113,7 @@ func (a *app) choiceRow(c *ui.Context, p palette, lib *library, ch music.Account
 // addAccountRows is Add Account…, which opens the two ways to add one:
 // signing in on Apple's page, or pasting a media-user-token, which an
 // account with a passkey needs. Either way it's one more account of the list.
-func (a *app) addAccountRows(c *ui.Context, p palette, lib *library) {
+func (a *app) addAccountRows(c *ui.Context, p palette) {
 	add := &a.adding
 	ui.Column(c.Key("add-account")).Children(func() {
 		b := ui.ButtonBase(c.Key("add")).MinHeight(48).Padding(10, 16).Gap(12).AlignItems(ui.Center).Justify(ui.Start).
@@ -133,7 +133,7 @@ func (a *app) addAccountRows(c *ui.Context, p palette, lib *library) {
 		ui.Column(c).Padding(0, 16, 14, 58).Gap(10).AlignItems(ui.Start).Children(func() {
 			if ui.Button(c.Key("web"), T("Sign In on Apple's Page")).Clicked() {
 				add.token = false
-				a.promptSignInInSettings(lib)
+				a.promptSignInInSettings()
 			}
 			if ui.Button(c.Key("token"), T("Use a Media User Token")).Clicked() {
 				add.token = true
@@ -147,7 +147,7 @@ func (a *app) addAccountRows(c *ui.Context, p palette, lib *library) {
 				ready := strings.TrimSpace(add.text) != "" && !add.busy
 				added := ui.PrimaryButton(c.Key("add-token"), T("Add")).Shrink(0).Disabled(!ready).Clicked()
 				if ready && (added || in.Submitted()) {
-					a.addAccount(lib, add.text)
+					a.addAccount(add.text)
 				}
 			})
 			ui.Text(c, T("For an Apple Account that signs in with a passkey or security key, which the sign-in page can't use: sign in at music.apple.com in your browser, and paste the value of its media-user-token cookie here.")).
@@ -167,9 +167,9 @@ func (a *app) addAccountRows(c *ui.Context, p palette, lib *library) {
 func (a *app) accountCard(c *ui.Context, p palette) {
 	lib := a.library
 	if lib.account == nil && lib.accountUnknown() {
-		a.loadAccount(lib)
+		a.loadAccount()
 	}
-	a.loadAccounts(lib, false)
+	a.loadAccounts(false)
 	acc := lib.account
 	name, status := T("Apple Account"), T("Sign in to play music and see your library")
 	if acc != nil {
@@ -200,11 +200,11 @@ func (a *app) accountCard(c *ui.Context, p palette) {
 		switch {
 		case acc != nil && !acc.Shared:
 			if ui.Button(c.Key("sign-out"), T("Sign Out")).Shrink(0).Clicked() {
-				a.signOut(lib)
+				a.signOut()
 			}
 		case acc == nil:
 			if ui.PrimaryButton(c.Key("sign-in"), T("Sign In")).Shrink(0).Clicked() {
-				a.promptSignInInSettings(lib)
+				a.promptSignInInSettings()
 			}
 		}
 	})
@@ -229,7 +229,7 @@ func (a *app) textSetting(c *ui.Context, p palette, block settingsBlock, key, la
 				in.Password()
 			}
 			if in.Submitted() || !in.Focused() && *text != lib.src.Setting(key) {
-				a.keepSetting(lib, key, *text)
+				a.keepSetting(key, *text)
 			}
 			ui.Text(c, desc).FontSize(12).TextColor(p.muted).LineHeight(1.4)
 		})
@@ -238,7 +238,8 @@ func (a *app) textSetting(c *ui.Context, p palette, block settingsBlock, key, la
 
 // keepSetting gives a source a setting, off the main thread, and loads anew
 // what it may now be able to show.
-func (a *app) keepSetting(lib *library, key, value string) {
+func (a *app) keepSetting(key, value string) {
+	lib := a.library
 	if lib.src.Setting(key) == value {
 		return
 	}
@@ -254,8 +255,8 @@ func (a *app) keepSetting(lib *library, key, value string) {
 				return
 			}
 			lib.needsSetup, lib.askedSetup, lib.setupReason = false, false, ""
-			a.libraryChanged(lib)
-			a.loadAccount(lib)
+			a.libraryChanged()
+			a.loadAccount()
 		})
 	}()
 }

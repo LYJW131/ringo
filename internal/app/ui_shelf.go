@@ -449,7 +449,6 @@ var openExternal = func(url string) { go mygo.Shell.OpenExternal(url) }
 // or plays it, a song with the songs of its section from it on.
 func (a *app) openItem(secs []music.Section, s, i int) {
 	it := &secs[s].Items[i]
-	lib := a.library
 	switch it.Kind {
 	case music.ItemAlbum:
 		a.open(route{page: pageAlbum, id: itemID(it, it.Album != nil, func() string { return it.Album.ID })})
@@ -465,7 +464,7 @@ func (a *app) openItem(secs []music.Section, s, i int) {
 			a.open(route{page: pageArtist, id: itemID(it, it.Artist != nil, func() string { return it.Artist.ID })})
 		}
 	case music.ItemStation:
-		a.playStation(lib, itemStation(it))
+		a.playStation(itemStation(it))
 	case music.ItemSong, music.ItemVideo:
 		// A video plays as its song does, its sound alone.
 		t := a.sectionTracks(secs, s)
@@ -501,23 +500,23 @@ func itemStation(it *music.Item) *music.Station {
 // playItem plays an item from its card without opening it, for what its
 // card has a play button for: an album, a playlist or a station.
 func (a *app) playItem(it *music.Item) func() {
-	lib := a.library
 	switch it.Kind {
 	case music.ItemAlbum:
 		id := itemID(it, it.Album != nil, func() string { return it.Album.ID })
-		return func() { a.playAlbum(lib, id) }
+		return func() { a.playAlbum(id) }
 	case music.ItemPlaylist:
 		id := itemID(it, it.Playlist != nil, func() string { return it.Playlist.ID })
-		return func() { a.loadPlaylist(lib, id, true) }
+		return func() { a.loadPlaylist(id, true) }
 	case music.ItemStation:
-		return func() { a.playStation(lib, itemStation(it)) }
+		return func() { a.playStation(itemStation(it)) }
 	}
 	return nil
 }
 
 // playAlbum plays an album from its first song, loading it first if it
 // hasn't.
-func (a *app) playAlbum(lib *library, id string) {
+func (a *app) playAlbum(id string) {
+	lib := a.library
 	if d := lib.albums[id]; d != nil && d.album != nil {
 		a.pl.PlayQueue(d.album.Tracks, firstPlayable(d.album.Tracks), albumOrigin(id))
 		return
@@ -526,7 +525,7 @@ func (a *app) playAlbum(lib *library, id string) {
 		al, err := answered(lib.src.Album(id))
 		a.post(func() {
 			if err != nil {
-				a.actionFailed(lib, err, T("Couldn't load this album"))
+				a.actionFailed(err, T("Couldn't load this album"))
 				return
 			}
 			if d := lib.albums[id]; d == nil || d.album == nil {
@@ -540,7 +539,6 @@ func (a *app) playAlbum(lib *library, id string) {
 // itemMenu is the menu of an item, as far as it has one: a song's, an
 // album's, a playlist's or an artist's.
 func (a *app) itemMenu(it *music.Item) func(m *ui.Menu) {
-	lib := a.library
 	switch it.Kind {
 	case music.ItemSong, music.ItemVideo:
 		if it.Track != nil {
@@ -558,7 +556,7 @@ func (a *app) itemMenu(it *music.Item) func(m *ui.Menu) {
 		if al.URL == "" {
 			al.URL = it.URL
 		}
-		return a.albumItems(lib, al)
+		return a.albumItems(al)
 	case music.ItemPlaylist:
 		pl := music.Playlist{ID: it.ID, Name: it.Title, URL: it.URL}
 		if it.Playlist != nil {
@@ -571,7 +569,7 @@ func (a *app) itemMenu(it *music.Item) func(m *ui.Menu) {
 		if pl.URL == "" {
 			pl.URL = it.URL
 		}
-		return a.playlistItemsOf(lib, pl)
+		return a.playlistItemsOf(pl)
 	case music.ItemArtist:
 		ar := music.Artist{ID: it.ID, Name: it.Title, URL: it.URL}
 		if it.Artist != nil {
@@ -581,7 +579,7 @@ func (a *app) itemMenu(it *music.Item) func(m *ui.Menu) {
 		if ar.URL == "" {
 			ar.URL = it.URL
 		}
-		return a.artistItems(lib, ar)
+		return a.artistItems(ar)
 	}
 	return nil
 }

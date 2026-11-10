@@ -33,7 +33,8 @@ type signInDialog struct {
 const signInSettle = 250 * time.Millisecond
 
 // loadAccount asks a source who is signed in.
-func (a *app) loadAccount(lib *library) {
+func (a *app) loadAccount() {
+	lib := a.library
 	if lib.accountBusy {
 		return
 	}
@@ -45,13 +46,13 @@ func (a *app) loadAccount(lib *library) {
 			first := !lib.accountAsked
 			lib.accountAsked = true
 			if err != nil {
-				a.problem(lib, err, T("Couldn't reach Apple Music"))
+				a.problem(err, T("Couldn't reach Apple Music"))
 				return
 			}
 			was := lib.account
 			lib.account = acc
-			a.adoptPages(lib)
-			a.loadAccounts(lib, false)
+			a.adoptPages()
+			a.loadAccounts(false)
 			switch {
 			case first && was == nil && acc != nil && lib.homeErr == "" && !lib.needsSignIn:
 				// Home, as it started, was already this listener's, and loading
@@ -59,40 +60,41 @@ func (a *app) loadAccount(lib *library) {
 				// (loadMine). But hearts asked about before they were known are
 				// dropped as someone else's.
 				lib.liked = nil
-				a.loadMine(lib)
+				a.loadMine()
 			case (was == nil) != (acc == nil):
-				a.afterAccount(lib)
+				a.afterAccount()
 			}
-			a.warmPages(lib)
+			a.warmPages()
 		})
 	}()
 }
 
 // afterAccount loads anew what's personal to who listens to a source.
-func (a *app) afterAccount(lib *library) {
+func (a *app) afterAccount() {
+	lib := a.library
 	lib.accountAsked = true
 	lib.forget()
-	a.doubtPlayer(lib)
-	a.resetPages(lib)
+	a.doubtPlayer()
+	a.resetPages()
 	lib.needsSignIn, lib.askedSignIn = false, false
 	lib.choicesAt = time.Time{}
-	a.loadAccounts(lib, false)
-	a.loadMine(lib)
-	a.loadHome(lib)
+	a.loadAccounts(false)
+	a.loadMine()
+	a.loadHome()
 	a.reload(a.route)
-	a.warmPages(lib)
+	a.warmPages()
 }
 
 // promptSignIn asks the listener to sign in, showing the window it asks in.
-func (a *app) promptSignIn(lib *library) {
+func (a *app) promptSignIn() {
 	a.showMain()
-	a.signIn = signInDialog{open: true, lib: lib, gen: a.signIn.gen + 1}
+	a.signIn = signInDialog{open: true, lib: a.library, gen: a.signIn.gen + 1}
 }
 
 // promptSignInInSettings asks it in the settings window, where they asked,
 // instead of bringing up the main window behind it.
-func (a *app) promptSignInInSettings(lib *library) {
-	a.signIn = signInDialog{open: true, lib: lib, here: true, gen: a.signIn.gen + 1}
+func (a *app) promptSignInInSettings() {
+	a.signIn = signInDialog{open: true, lib: a.library, here: true, gen: a.signIn.gen + 1}
 }
 
 // startSignIn signs in to the source asked about, off the main thread: it
@@ -132,24 +134,25 @@ func (a *app) startSignIn() {
 				a.signIn.open = false
 			}
 			lib.account = acc
-			a.afterAccount(lib)
+			a.afterAccount()
 		})
 	}()
 }
 
 // signOut signs out of a source. One that goes on as another account the
 // listener signed in to says so as it's asked who's signed in after.
-func (a *app) signOut(lib *library) {
+func (a *app) signOut() {
+	lib := a.library
 	lib.account = nil
-	a.afterAccount(lib)
+	a.afterAccount()
 	go func() {
 		err := lib.src.SignOut()
 		a.post(func() {
 			if err != nil {
-				a.actionFailed(lib, err, T("Couldn't sign out"))
+				a.actionFailed(err, T("Couldn't sign out"))
 			}
 			lib.choicesAt = time.Time{}
-			a.loadAccount(lib)
+			a.loadAccount()
 		})
 	}()
 }
@@ -166,7 +169,8 @@ const choicesKept = time.Minute
 
 // loadAccounts asks the source for the accounts to switch to, again only
 // after a while unless fresh, which also asks whoever lends them anew.
-func (a *app) loadAccounts(lib *library, fresh bool) {
+func (a *app) loadAccounts(fresh bool) {
+	lib := a.library
 	sw := lib.switcher()
 	if sw == nil || !fresh && !lib.choicesAt.IsZero() && time.Since(lib.choicesAt) < choicesKept {
 		return
@@ -187,7 +191,7 @@ func (a *app) loadAccounts(lib *library, fresh bool) {
 			}
 			if lib.choicesAgain {
 				lib.choicesAgain, lib.choicesAt = false, time.Time{}
-				a.loadAccounts(lib, false)
+				a.loadAccounts(false)
 			}
 		})
 	}()
@@ -204,7 +208,8 @@ func errText(err error) string {
 // useAccount switches to another account, off the main thread, as the
 // wrapper may be asked for its token: the row shows it's on its way, and
 // everything personal loads anew once it's there. What plays goes on.
-func (a *app) useAccount(lib *library, id string) {
+func (a *app) useAccount(id string) {
+	lib := a.library
 	sw := lib.switcher()
 	if sw == nil || lib.switching != "" {
 		return
@@ -221,14 +226,15 @@ func (a *app) useAccount(lib *library, id string) {
 			}
 			lib.account = acc
 			lib.needsSetup, lib.setupReason = false, ""
-			a.afterAccount(lib)
+			a.afterAccount()
 		})
 	}()
 }
 
 // addAccount signs in with a media-user-token the listener pasted, as an
 // account to switch to, and switches to it.
-func (a *app) addAccount(lib *library, token string) {
+func (a *app) addAccount(token string) {
+	lib := a.library
 	sw := lib.switcher()
 	add := &a.adding
 	if sw == nil || add.busy {
@@ -246,14 +252,15 @@ func (a *app) addAccount(lib *library, token string) {
 			*add = addingAccount{}
 			lib.account = acc
 			lib.needsSetup, lib.setupReason = false, ""
-			a.afterAccount(lib)
+			a.afterAccount()
 		})
 	}()
 }
 
 // removeAccount forgets an account the listener signed in to, other than
 // the current one, whose way out is signing out.
-func (a *app) removeAccount(lib *library, id string) {
+func (a *app) removeAccount(id string) {
+	lib := a.library
 	sw := lib.switcher()
 	if sw == nil {
 		return
@@ -265,7 +272,7 @@ func (a *app) removeAccount(lib *library, id string) {
 			if err != nil {
 				a.toast = Tf("Couldn't remove the account: %s", errText(err))
 			}
-			a.loadAccounts(lib, false)
+			a.loadAccounts(false)
 		})
 	}()
 	lib.choicesAt = time.Time{}
@@ -402,7 +409,7 @@ func (a *app) accountRow(c *ui.Context) {
 			ui.Text(c, label).FontSize(13).FontWeight(500).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
 		})
 		if b.Clicked() {
-			a.promptSignIn(lib)
+			a.promptSignIn()
 		}
 		return
 	}
@@ -440,7 +447,7 @@ func (a *app) accountMenu(c *ui.Context, row ui.Element) {
 			first = false
 			if a.menuItem(c, iconUser, T("Profile"), "").AutoFocus().Clicked() {
 				a.accountOpen = false
-				a.openMyPage(a.library)
+				a.openMyPage()
 			}
 		}
 		settings := a.menuItem(c, iconSettings, T("Settings…"), shortcut)
@@ -454,7 +461,7 @@ func (a *app) accountMenu(c *ui.Context, row ui.Element) {
 		lib := a.library
 		// Listed as the account loads; here only asked again once it's been a while.
 		if !lib.choicesAt.IsZero() {
-			a.loadAccounts(lib, false)
+			a.loadAccounts(false)
 		}
 		if shown, more := menuChoices(lib.choices); len(shown) > 0 {
 			ui.Box(c).Height(0.5).Margin(4, 8).Background(pop.edge)
@@ -462,7 +469,7 @@ func (a *app) accountMenu(c *ui.Context, row ui.Element) {
 				if a.accountItem(c, ch, lib.switching == ch.ID).Clicked() {
 					a.accountOpen = false
 					if !ch.Current {
-						a.useAccount(lib, ch.ID)
+						a.useAccount(ch.ID)
 					}
 				}
 			}
@@ -477,7 +484,7 @@ func (a *app) accountMenu(c *ui.Context, row ui.Element) {
 			ui.Box(c).Height(0.5).Margin(4, 8).Background(pop.edge)
 			if a.menuItem(c, iconSignOut, T("Sign Out"), "").Clicked() {
 				a.accountOpen = false
-				a.signOut(lib)
+				a.signOut()
 			}
 		}
 	})
@@ -529,12 +536,12 @@ func regionBadge(c *ui.Context, p palette, text string) {
 	})
 }
 
-// openMyPage opens the listener's own page at lib, loaded anew each time: they
+// openMyPage opens the listener's own page, loaded anew each time: they
 // follow and save on other pages, and it keeps up. What it had shows meanwhile.
-func (a *app) openMyPage(lib *library) {
-	r := route{page: pageBrowse, id: lib.account.Page}
+func (a *app) openMyPage() {
+	r := route{page: pageBrowse, id: a.library.account.Page}
 	a.open(r)
-	a.loadBrowse(lib, r.id, true)
+	a.loadBrowse(r.id, true)
 }
 
 // menuItem is an item of a dropdown: an icon, its label, and the shortcut

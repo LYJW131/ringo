@@ -176,7 +176,7 @@ func TestKeepAskedAnewForTheNextListener(t *testing.T) {
 	a, tt, _ := keepApp(t, tr, map[string]bool{})
 	rect(t, tt, "Favorite")
 	a.account = &music.Account{ID: "2"}
-	a.afterAccount(a.library)
+	a.afterAccount()
 	if _, known := a.songInLibrary(a.pl.Current()); known {
 		t.Error("the last listener's library still counts")
 	}

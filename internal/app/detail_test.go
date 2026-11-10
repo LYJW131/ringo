@@ -287,7 +287,7 @@ func TestToastClearsThePlayer(t *testing.T) {
 func TestProblemLeavesOutTheAddress(t *testing.T) {
 	a := newTestApp()
 	err := fmt.Errorf("browse: %w", &url.Error{Op: "Get", URL: "https://amp-api.music.apple.com/v1/editorial/cn/groupings?platform=web", Err: errors.New("no such host")})
-	if msg := a.problem(a.library, err, "Couldn't load this page"); strings.Contains(msg, "https://") || !strings.Contains(msg, "no such host") {
+	if msg := a.problem(err, "Couldn't load this page"); strings.Contains(msg, "https://") || !strings.Contains(msg, "no such host") {
 		t.Errorf("says %q", msg)
 	}
 }
@@ -534,7 +534,7 @@ func TestPagedPageStays(t *testing.T) {
 	wait(t, asked, "the first part")
 	runPost(t, ch)
 	d := a.browses[music.PageLibrarySongs]
-	a.loadNext(a.library, d)
+	a.loadNext(d)
 	wait(t, asked, "the next part")
 	runPost(t, ch)
 	if !d.paged {

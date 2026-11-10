@@ -205,10 +205,10 @@ func (a *app) notes(c *ui.Context, text string) {
 // from the library is for its menu. compact, the button to add is its icon
 // alone, its words its label and tooltip. was and favorite are what the
 // source said of it.
-func (a *app) libraryButton(c *ui.Context, lib *library, kind, id string, was, favorite, compact bool) {
+func (a *app) libraryButton(c *ui.Context, kind, id string, was, favorite, compact bool) {
 	p := a.pal
-	if lib.inLibrary(kind, id, was) {
-		on := lib.isFavorite(kind, id, favorite)
+	if a.library.inLibrary(kind, id, was) {
+		on := a.library.isFavorite(kind, id, favorite)
 		icon, color, label := iconStar, p.text, T("Favorite")
 		if on {
 			icon, color, label = iconStarFill, p.accent, T("Undo Favorite")
@@ -224,7 +224,7 @@ func (a *app) libraryButton(c *ui.Context, lib *library, kind, id string, was, f
 		}
 		if b.Clicked() {
 			b.Jump("pop", 0.8)
-			a.setFavorite(lib, kind, id, !on)
+			a.setFavorite(kind, id, !on)
 		}
 		return
 	}
@@ -238,7 +238,7 @@ func (a *app) libraryButton(c *ui.Context, lib *library, kind, id string, was, f
 	}
 	if b.Clicked() {
 		a.justKept = itemKey(kind, id)
-		a.setInLibrary(lib, kind, id, true)
+		a.setInLibrary(kind, id, true)
 	}
 }
 

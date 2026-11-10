@@ -29,14 +29,15 @@ func (a *app) wantLike(tr *music.Track) {
 // and about the songs whose place in the library it showed.
 func (a *app) askLikes() {
 	if lib := a.library; len(lib.wantLikes) > 0 {
-		a.askLiked(lib, lib.wantLikes)
+		a.askLiked(lib.wantLikes)
 		lib.wantLikes = nil
 	}
 	a.askInLibrary()
 }
 
 // askLiked asks a source about tracks, which show not liked until it answers.
-func (a *app) askLiked(lib *library, ids []string) {
+func (a *app) askLiked(ids []string) {
+	lib := a.library
 	seen := make(map[string]bool, len(ids))
 	var ask []string
 	for _, id := range ids {
@@ -93,7 +94,7 @@ func (a *app) isLiked(tr *music.Track) bool { return a.library.liked[tr.ID] }
 func (a *app) toggleLike(tr *music.Track) {
 	lib := a.library
 	if lib.signedOut() {
-		a.promptSignIn(lib)
+		a.promptSignIn()
 		return
 	}
 	if lib.liked == nil {
@@ -109,30 +110,30 @@ func (a *app) toggleLike(tr *music.Track) {
 				if lib.liked != nil {
 					lib.liked[id] = !like
 				}
-				a.actionFailed(lib, err, T("That didn't work. Try again later."))
+				a.actionFailed(err, T("That didn't work. Try again later."))
 				return
 			}
-			a.likedChanged(lib, liked, like)
+			a.likedChanged(liked, like)
 			if like {
-				a.reaskInLibrary(lib, liked)
+				a.reaskInLibrary(liked)
 			}
 		})
 	}()
 }
 
 // likedChanged shows on the liked songs' page what was liked or unliked.
-func (a *app) likedChanged(lib *library, tr music.Track, like bool) {
+func (a *app) likedChanged(tr music.Track, like bool) {
 	// A new list: the player may be playing the old one.
 	var list []music.Track
 	if like {
 		list = append(list, tr)
 	}
-	for _, t := range lib.likedList {
+	for _, t := range a.library.likedList {
 		if t.ID != tr.ID {
 			list = append(list, t)
 		}
 	}
-	lib.likedList = list
+	a.library.likedList = list
 }
 
 // likeCurrent likes the song playing, or unlikes it, from the keyboard (⌘D),
@@ -191,7 +192,7 @@ func (a *app) likeButton(c *ui.Context, tr *music.Track, size float32, color ui.
 		case add:
 			// The star it turns into comes up from a little smaller.
 			b.Jump("pop", 0.6)
-			a.setInLibrary(lib, trackKind(tr), tr.ID, true)
+			a.setInLibrary(trackKind(tr), tr.ID, true)
 			return wrap
 		case lib.signedOut():
 		case liked:
