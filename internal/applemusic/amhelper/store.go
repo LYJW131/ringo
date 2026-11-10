@@ -131,9 +131,10 @@ func (s *store) tracks() map[string]cachedTrack {
 		return out
 	}
 	for k, t := range kept {
-		// One kept without its loudness is worked out again, to have it:
-		// it's only the playlists and the file's header, its keys kept.
-		if time.Since(t.At) < trackTTL && t.MediaURL != "" && len(t.Keys) > 0 && t.Loudness != nil {
+		// One kept without its loudness, or its album's, is worked out
+		// again, to have it: it's only the playlists and the file's
+		// header, its keys kept.
+		if time.Since(t.At) < trackTTL && t.MediaURL != "" && len(t.Keys) > 0 && t.Loudness != nil && t.Loudness.Album != nil {
 			// Those kept before there were other kinds are all ALAC.
 			codec := t.Codec
 			if codec == "" {

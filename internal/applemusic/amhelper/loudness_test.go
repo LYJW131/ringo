@@ -16,19 +16,21 @@ import (
 // Dolby Atmos version, its stereo, binaural and downmix measured apart; and
 // one at Sound Check's level.
 
-// Each file's loudness and peak are read from its tlou: its program
-// loudness, and its true peak.
+// Each file's loudness and peak are read from its tlou, and its album's
+// from its alou: its program loudness, and its true peak. The songs out as
+// singles are their own albums; 1555813962 is on an album louder than it.
 func TestReadLoudness(t *testing.T) {
 	for _, c := range []struct {
-		file         string
-		lkfs, peakDB float64
+		file                   string
+		lkfs, peakDB           float64
+		albumLKFS, albumPeakDB float64
 	}{
-		{"1783644604-audio-stereo-256.mp4", -5, -0.15625},
-		{"1783644604-audio-alac-stereo-48000-24.mp4", -5, -0.15625},
-		{"1472563571-audio-stereo-256.mp4", -7.75, -0.4375},
-		{"1472563571-audio-stereo-256-binaural.mp4", -15.75, -0.15625},
-		{"1472563571-audio-stereo-256-downmix.mp4", -17.5, -1.15625},
-		{"1555813962-audio-stereo-256.mp4", -16, -4.4375},
+		{"1783644604-audio-stereo-256.mp4", -5, -0.15625, -5, -0.15625},
+		{"1783644604-audio-alac-stereo-48000-24.mp4", -5, -0.15625, -5, -0.15625},
+		{"1472563571-audio-stereo-256.mp4", -7.75, -0.4375, -7.75, -0.4375},
+		{"1472563571-audio-stereo-256-binaural.mp4", -15.75, -0.15625, -15.75, -0.15625},
+		{"1472563571-audio-stereo-256-downmix.mp4", -17.5, -1.15625, -17.5, -1.15625},
+		{"1555813962-audio-stereo-256.mp4", -16, -4.4375, -13.75, -2.71875},
 	} {
 		head, err := os.ReadFile("testdata/loudness/" + c.file)
 		if err != nil {
@@ -38,9 +40,14 @@ func TestReadLoudness(t *testing.T) {
 		if !ok || l.LKFS != c.lkfs || math.Abs(20*math.Log10(l.Peak)-c.peakDB) > 1e-9 {
 			t.Errorf("%s: %+v (%.4f dB), %v; want %v LKFS, %v dB", c.file, l, 20*math.Log10(l.Peak), ok, c.lkfs, c.peakDB)
 		}
+		if a := l.Album; a == nil || a.LKFS != c.albumLKFS || math.Abs(20*math.Log10(a.Peak)-c.albumPeakDB) > 1e-9 {
+			t.Errorf("%s: album %+v; want %v LKFS, %v dB", c.file, a, c.albumLKFS, c.albumPeakDB)
+		}
 	}
-	if _, ok := readLoudness([]byte("\x00\x00\x00\x08ftyp")); ok {
-		t.Error("a header without a moov had a loudness")
+	// A header read without any says so of the album too, to be kept as
+	// looked for.
+	if l, ok := readLoudness([]byte("\x00\x00\x00\x08ftyp")); ok || l.Album == nil {
+		t.Errorf("a header without a moov: %+v, %v", l, ok)
 	}
 }
 
@@ -95,7 +102,7 @@ func TestResolveTrackReadsLoudness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tr.Loudness == nil || tr.Loudness.LKFS != -5 || len(ranges) != 1 || ranges[0] != "bytes=0-1022" {
+	if tr.Loudness == nil || tr.Loudness.LKFS != -5 || tr.Loudness.Album == nil || tr.Loudness.Album.LKFS != -5 || len(ranges) != 1 || ranges[0] != "bytes=0-1022" {
 		t.Errorf("loudness %+v, asked for %q", tr.Loudness, ranges)
 	}
 	serveHead = false

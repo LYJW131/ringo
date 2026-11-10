@@ -16,7 +16,8 @@ import (
 	"net/http"
 )
 
-// Loudness is a track's loudness and peak, as its tlou says.
+// Loudness is a track's loudness and peak, as its tlou says, and its
+// album's, as its alou does.
 type Loudness struct {
 	// LKFS is its integrated loudness, by ITU-R BS.1770 (DRC's program
 	// loudness); 0 where it doesn't say.
@@ -24,22 +25,38 @@ type Loudness struct {
 	// Peak is its true peak, or its sample peak where it says only that,
 	// linear: 1 is full scale. 0 where it says neither.
 	Peak float64 `json:"peak,omitempty"`
+	// Album is the loudness and peak of the whole album the track is on,
+	// measured as one, for playing the album through without evening its
+	// songs out against each other. It's never nil where the header was
+	// read, and a zero Loudness where it says none: one kept from before
+	// it was read is nil, and worked out again.
+	Album *Loudness `json:"album,omitempty"`
 }
 
 // programLoudness is the measurement of DRC's method_definition 1.
 const programLoudness = 1
 
-// readLoudness is the first track's loudness, from the MP4's header: its
-// ftyp and moov, read as raw boxes, as mp4ff leaves ludt unread. ok is
-// false where it has none.
+// readLoudness is the first track's loudness, and its album's, from the
+// MP4's header: its ftyp and moov, read as raw boxes, as mp4ff leaves ludt
+// unread. ok is false where it has no loudness of the track.
 func readLoudness(head []byte) (l Loudness, ok bool) {
+	l.Album = &Loudness{}
 	b := head
-	for _, typ := range []string{"moov", "trak", "udta", "ludt", "tlou"} {
+	for _, typ := range []string{"moov", "trak", "udta", "ludt"} {
 		if b, ok = childBox(b, typ); !ok {
-			return Loudness{}, false
+			return l, false
 		}
 	}
-	return parseTlou(b)
+	if alou, found := childBox(b, "alou"); found {
+		*l.Album, _ = parseTlou(alou)
+	}
+	tlou, found := childBox(b, "tlou")
+	if !found {
+		return l, false
+	}
+	track, ok := parseTlou(tlou)
+	l.LKFS, l.Peak = track.LKFS, track.Peak
+	return l, ok
 }
 
 // childBox is the body of the first box of the type among boxes.
@@ -57,7 +74,8 @@ func childBox(boxes []byte, typ string) ([]byte, bool) {
 	return nil, false
 }
 
-// parseTlou reads a tlou's body, a LoudnessBaseBox: of its sets, the one
+// parseTlou reads a tlou's body, or an alou's, both a LoudnessBaseBox:
+// of its sets, the one
 // for the audio as it is, with no downmix, DRC or EQ applied.
 func parseTlou(b []byte) (Loudness, bool) {
 	if len(b) < 4 {

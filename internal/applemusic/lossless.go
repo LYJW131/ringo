@@ -224,8 +224,9 @@ func (s *Source) loadKnown() {
 	now := s.now()
 	for _, id := range stored.keys() {
 		k, _ := stored.get(id)
-		// Known without its loudness, it's asked about again, to have it.
-		if now-k.At < knownFor.Milliseconds() && (k.Q == nil || k.Q.Loudness != nil) {
+		// Known without its loudness, or its album's, it's asked about
+		// again, to have it.
+		if now-k.At < knownFor.Milliseconds() && (k.Q == nil || k.Q.Loudness != nil && k.Q.Loudness.Album != nil) {
 			s.keptLL.set(id, k)
 			s.known.set(id, k.Q)
 		}

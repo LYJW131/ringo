@@ -161,21 +161,79 @@ func TestNormGain(t *testing.T) {
 		{&music.Stream{Gain: 0.5, Peak: 1.29}, 1},
 		{&music.Stream{Gain: -11.25, Peak: 1.29}, math.Pow(10, -11.25/20)},
 	} {
-		if g := normGain(c.st); math.Abs(g-c.want) > 1e-9 {
+		if g := normGain(c.st, false); math.Abs(g-c.want) > 1e-9 {
 			t.Errorf("%+v: %v, want %v", c.st, g, c.want)
 		}
 	}
+	// At its album's loudness, the album's peak holds it back, not its own.
+	st := &music.Stream{Gain: 6, Peak: 0.5, AlbumGain: 3, AlbumPeak: 0.8}
+	if g := normGain(st, true); math.Abs(g-1.25) > 1e-9 {
+		t.Errorf("at the album's loudness: %v, want 1.25", g)
+	}
 }
 
-// leveled is a source whose song says how loud it is.
+// leveled is a source whose song says how loud it is, and how loud its
+// album is.
 type leveled struct {
 	nothing
-	url        string
-	gain, peak float64
+	url                  string
+	gain, peak           float64
+	albumGain, albumPeak float64
 }
 
 func (l leveled) Stream(string, string) (*music.Stream, error) {
-	return &music.Stream{URL: l.url, Type: "m4a", Gain: l.gain, Peak: l.peak}, nil
+	return &music.Stream{URL: l.url, Type: "m4a", Gain: l.gain, Peak: l.peak, AlbumGain: l.albumGain, AlbumPeak: l.albumPeak}, nil
+}
+
+// A song played from its album in order plays at the album's gain; shuffled,
+// or from a playlist, or of an album whose loudness isn't known, at its own.
+func TestSoundCheckPlaysAnAlbumAtItsLoudness(t *testing.T) {
+	b, err := os.ReadFile("testdata/seek-aac-frag.m4a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(b) }))
+	defer srv.Close()
+	defer audio.SetVolume(audio.Volume())
+	audio.SetVolume(0)
+	album := music.Origin{Kind: music.FromAlbum, ID: "10"}
+	playlist := music.Origin{Kind: music.FromPlaylist, ID: "pl.1"}
+	own, ofAlbum := math.Pow(10, 4.0/20), math.Pow(10, -2.0/20)
+	for _, c := range []struct {
+		name     string
+		from     music.Origin
+		shuffled bool
+		noAlbum  bool
+		want     float64
+	}{
+		{"the album in order", album, false, false, ofAlbum},
+		{"the album shuffled", album, true, false, own},
+		{"a playlist", playlist, false, false, own},
+		{"an album of unknown loudness", album, false, true, own},
+	} {
+		ch := make(chan func(), 64)
+		p := New(func(fn func()) { ch <- fn })
+		p.Normalize = func() bool { return true }
+		src := leveled{url: srv.URL, gain: 4, peak: 0.5, albumGain: -2, albumPeak: 0.9}
+		if c.noAlbum {
+			src.albumGain, src.albumPeak = 0, 0
+		}
+		p.Source = src
+		p.SetVolume(1)
+		tracks := []music.Track{{ID: "1", Duration: 5000}, {ID: "2", Duration: 5000}}
+		if c.shuffled {
+			p.PlayShuffled(tracks, c.from)
+		} else {
+			p.PlayQueue(tracks, 0, c.from)
+		}
+		for p.out == nil {
+			next(t, ch)
+		}
+		if v := p.out.Volume(); math.Abs(v-c.want) > 1e-9 {
+			t.Errorf("%s: volume %v, want %v", c.name, v, c.want)
+		}
+		p.stop()
+	}
 }
 
 // A song's gain sets the volume it plays at, with Sound Check on, and

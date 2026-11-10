@@ -382,6 +382,12 @@ type Stream struct {
 	// the source doesn't know them.
 	Peak float64 `json:"peak,omitempty"`
 	Gain float64 `json:"gain,omitempty"`
+	// AlbumGain and AlbumPeak are the same of the whole album the track is
+	// on, measured as one, which the player uses as an album plays through
+	// so that its quiet songs stay quiet beside its loud ones. Both are 0
+	// where the source doesn't know them.
+	AlbumPeak float64 `json:"albumPeak,omitempty"`
+	AlbumGain float64 `json:"albumGain,omitempty"`
 }
 
 // Lyrics are a track's words, as timed Lines, which can time each word.

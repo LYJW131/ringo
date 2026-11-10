@@ -661,18 +661,39 @@ func (p *Player) applyGain() {
 	p.fade.setGain(g)
 }
 
+// albumLoudness reports whether track t, of the stream st, plays at its
+// album's loudness rather than its own, as Apple Music's Sound Check does:
+// only when it's played from its album, in the album's order, so that the
+// album sounds as it was mastered, its quiet songs quieter than its loud
+// ones, and every song of it at the one gain. Shuffled, or from a playlist,
+// a station, an artist, a song on its own or AutoPlay, songs from many
+// albums mix, and each plays at its own. An album whose loudness the source
+// doesn't know plays each song at its own too.
+func albumLoudness(t music.Track, shuffle bool, st *music.Stream) bool {
+	return t.Origin.Kind == music.FromAlbum && !shuffle && st != nil && (st.AlbumGain != 0 || st.AlbumPeak != 0)
+}
+
 // normGain is the gain that brings a track as loud as others, as its source
-// measured it (music.Stream.Gain), but never so loud that its peaks would
-// clip.
-func normGain(st *music.Stream) float64 {
-	if st == nil || st.Gain == 0 && st.Peak == 0 {
+// measured it (music.Stream.Gain), or its album as loud as others
+// (music.Stream.AlbumGain), but never so loud that its peaks would clip.
+func normGain(st *music.Stream, album bool) float64 {
+	if st == nil {
 		return 1
 	}
-	g := math.Pow(10, st.Gain/20)
+	gain, peak := st.Gain, st.Peak
+	// The album's peak with its gain, so that every song of it is held
+	// back alike: each song's own would undo the album's balance.
+	if album {
+		gain, peak = st.AlbumGain, st.AlbumPeak
+	}
+	if gain == 0 && peak == 0 {
+		return 1
+	}
+	g := math.Pow(10, gain/20)
 	// The peak holds back a lift only: a true peak past full scale, as a
 	// loud master's can be, doesn't turn a track down below its gain.
-	if st.Peak > 0 {
-		g = min(g, max(1, 1/st.Peak))
+	if peak > 0 {
+		g = min(g, max(1, 1/peak))
 	}
 	return g
 }
@@ -826,7 +847,10 @@ func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duratio
 				return
 			}
 			p.stream, p.info = s, info
-			p.gain = normGain(info)
+			// Chosen as the song starts, and kept to its end: shuffle
+			// switched meanwhile changes the next song's, not this one's
+			// volume.
+			p.gain = normGain(info, albumLoudness(t, p.shuffle, info))
 			p.watch = &watched{stream: s, now: p.now, ended: func() { p.post(func() {}) }}
 			p.out = audio.NewPlayer(p.watch)
 			// From its middle, as a session picked up again, it fades in.
