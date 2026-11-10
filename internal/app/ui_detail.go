@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 
@@ -242,6 +243,13 @@ func traitLabels(tr music.Traits) []string {
 func traitBadge(c *ui.Context, label string, color ui.Color) ui.Element {
 	return ui.Text(c.Key(label), T(label)).FontSize(9.5).FontWeight(700).LetterSpacing(0.3).TextColor(color).SingleLine().
 		Padding(1, 5).Radius(3).Border(1, color.Alpha(0.55))
+}
+
+// traitBadgeWidth is how wide traitBadge draws label.
+func traitBadgeWidth(c *ui.Context, label string) float32 {
+	text := T(label)
+	w, _ := c.MeasureText(0, ui.Span{Text: text, Size: 9.5, Weight: 700})
+	return w + 0.3*float32(utf8.RuneCountInString(text)) + 2*5 + 2
 }
 
 // traitBadges are the badges of traits, in a row.

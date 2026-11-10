@@ -510,14 +510,21 @@ func (a *app) radioChip(c *ui.Context, name string) {
 // has it, and Lossless up to that, or where the rate isn't known. Its
 // tooltip says what the stream is. AAC has none.
 func qualityBadge(c *ui.Context, st *music.Stream, color ui.Color) {
-	if st == nil || st.Quality != "lossless" {
-		return
+	if label := qualityLabel(st); label != "" {
+		traitBadge(c, label, color).Shrink(0).Tooltip(streamSpec(st))
 	}
-	label := traitLosless
-	if st.SampleRate > 48000 {
-		label = traitHiRes
+}
+
+// qualityLabel is what the badge of a stream says, or "" for one without a
+// badge: lossless, or Hi-Res above 48 kHz.
+func qualityLabel(st *music.Stream) string {
+	switch {
+	case st == nil || st.Quality != "lossless":
+		return ""
+	case st.SampleRate > 48000:
+		return traitHiRes
 	}
-	traitBadge(c, label, color).Shrink(0).Tooltip(streamSpec(st))
+	return traitLosless
 }
 
 // streamSpec says what a lossless stream is, as 24-bit/96 kHz ALAC, or ""

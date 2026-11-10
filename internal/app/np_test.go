@@ -403,3 +403,39 @@ func TestQualityBadgeByRate(t *testing.T) {
 		t.Errorf("spec %q", got)
 	}
 }
+
+// The player bar of the narrowest window keeps the title of what plays whole,
+// leaving the badge of how it sounds to Now Playing, and a wide one shows
+// both: the badge, which doesn't shrink, once squeezed the title down to an
+// ellipsis and lay over the star.
+func TestPlayerBarKeepsTheTitleWhenNarrow(t *testing.T) {
+	for _, c := range []struct {
+		width int
+		badge bool
+	}{{880, false}, {1440, true}} {
+		a := newTestApp()
+		a.pl.Cue([]music.Track{song("1", "Howling")})
+		a.pl.SetStream(&music.Stream{Quality: "lossless", SampleRate: 96000, BitDepth: 24})
+		tt := ui.NewTester(a.view, c.width, 580)
+		tt.Frame()
+		tt.Advance(time.Second)
+		tt.Frame()
+		if title, ok := tt.Find("Howling"); !ok || title.W < 40 {
+			t.Errorf("%d wide: the title is %v wide, found %v", c.width, title.W, ok)
+		}
+		if _, ok := tt.Find("Hi-Res Lossless"); ok != c.badge {
+			t.Errorf("%d wide: the badge shows %v", c.width, ok)
+		}
+	}
+	// The three parts fit the bar of any window, and the controls are in
+	// its middle once what plays has its room.
+	for w := float32(500); w <= 2000; w += 37 {
+		left, mid := barLayout(w)
+		if left < 0 || mid < 264 || left+mid+barControls > w+0.5 {
+			t.Errorf("%v wide: left %v, middle %v", w, left, mid)
+		}
+		if right := w - left - mid; left >= 321 && right != left {
+			t.Errorf("%v wide: left %v, right %v", w, left, right)
+		}
+	}
+}

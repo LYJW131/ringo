@@ -192,6 +192,56 @@ func TestSettingsFrame(t *testing.T) {
 	saveFrame(t, dir, "settings.png", tt.Image())
 }
 
+// With MM_FRAMES set, saves the player bar of windows from the narrowest
+// to a wide one, one under another: a Hi-Res song with a short title, then
+// one with a long title.
+func TestPlayerBarWidthsFrames(t *testing.T) {
+	dir := framesDir(t)
+	for _, dark := range []bool{true, false} {
+		var bars []image.Image
+		for _, name := range []string{"Howling", "Northern Lights Over the Harbor at Night (Live at the Old Lighthouse)"} {
+			for _, w := range []int{880, 1024, 1181, 1440} {
+				a := newTestApp()
+				a.account = &music.Account{ID: "1", Name: "Alex"}
+				tracks := framesTracks(a)
+				tracks[0].Name = name
+				a.pl.Cue(tracks)
+				a.pl.SetLyrics(nil)
+				a.pl.SetStream(&music.Stream{Quality: "lossless", SampleRate: 96000, BitDepth: 24})
+				a.pl.Hold(25 * time.Second)
+				tt := ui.NewTester(a.view, w, 580)
+				tt.SetDark(dark)
+				settled(tt)
+				img := tt.Image()
+				b := img.Bounds()
+				bars = append(bars, img.SubImage(image.Rect(b.Min.X, b.Max.Y-100*b.Dx()/w, b.Max.X, b.Max.Y)))
+			}
+		}
+		saveFrame(t, dir, fmt.Sprintf("player-bar-widths-dark-%v.png", dark), stacked(bars))
+	}
+}
+
+// stacked lays shots out one under another, each at its own width.
+func stacked(shots []image.Image) image.Image {
+	w, h := 0, 0
+	for _, s := range shots {
+		w = max(w, s.Bounds().Dx())
+		h += s.Bounds().Dy() + 8
+	}
+	out := image.NewRGBA(image.Rect(0, 0, w, h))
+	y := 0
+	for _, s := range shots {
+		b := s.Bounds()
+		for dy := range b.Dy() {
+			for dx := range b.Dx() {
+				out.Set(dx, y+dy, s.At(b.Min.X+dx, b.Min.Y+dy))
+			}
+		}
+		y += b.Dy() + 8
+	}
+	return out
+}
+
 // With MM_FRAMES set, saves the badge of a Hi-Res stream in Now Playing, and
 // of a lossless one in the player bar, light and dark.
 func TestQualityBadgeFrames(t *testing.T) {

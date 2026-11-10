@@ -342,6 +342,34 @@ func (a *app) transport(c *ui.Context, color, dim, on ui.Color, size float32) {
 	})
 }
 
+// The player bar's measures: its padding at each end and the gaps between
+// its three parts, the buttons at its right (lyrics, the queue and the
+// speaker), the star with its margin, the gap before the badge of how a song
+// sounds, and how much of a long title is kept before that badge shows.
+const (
+	barPad       = 20
+	barGap       = 20
+	barControls  = 3*32 + 2*4
+	barLikeWidth = 32 + 4
+	barBadgeGap  = 6
+	barTitleKept = 120
+)
+
+// barLayout shares w, the player bar's width without its padding and gaps,
+// between what plays at the left and the controls in the middle; the buttons
+// at the right take the rest. Wide, the controls are 440 DIPs in the middle
+// of the bar. Narrower, what plays keeps 320: the right gives way first, down
+// to its buttons, then the controls, down to 264, and only then what plays.
+func barLayout(w float32) (left, mid float32) {
+	const midWide, midMin, leftKept = 440, 264, 320
+	if side := (w - midWide) / 2; side >= leftKept {
+		return side, midWide
+	}
+	right := max(barControls, w-midWide-leftKept)
+	mid = min(midWide, max(midMin, w-right-leftKept))
+	return max(w-mid-right, 0), mid
+}
+
 // playerBar runs along the foot of the content: what plays, its controls
 // and its progress, and the volume.
 func (a *app) playerBar(c *ui.Context) {
@@ -354,13 +382,11 @@ func (a *app) playerBar(c *ui.Context) {
 	edge := ui.Box(c.Key("bottom-edge")).Absolute().Left(0).Right(0).Bottom(0).Height(playerBarHeight).
 		Material(glass.ScrollEdge{Hard: true, Bottom: true, Background: p.bg})
 	edge.Opacity(edgeShown(edge, a.underBottom))
-	// The controls keep the middle, between sides that share what is left:
-	// narrower, the middle gives up to 140 DIPs, and what plays keeps room
-	// for its cover, some of its title and its heart.
-	const controls = 3*32 + 2*4 // lyrics, queue and the speaker
-	ui.Row(c).Absolute().Left(0).Right(0).Bottom(0).Height(playerBarHeight).PaddingX(20).Gap(20).AlignItems(ui.Center).Children(func() {
+	w, _ := c.Size()
+	left, mid := barLayout(w - sidebarWidth - 2*barPad - 2*barGap)
+	ui.Row(c).Absolute().Left(0).Right(0).Bottom(0).Height(playerBarHeight).PaddingX(barPad).Gap(barGap).AlignItems(ui.Center).Children(func() {
 		// What plays.
-		ui.Row(c).Grow(1).Basis(0).MinWidth(150).Children(func() {
+		ui.Row(c).Width(left).Shrink(0).Children(func() {
 			if tr == nil {
 				ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 					ui.Box(c).Size(48, 48).Radius(8).Background(p.hover).Center().Children(func() {
@@ -392,9 +418,19 @@ func (a *app) playerBar(c *ui.Context) {
 					}
 				})
 				ui.Column(c).Shrink(1).MinWidth(0).Gap(3).Children(func() {
-					ui.Row(c).Gap(6).AlignItems(ui.Center).MinWidth(0).Children(func() {
+					ui.Row(c).Gap(barBadgeGap).AlignItems(ui.Center).MinWidth(0).Children(func() {
 						ui.Text(c, tr.Name).FontSize(13.5).FontWeight(600).SingleLine().Shrink(1).MinWidth(0)
-						qualityBadge(c, pl.Stream(), p.muted)
+						// The title comes first: how it sounds shows beside it
+						// only where that leaves the title whole, or a good part
+						// of a long one. Now Playing always says it.
+						room := left - 48 - 12
+						if a.trackLib(tr).canLike(tr) {
+							room -= barLikeWidth
+						}
+						titleW, _ := c.MeasureText(0, ui.Span{Text: tr.Name, Size: 13.5, Weight: 600})
+						if label := qualityLabel(pl.Stream()); label != "" && room-traitBadgeWidth(c, label)-barBadgeGap >= min(titleW, barTitleKept) {
+							qualityBadge(c, pl.Stream(), p.muted)
+						}
 					})
 					// What it is waiting on shows in place of the artists.
 					var sub string
@@ -419,7 +455,7 @@ func (a *app) playerBar(c *ui.Context) {
 		})
 
 		// Controls over the progress.
-		ui.Column(c).Width(440).Shrink(1).MinWidth(300).Gap(0).AlignItems(ui.Stretch).Children(func() {
+		ui.Column(c).Width(mid).Shrink(0).Gap(0).AlignItems(ui.Stretch).Children(func() {
 			a.transport(c, p.text, p.muted, p.accent, 18)
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Margin(-4, 0, 0, 0).Children(func() {
 				ui.Text(c, clock(pl.Position())).FontSize(10.5).FontFeatures("tnum").TextColor(p.faint).Width(34).TextAlign(ui.End)
@@ -429,7 +465,7 @@ func (a *app) playerBar(c *ui.Context) {
 		})
 
 		// Lyrics and volume.
-		ui.Row(c).Grow(1).Basis(0).MinWidth(controls).Justify(ui.End).AlignItems(ui.Center).Gap(4).Children(func() {
+		ui.Row(c).Grow(1).Basis(0).MinWidth(barControls).Justify(ui.End).AlignItems(ui.Center).Gap(4).Children(func() {
 			lyr := p.muted
 			if a.nowPlaying {
 				lyr = p.accent
