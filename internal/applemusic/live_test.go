@@ -1,6 +1,7 @@
 package applemusic
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Eyevinn/mp4ff/mp4"
+	mygomp4 "github.com/egoist/mygo/audio/mp4"
+
+	_ "mygo-music/internal/heaac"
 	"mygo-music/internal/music"
 )
 
@@ -351,4 +356,116 @@ func TestLiveLossless(t *testing.T) {
 	if hi, lo := streams["hires"].SampleRate, streams["lossless"].SampleRate; hi < lo {
 		t.Errorf("Hi-Res Lossless came at %d Hz, below Lossless's %d", hi, lo)
 	}
+}
+
+// With APPLE_MUSIC_WRAPPER too, High Efficiency and a song's Dolby Atmos
+// version, as each of its stereo versions, come through the wrapper as what
+// they are, and the player's decoder plays three seconds of each, not
+// silent. A song without a Dolby Atmos version, asked for with it on, plays
+// at the level and says so.
+func TestLiveQualities(t *testing.T) {
+	file, wrapper := os.Getenv("APPLE_MUSIC_TOKEN_FILE"), os.Getenv("APPLE_MUSIC_WRAPPER")
+	if file == "" || wrapper == "" {
+		t.Skip("APPLE_MUSIC_TOKEN_FILE names a file holding a media-user-token, and APPLE_MUSIC_WRAPPER a wrapper")
+	}
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New(Options{DataDir: t.TempDir()})
+	defer s.Close()
+	s.storage.set(userTokenKey, strings.TrimSpace(string(raw)))
+	s.settings.set("wrapper", wrapper)
+	atmos, plain := os.Getenv("APPLE_MUSIC_ATMOS_SONG"), os.Getenv("APPLE_MUSIC_SONG")
+	if atmos == "" {
+		atmos = "1472563571"
+	}
+	if plain == "" {
+		plain = "1783644604"
+	}
+	for _, c := range []struct {
+		id, ask, want string
+		rate          int // what the player decodes at
+	}{
+		{plain, "efficient", "efficient", 0},
+		{atmos, music.Ask("high", music.AtmosHeadphones), "atmos-binaural", 48000},
+		{atmos, music.Ask("hires", music.AtmosSpeakers), "atmos-downmix", 48000},
+	} {
+		t0 := time.Now()
+		st, err := s.Stream(c.id, c.ask)
+		if err != nil {
+			t.Fatalf("%s as %s: %v", c.id, c.ask, err)
+		}
+		if st.Quality != c.want || st.NoAtmos {
+			t.Fatalf("%s as %s came as %q (no Dolby Atmos %v)", c.id, c.ask, st.Quality, st.NoAtmos)
+		}
+		res, err := http.Get(st.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := io.ReadAll(io.LimitReader(res.Body, 4<<20))
+		res.Body.Close()
+		if err != nil || res.StatusCode != 200 {
+			t.Fatalf("%s: HTTP %d, %v", c.want, res.StatusCode, err)
+		}
+		entry, channels, asc := sampleEntry(t, b)
+		d, err := mygomp4.NewDecoder(bytes.NewReader(b))
+		if err != nil {
+			t.Fatalf("%s: the player's decoder: %v", c.want, err)
+		}
+		pcm := make([]float32, 4096)
+		peak, frames := float32(0), 0
+		for frames < 3*d.SampleRate() {
+			n, err := d.Read(pcm)
+			for _, v := range pcm[:n] {
+				peak = max(peak, v, -v)
+			}
+			frames += n / 2
+			if err != nil {
+				break
+			}
+		}
+		t.Logf("%s as %s in %d ms: %s, %s %d ch, ASC %x, %d kbps; decoded %.1f s at %d Hz, peak %.2f", c.id, c.ask, time.Since(t0).Milliseconds(),
+			st.Quality, entry, channels, asc, st.BitRate/1000, float64(frames)/float64(d.SampleRate()), d.SampleRate(), peak)
+		if entry != "mp4a" || channels != 2 || st.BitRate <= 0 {
+			t.Errorf("%s: %s of %d channels at %d bit/s, want stereo AAC", c.want, entry, channels, st.BitRate)
+		}
+		if frames < 3*d.SampleRate() || peak == 0 || (c.rate > 0 && d.SampleRate() != c.rate) {
+			t.Errorf("%s: %d frames at %d Hz, peak %v", c.want, frames, d.SampleRate(), peak)
+		}
+	}
+	st, err := s.Stream("1555813962", music.Ask("lossless", music.AtmosHeadphones))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Quality != "lossless" || !st.NoAtmos {
+		t.Errorf("a song without Dolby Atmos, asked for with it on, came as %q, no Dolby Atmos %v", st.Quality, st.NoAtmos)
+	}
+}
+
+// sampleEntry is what an MP4's first track's sample entry says: its type,
+// channels and, of AAC, its AudioSpecificConfig.
+func sampleEntry(t *testing.T, file []byte) (string, int, []byte) {
+	t.Helper()
+	// Only the header: the file is cut short.
+	r := bytes.NewReader(file)
+	var moov *mp4.MoovBox
+	for pos := uint64(0); moov == nil; {
+		box, err := mp4.DecodeBox(pos, r)
+		if err != nil {
+			t.Fatalf("not an MP4: %v", err)
+		}
+		pos += box.Size()
+		moov, _ = box.(*mp4.MoovBox)
+	}
+	entry := moov.Traks[0].Mdia.Minf.Stbl.Stsd.Children[0]
+	ae, ok := entry.(*mp4.AudioSampleEntryBox)
+	if !ok {
+		return entry.Type(), 0, nil
+	}
+	var asc []byte
+	if ae.Esds != nil && ae.Esds.DecConfigDescriptor.DecSpecificInfo != nil {
+		asc = ae.Esds.DecConfigDescriptor.DecSpecificInfo.DecConfig
+	}
+	return entry.Type(), int(ae.ChannelCount), asc
 }

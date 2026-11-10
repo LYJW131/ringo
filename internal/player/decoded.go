@@ -9,6 +9,8 @@ import (
 	"github.com/egoist/mygo/audio"
 	_ "github.com/egoist/mygo/audio/aac" // AAC in MP4
 	"github.com/egoist/mygo/audio/mp4"
+
+	_ "mygo-music/internal/heaac" // HE-AAC in MP4, High Efficiency's
 )
 
 // downloadFile reads a download as a file, for MyGo's decoders: what's
@@ -88,9 +90,9 @@ func openDecoded(dl *download, open func(io.ReadSeeker) (audio.Decoder, error)) 
 	return &decodedStream{Decoder: d, dl: dl, spec: newSpectrum(d.SampleRate()), drop: dl.Close}, nil
 }
 
-// openMP4Stream opens an .m4a, of ALAC or AAC. One cut into fragments, as a
-// stream for DASH is, plays as its fragments come, its length from its
-// index.
+// openMP4Stream opens an .m4a, of ALAC or AAC, HE-AAC among it. One cut
+// into fragments, as a stream for DASH is, plays as its fragments come, its
+// length from its index.
 func openMP4Stream(dl *download) (*decodedStream, error) { return openDecoded(dl, mp4.NewDecoder) }
 
 func (s *decodedStream) Read(dst []float32) (int, error) {

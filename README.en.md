@@ -22,7 +22,7 @@ Written in Go, its windows drawn by [MyGo](https://github.com/egoist/mygo)'s nat
 - **The library** by Recently Added, Artists, Albums, Songs, Made for You and All Playlists, loading on as it scrolls, with your playlists in the sidebar.
 - **Albums, artists and playlists** with the editors' notes, a background in the cover's colors, badges for how an album sounds at its best, the songs most played, and what else to hear.
 - **Animated Art**: where Apple Music has a cover moving, it plays without sound, over and over, at the head of an album's or a playlist's page, across the top of an artist's, and on Home's tall cards. It can be turned off in the settings, and stays still while the system asks for less motion.
-- **Playback** of whole songs as 256 kbps AAC, and lossless up to 24-bit/192 kHz ALAC with a wrapper.
+- **Playback** of whole songs as 256 kbps AAC, and with a wrapper, lossless up to 24-bit/192 kHz ALAC, High Efficiency's 64 kbps HE-AAC, and Dolby Atmos songs as their version for headphones (binaural rendering) or for speakers (stereo downmix).
 - **Lyrics** that follow the song word by word, with their translation where there is one.
 - **Play Next and Play Last, Favorite**, adding to the library and taking out of it, adding to playlists, making and editing playlists, and AutoPlay.
 - **What a desktop app has**: media keys, a tray icon, a notch player on macOS, light and dark, session restore, a song cache, loudness normalization.
@@ -50,15 +50,16 @@ With a Wrapper Address filled in, and a wrapper-manager that gives its accounts'
 
 Signed out, you can browse the catalog, search and open pages. Playing, the library and recommendations need an account.
 
-## Lossless
+## Lossless, High Efficiency and Dolby Atmos
 
-Lossless and Hi-Res Lossless play through a [wrapper-manager](https://github.com/AMDL-Web/wrapper/tree/amdl/manager):
+Lossless, Hi-Res Lossless, High Efficiency and Dolby Atmos play through a [wrapper-manager](https://github.com/AMDL-Web/wrapper/tree/amdl/manager):
 
 1. Run one and log an Apple Music account in to it.
 2. Fill in **Wrapper Address** in Settings › Playback, and **Wrapper Key** if the wrapper is behind a gateway that asks for one.
-3. Set Streaming to Lossless (up to 24-bit/48 kHz) or Hi-Res Lossless (up to 24-bit/192 kHz) in Settings › Playback.
+3. Set Streaming to High Efficiency (HE-AAC, 64 kbps), Lossless (up to 24-bit/48 kHz) or Hi-Res Lossless (up to 24-bit/192 kHz) in Settings › Playback.
+4. Set Dolby Atmos to Headphones or Speakers: songs with a Dolby Atmos version then play as Apple's rendering of it for headphones (heard in space only through headphones, without head tracking), or as Dolby's mix of it down to stereo. Both are 256 kbps AAC, so those songs no longer play lossless. Ringo plays stereo only, and doesn't decode the 5.1 bed.
 
-Without a wrapper, or where a song has no lossless audio, it plays as AAC. Anyone who can reach the wrapper's port can use the accounts it holds: don't expose one without a key to the internet.
+Without a wrapper, or where a song has none of what's asked, it plays as 256 kbps AAC. Anyone who can reach the wrapper's port can use the accounts it holds: don't expose one without a key to the internet.
 
 ## Building
 
@@ -92,4 +93,5 @@ The apps land in `build/`: a `.app` and a `.dmg` for macOS, an `.exe` and an ins
 - The player and the base of the interface come from [MyGo Music](https://github.com/egoist/mygo-music) (AGPL-3.0); the UI framework is [MyGo](https://github.com/egoist/mygo).
 - The Apple Music code is a port of [mygo-music-apple-music](https://github.com/LYJW131/mygo-music-apple-music); its lossless part builds on [apple-music-downloader](https://github.com/AMDL-Web/apple-music-downloader), [wrapper](https://github.com/WorldObservationLog/wrapper) and [Temari](https://github.com/WorldObservationLog/Temari).
 - Covers that move are decoded by [FFmpeg](https://ffmpeg.org)'s H.264 decoder (LGPL-2.1 or later), built as WebAssembly and run by [wazero](https://wazero.io) (Apache-2.0); `internal/video/wasm/build.sh` rebuilds it from sources at pinned versions.
+- High Efficiency's HE-AAC is decoded by FFmpeg's AAC decoder (LGPL-2.1 or later), built as WebAssembly and run by wazero too; `internal/heaac/wasm/build.sh` rebuilds it from sources at pinned versions.
 - The brand is described in [brand/README.md](brand/README.md). Ringo's name and mark use none of Apple's trademarks; Apple Music is a trademark of Apple Inc.

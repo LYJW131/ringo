@@ -372,7 +372,9 @@ func TestLyricsFillATallWindow(t *testing.T) {
 }
 
 // The badge of what plays says Hi-Res Lossless past 48 kHz and Lossless up
-// to it, in Now Playing and the player bar, and AAC has none.
+// to it, and Dolby Atmos of either stereo version of a song's Dolby Atmos
+// mix, in Now Playing and the player bar; the other AAC, High Efficiency's
+// too, has none.
 func TestQualityBadgeByRate(t *testing.T) {
 	for _, c := range []struct {
 		st   *music.Stream
@@ -384,6 +386,9 @@ func TestQualityBadgeByRate(t *testing.T) {
 		{&music.Stream{Quality: "hires", SampleRate: 44100, BitDepth: 16}, "Lossless"},
 		{&music.Stream{Quality: "hires", SampleRate: 192000, BitDepth: 24}, "Hi-Res Lossless"},
 		{&music.Stream{Quality: "high", Type: "m4a"}, ""},
+		{&music.Stream{Quality: "efficient", Type: "m4a", BitRate: 64000}, ""},
+		{&music.Stream{Quality: "atmos-binaural", BitRate: 256000}, "Dolby Atmos"},
+		{&music.Stream{Quality: "atmos-downmix", BitRate: 256000}, "Dolby Atmos"},
 	} {
 		for _, np := range []bool{false, true} {
 			a := newTestApp()
@@ -394,7 +399,7 @@ func TestQualityBadgeByRate(t *testing.T) {
 			tt.Frame()
 			tt.Advance(time.Second)
 			tt.Frame()
-			for _, label := range []string{"Hi-Res Lossless", "Lossless"} {
+			for _, label := range []string{"Hi-Res Lossless", "Lossless", "Dolby Atmos"} {
 				if _, ok := tt.Find(label); ok != (label == c.want) {
 					t.Errorf("%+v, Now Playing %v: %q shows %v", c.st, np, label, ok)
 				}
@@ -402,6 +407,12 @@ func TestQualityBadgeByRate(t *testing.T) {
 		}
 	}
 	if got := streamSpec(&music.Stream{Quality: "lossless", SampleRate: 88200, BitDepth: 24}); got != "24-bit/88.2 kHz ALAC" {
+		t.Errorf("spec %q", got)
+	}
+	if got := streamSpec(&music.Stream{Quality: "atmos-binaural", BitRate: 256000}); got != "Binaural rendering · AAC · 256 kbps" {
+		t.Errorf("spec %q", got)
+	}
+	if got := streamSpec(&music.Stream{Quality: "atmos-downmix", BitRate: 256000}); got != "Stereo downmix · AAC · 256 kbps" {
 		t.Errorf("spec %q", got)
 	}
 }

@@ -386,14 +386,22 @@ type Link struct {
 type Stream struct {
 	URL  string `json:"url"`
 	Type string `json:"type"` // m4a: ALAC or AAC in an MP4
-	// Quality is the level of Qualities that the stream satisfies, which is
-	// the one it was asked for when it plays as that, or "high" where it fell
-	// back to AAC: a song asked for at Hi-Res Lossless is "hires" even if it
-	// only has 44.1 kHz. The cache keeps a song under it, and offers it for
-	// that level and the ones below, so a song kept as "hires" serves a
-	// request for "lossless" too, and not the other way round.
+	// Quality says what the stream is. Played as a level of Qualities, it's
+	// the level it satisfies: the one asked for when it plays as that, or
+	// "high" where it fell back to AAC, so that a song asked for at Hi-Res
+	// Lossless is "hires" even if it only has 44.1 kHz. The cache keeps a
+	// song under it, and offers it for that level and the ones below, so a
+	// song kept as "hires" serves a request for "lossless" too, and not the
+	// other way round. Played as its Dolby Atmos version, it's one of
+	// AtmosQualities, kept apart: the cache offers it only when that very
+	// version is asked for (Ask), and it serves no level.
 	Quality string `json:"quality,omitempty"`
-	BitRate int    `json:"bitRate,omitempty"`
+	// NoAtmos says the song was asked for with Dolby Atmos on, and has no
+	// Dolby Atmos version: it plays at the level asked, and, kept, serves a
+	// request with Dolby Atmos on as well as one without. One kept without
+	// it serves only a request without, as it may have that version.
+	NoAtmos bool `json:"noAtmos,omitempty"`
+	BitRate int  `json:"bitRate,omitempty"`
 	// SampleRate, in Hz, and BitDepth are the lossless audio's, where the
 	// source knows them: 0 where it doesn't, as of AAC.
 	SampleRate int     `json:"sampleRate,omitempty"`
@@ -478,12 +486,56 @@ func Reason(err error) string {
 }
 
 // Qualities are the levels of audio the listener can ask a source for, worst
-// first, as Apple Music names them: High Quality (AAC, 256 kbps), Lossless
-// (ALAC, up to 24-bit/48 kHz) and Hi-Res Lossless (ALAC, up to 24-bit/192 kHz).
-var Qualities = []string{"high", "lossless", "hires"}
+// first, as Apple Music names them: High Efficiency (HE-AAC, 64 kbps), High
+// Quality (AAC, 256 kbps), Lossless (ALAC, up to 24-bit/48 kHz) and Hi-Res
+// Lossless (ALAC, up to 24-bit/192 kHz).
+var Qualities = []string{"efficient", "high", "lossless", "hires"}
 
 // IsLossless says whether a quality is one of the ALAC levels.
 func IsLossless(quality string) bool { return quality == "lossless" || quality == "hires" }
+
+// How a song that has a Dolby Atmos version plays, a setting apart from the
+// level: not as that version (AtmosOff), or as one of its two stereo
+// versions, Apple's rendering of it for headphones, or Dolby's mix of it
+// down to stereo, for speakers. Songs without one play at the level.
+const (
+	AtmosOff        = ""
+	AtmosHeadphones = "headphones"
+	AtmosSpeakers   = "speakers"
+)
+
+// AtmosQualities are what a stream of a song's Dolby Atmos version is
+// (Stream.Quality), by the setting it was asked with: AAC, 256 kbps, each.
+var AtmosQualities = map[string]string{
+	AtmosHeadphones: "atmos-binaural",
+	AtmosSpeakers:   "atmos-downmix",
+}
+
+// IsAtmos says whether a quality is one of AtmosQualities.
+func IsAtmos(quality string) bool {
+	return quality == AtmosQualities[AtmosHeadphones] || quality == AtmosQualities[AtmosSpeakers]
+}
+
+// Ask joins a level and how a song with a Dolby Atmos version plays into
+// what the app asks a source for (Source.Stream's quality, and what the
+// player's cache is asked): the level alone with Atmos off, or the level and
+// the setting, as "hires+headphones". SplitAsk takes one apart.
+func Ask(level, atmos string) string {
+	if atmos == AtmosOff {
+		return level
+	}
+	return level + "+" + atmos
+}
+
+// SplitAsk is the level and the Dolby Atmos setting an Ask joined; an Atmos
+// setting it doesn't know is off.
+func SplitAsk(ask string) (level, atmos string) {
+	level, atmos, _ = strings.Cut(ask, "+")
+	if _, ok := AtmosQualities[atmos]; !ok {
+		atmos = AtmosOff
+	}
+	return level, atmos
+}
 
 // RepeatMode is whether the queue plays again, as the player keeps it.
 type RepeatMode int

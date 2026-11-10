@@ -106,6 +106,8 @@ func (s *store) dropKey(uri string) {
 type keptTrack struct {
 	MediaURL   string    `json:"media"`
 	Keys       []string  `json:"keys"`
+	Codec      string    `json:"codec,omitempty"`
+	BitRate    int       `json:"bitRate,omitempty"`
 	SampleRate int       `json:"rate"`
 	BitDepth   int       `json:"bits"`
 	Bandwidth  int       `json:"bandwidth"`
@@ -129,7 +131,12 @@ func (s *store) tracks() map[string]cachedTrack {
 	}
 	for k, t := range kept {
 		if time.Since(t.At) < trackTTL && t.MediaURL != "" && len(t.Keys) > 0 {
-			out[k] = cachedTrack{track{MediaURL: t.MediaURL, Keys: t.Keys, SampleRate: t.SampleRate, BitDepth: t.BitDepth, Bandwidth: t.Bandwidth, Seconds: t.Seconds}, t.At}
+			// Those kept before there were other kinds are all ALAC.
+			codec := t.Codec
+			if codec == "" {
+				codec = "alac"
+			}
+			out[k] = cachedTrack{track{MediaURL: t.MediaURL, Keys: t.Keys, Codec: codec, BitRate: t.BitRate, SampleRate: t.SampleRate, BitDepth: t.BitDepth, Bandwidth: t.Bandwidth, Seconds: t.Seconds}, t.At}
 		}
 	}
 	return out
@@ -153,7 +160,7 @@ func (s *store) saveTracks(all func() map[string]cachedTrack) {
 		s.mu.Unlock()
 		kept := map[string]keptTrack{}
 		for k, c := range all() {
-			kept[k] = keptTrack{c.t.MediaURL, c.t.Keys, c.t.SampleRate, c.t.BitDepth, c.t.Bandwidth, c.t.Seconds, c.at}
+			kept[k] = keptTrack{c.t.MediaURL, c.t.Keys, c.t.Codec, c.t.BitRate, c.t.SampleRate, c.t.BitDepth, c.t.Bandwidth, c.t.Seconds, c.at}
 		}
 		raw, err := json.Marshal(kept)
 		if err == nil {

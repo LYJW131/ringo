@@ -3,7 +3,9 @@
 // 127.0.0.1, where the player fetches them. The AAC the applemusic package gets
 // the key of itself (aac.go). The ALAC it asks a wrapper for: the playlist and
 // the key templates. It also keeps the covers of the listener's own playlists
-// (cover.go), and fetches the songs they uploaded (upload.go).
+// (cover.go), and fetches the songs they uploaded (upload.go). Through the wrapper too
+// come the other kinds of a song's audio: HE-AAC, and the two stereo
+// versions of its Dolby Atmos mix (hls.go's kinds).
 //
 // Start listens on 127.0.0.1 under a random secret and serves until Close;
 // Base is the address to call, http://127.0.0.1:<port>/<secret>:
@@ -21,7 +23,9 @@
 //	GET <base>/prepare/<id>         resolves the song and fetches its keys
 //	GET <base>/song/<id>.m4a        the song's ALAC, decrypted, as fragmented MP4
 //
-// find, prepare and song take maxRate and maxBits, limits on the variant chosen;
+// find, prepare and song take kind, what of the song's audio: ALAC when
+// left out, or binaural, downmix or he (hls.go); maxRate and maxBits,
+// limits on the ALAC chosen;
 // ahead=1, for a song worked out before it's played, which waits behind the
 // songs played (queue.go);
 // and master, the song's master playlist as Apple's catalog lists it
@@ -30,7 +34,7 @@
 // device playlist first, which lists the 88.2, 96 and 192 kHz ALAC that the
 // catalog's sometimes leaves out, and falls back to master. prepare answers
 // the variant and how long each step took. Errors are {code, message}: code
-// "noALAC" when the song has none, "account" when the wrapper doesn't hold
+// "noAudio" when the song has none of the kind, "account" when the wrapper doesn't hold
 // the account named, "wrapper" when the wrapper failed or there is none.
 package amhelper
 
@@ -227,16 +231,20 @@ type request struct {
 	ahead            bool   // worked out before it's played
 	master           string // the catalog's master playlist, if the caller has it
 	device           bool   // ask the wrapper for its playlist first
+	kind             string // what of its audio (hls.go's kinds)
 	maxRate, maxBits int
 }
 
 func parseRequest(r *http.Request, id string) (request, error) {
 	q := r.URL.Query()
-	req := request{id: id, master: q.Get("master"), device: q.Get("device") == "1", ahead: q.Get("ahead") == "1"}
+	req := request{id: id, master: q.Get("master"), device: q.Get("device") == "1", ahead: q.Get("ahead") == "1", kind: q.Get("kind")}
 	req.maxRate, _ = strconv.Atoi(q.Get("maxRate"))
 	req.maxBits, _ = strconv.Atoi(q.Get("maxBits"))
 	if !catalogID(id) {
 		return req, errors.New("not a catalog ID")
+	}
+	if !knownKind(req.kind) {
+		return req, errors.New("not a kind of audio")
 	}
 	if req.master != "" && !appleURL(req.master) {
 		return req, errors.New("not one of Apple's playlists")
@@ -342,7 +350,11 @@ func (s *server) resolve(ctx context.Context, req request, tm *timings) (track, 
 }
 
 func (r request) cacheKey() string {
-	return fmt.Sprintf("%s/%d/%d/%t", r.id, r.maxRate, r.maxBits, r.device || r.master == "")
+	key := fmt.Sprintf("%s/%d/%d/%t", r.id, r.maxRate, r.maxBits, r.device || r.master == "")
+	if r.kind != kindALAC {
+		key += "/" + r.kind
+	}
+	return key
 }
 
 func (s *server) allTracks() map[string]cachedTrack {
@@ -376,7 +388,7 @@ func (s *server) find(ctx context.Context, req request, tm *timings) (track, err
 		}
 	}
 	tm.Source = source
-	return resolveTrack(ctx, s.cdn, master, req.maxRate, req.maxBits, tm)
+	return resolveTrack(ctx, s.cdn, master, req.kind, req.maxRate, req.maxBits, tm)
 }
 
 // findOnly reads the song's playlists from Apple, and keeps what they say, but
@@ -423,8 +435,8 @@ func (s *server) prepare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tm.Keys = time.Since(start).Milliseconds()
-	log.Printf("amhelper: prepare %s%s: %d Hz / %d bit from the %s's playlist; m3u8 %dms, master %dms, media %dms, keys %dms",
-		req.id, map[bool]string{true: " (ahead)"}[req.ahead], t.SampleRate, t.BitDepth, tm.Source, tm.M3U8, tm.Master, tm.Media, tm.Keys)
+	log.Printf("amhelper: prepare %s%s: %s from the %s's playlist; m3u8 %dms, master %dms, media %dms, keys %dms",
+		req.id, map[bool]string{true: " (ahead)"}[req.ahead], t.describe(), tm.Source, tm.M3U8, tm.Master, tm.Media, tm.Keys)
 	reply(w, http.StatusOK, struct {
 		track
 		Timings timings `json:"timings"`
@@ -519,7 +531,7 @@ func (s *server) song(w http.ResponseWriter, r *http.Request) {
 			keys[i] = k
 		}
 		return fairplayKey{keys[i]}, nil
-	}, streamOptions{seconds: t.Seconds, check: decryptsALAC, flush: func() {
+	}, streamOptions{seconds: t.Seconds, check: decrypts(t.Codec), flush: func() {
 		if flusher != nil {
 			flusher.Flush()
 		}
@@ -535,8 +547,8 @@ func (s *server) song(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == nil {
 		ms := func(d time.Duration) int64 { return d.Milliseconds() }
-		log.Printf("amhelper: song %s: %d Hz / %d bit; keys ready %dms, Apple's headers %dms, first audio %dms, all %dms",
-			id, t.SampleRate, t.BitDepth, ms(ready), ms(headers), ms(firstAudio), ms(time.Since(start)))
+		log.Printf("amhelper: song %s: %s; keys ready %dms, Apple's headers %dms, first audio %dms, all %dms",
+			id, t.describe(), ms(ready), ms(headers), ms(firstAudio), ms(time.Since(start)))
 	}
 }
 
@@ -562,8 +574,8 @@ func fail(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, errAccount):
 		reply(w, http.StatusNotFound, errorBody{"account", strings.TrimPrefix(err.Error(), errAccount.Error()+": ")})
-	case errors.Is(err, errNoALAC):
-		reply(w, http.StatusNotFound, errorBody{"noALAC", err.Error()})
+	case errors.Is(err, errNoAudio):
+		reply(w, http.StatusNotFound, errorBody{"noAudio", err.Error()})
 	case errors.Is(err, errWrapper), errors.As(err, &re):
 		reply(w, http.StatusBadGateway, errorBody{"wrapper", err.Error()})
 	default:

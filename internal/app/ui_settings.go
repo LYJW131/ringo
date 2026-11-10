@@ -480,27 +480,56 @@ func (a *app) settingsPages(c *ui.Context, p palette) []settingsPage {
 	playback := settingsPage{id: "playback", title: T("Playback"), icon: iconVolume}
 	playback.groups = append(playback.groups, settingsGroup{T("Audio Quality"), func(row settingsRow, block settingsBlock) {
 		desc := T("AAC, 256 kbps. From the next song on")
-		if music.IsLossless(s.quality()) {
-			if s.quality() == "hires" {
-				desc = T("ALAC, up to 24-bit/192 kHz. From the next song on")
-			} else {
-				desc = T("ALAC, up to 24-bit/48 kHz. From the next song on")
-			}
-			if strings.TrimSpace(a.library.src.Setting("wrapper")) == "" {
-				desc += "\n" + T("Lossless and Hi-Res Lossless play through a wrapper. Until its address is filled in below, songs play in High Quality.")
-			}
+		switch s.level() {
+		case "efficient":
+			desc = T("HE-AAC, 64 kbps. From the next song on")
+		case "lossless":
+			desc = T("ALAC, up to 24-bit/48 kHz. From the next song on")
+		case "hires":
+			desc = T("ALAC, up to 24-bit/192 kHz. From the next song on")
+		}
+		noWrapper := strings.TrimSpace(a.library.src.Setting("wrapper")) == ""
+		if s.level() != "high" && noWrapper {
+			desc += "\n" + T("High Efficiency, Lossless and Hi-Res Lossless play through a wrapper. Until its address is filled in below, songs play in High Quality.")
 		}
 		row(T("Streaming"), desc, func() {
 			labels := make([]string, len(qualityLevels))
 			at := 0
 			for i, q := range qualityLevels {
 				labels[i] = q.label
-				if q.level == s.quality() {
+				if q.level == s.level() {
 					at = i
 				}
 			}
 			if i, ok := choice(c, "quality", T("Streaming"), labels, at); ok {
 				s.Quality = qualityLevels[i].level
+				a.changed()
+			}
+		})
+		atmosDesc := T("Songs with a Dolby Atmos version play as Streaming is set.")
+		switch s.atmos() {
+		case music.AtmosHeadphones:
+			atmosDesc = T("Songs with a Dolby Atmos version play as Apple renders it for headphones: heard in space only through headphones, and not following your head.")
+		case music.AtmosSpeakers:
+			atmosDesc = T("Songs with a Dolby Atmos version play as Dolby mixes it down to stereo, for speakers.")
+		}
+		if s.atmos() != music.AtmosOff {
+			atmosDesc = Tf("%s These versions are AAC, 256 kbps, so those songs no longer play lossless.", atmosDesc)
+			if noWrapper {
+				atmosDesc += "\n" + T("Dolby Atmos plays through a wrapper. Until its address is filled in below, songs play as Streaming is set.")
+			}
+		}
+		row(T("Dolby Atmos"), atmosDesc, func() {
+			labels := make([]string, len(atmosModes))
+			at := 0
+			for i, m := range atmosModes {
+				labels[i] = m.label
+				if m.mode == s.atmos() || (m.mode == "off" && s.atmos() == music.AtmosOff) {
+					at = i
+				}
+			}
+			if i, ok := choice(c, "atmos", T("Dolby Atmos"), labels, at); ok {
+				s.Atmos = atmosModes[i].mode
 				a.changed()
 			}
 		})

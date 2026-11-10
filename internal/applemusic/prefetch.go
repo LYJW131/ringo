@@ -16,15 +16,18 @@ import (
 // open, so that the song they pick next starts sooner.
 const warmEvery = 40 * time.Second
 
-// losslessTier is the level songs play at and whether that's lossless: the
-// app last asked for Lossless or Hi-Res Lossless and there's a wrapper to ask.
-func (s *Source) losslessTier() (string, bool) {
-	q := s.wantedQuality()
-	return q, music.IsLossless(q) && s.hasWrapper()
+// wrapperTier is what the app last asked for (music.Ask), and whether songs
+// may play through the wrapper at that: at a level other than High Quality,
+// or with Dolby Atmos on, and with a wrapper to ask.
+func (s *Source) wrapperTier() (string, bool) {
+	ask := s.wantedQuality()
+	level, atmos := music.SplitAsk(ask)
+	return ask, (viaWrapper(level) || atmos != music.AtmosOff) && s.hasWrapper()
 }
 
-func (s *Source) lossless() bool {
-	_, ok := s.losslessTier()
+// throughWrapper says whether songs may play through the wrapper (wrapperTier).
+func (s *Source) throughWrapper() bool {
+	_, ok := s.wrapperTier()
 	return ok
 }
 
@@ -36,9 +39,9 @@ func (s *Source) lossless() bool {
 // as playing: few are longer.
 const playingFor = 10 * time.Minute
 
-// wake wakes the wrapper while the listener is about, when songs play lossless and none is playing.
+// wake wakes the wrapper while the listener is about, when songs play through it and none is playing.
 func (s *Source) wake() {
-	if !s.lossless() {
+	if !s.throughWrapper() {
 		return
 	}
 	s.pfMu.Lock()
@@ -162,7 +165,7 @@ func (s *Source) heard() {
 // playing is the app asking for a song to play.
 func (s *Source) playing(id string) {
 	s.heard()
-	if !s.lossless() {
+	if !s.throughWrapper() {
 		return
 	}
 	s.pfMu.Lock()
@@ -184,7 +187,7 @@ func (s *Source) playing(id string) {
 }
 
 func (s *Source) warm() {
-	if s.lossless() {
+	if s.throughWrapper() {
 		s.warmLossless()
 	}
 	if !s.signedIn() {
@@ -235,19 +238,21 @@ const (
 )
 
 func (s *Source) ready(id string) bool {
-	if s.lossless() {
-		return s.preparedOrPreparing(id, s.wantedQuality())
+	if ask, ok := s.wrapperTier(); ok {
+		if quality := s.playsAsKnown(id, ask); viaWrapper(quality) {
+			return s.preparedOrPreparing(id, quality)
+		}
 	}
 	return s.resolvedOrResolving(id)
 }
 
 func (s *Source) prefetch(tracks []music.Track, r *run) {
 	all := s.listed(tracks, r)
-	lossless := s.lossless()
-	if !lossless && !s.signedIn() {
+	wrapped := s.throughWrapper()
+	if !wrapped && !s.signedIn() {
 		return
 	}
-	if lossless {
+	if wrapped {
 		page := all[:min(foundOnPage, len(all))]
 		s.spawn(func() {
 			s.learnAudio(page)
@@ -280,7 +285,7 @@ func (s *Source) stationSongs(station string, tracks []music.Track) {
 	s.stationAt.trim(runsMost)
 	s.pfMu.Unlock()
 	fresh := s.listed(tracks, &run{key: "station:" + station, start: start})
-	if s.lossless() {
+	if s.throughWrapper() {
 		s.spawn(func() {
 			s.learnAudio(fresh)
 			s.enqueue(fresh)
@@ -373,8 +378,12 @@ func (s *Source) pump() {
 		s.pfMu.Lock()
 		s.startedAt = append(s.startedAt, s.clk.Now())
 		s.pfMu.Unlock()
-		if tier, ok := s.losslessTier(); ok {
-			s.prepare(id, tier, true)
+		quality := "high"
+		if ask, ok := s.wrapperTier(); ok {
+			quality = s.playsAsKnown(id, ask)
+		}
+		if viaWrapper(quality) {
+			s.prepare(id, quality, true)
 		} else if s.signedIn() {
 			s.resolve(id)
 		}

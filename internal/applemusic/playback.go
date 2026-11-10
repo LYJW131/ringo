@@ -453,8 +453,8 @@ func (s *Source) viaHelper(base, id string, song *resolved) (string, error) {
 	return base + "/aac/" + id + ".m4a", nil
 }
 
-// wantedQuality is the quality the app asked for last, kept: what the songs
-// played next, and those worked out ahead, will want.
+// wantedQuality is what the app asked for last (music.Ask), kept: what the
+// songs played next, and those worked out ahead, will want.
 func (s *Source) wantedQuality() string {
 	s.qualityMu.Lock()
 	defer s.qualityMu.Unlock()
@@ -479,13 +479,30 @@ func (s *Source) stream(id, quality string) (*music.Stream, error) {
 		s.qualityMu.Unlock()
 		s.storage.set(qualityKey, quality)
 	}
-	if music.IsLossless(quality) {
-		lossless, err := s.losslessStream(id, quality)
+	level, atmos := music.SplitAsk(quality)
+	// With Dolby Atmos on, whether the song has a version of it, which a
+	// song without says, for the cache (music.Stream.NoAtmos).
+	var a *audioInfo
+	if atmos != music.AtmosOff {
+		a, _ = s.audioOf(id)
+	}
+	st, err := s.streamAs(id, quality, level, a)
+	if st != nil && a != nil && !a.atmos {
+		st.NoAtmos = true
+	}
+	return st, err
+}
+
+// streamAs is the song as asked: through the wrapper, unless it plays as
+// the web player's AAC.
+func (s *Source) streamAs(id, ask, level string, a *audioInfo) (*music.Stream, error) {
+	if viaWrapper(playsAs(a, ask)) || viaWrapper(level) {
+		st, err := s.wrapperStream(id, ask, a)
 		if err != nil {
 			return nil, err
 		}
-		if lossless != nil {
-			return lossless, nil
+		if st != nil {
+			return st, nil
 		}
 	}
 	if err := s.needAccount(); err != nil {

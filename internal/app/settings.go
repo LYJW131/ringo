@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo"
 
 	"mygo-music/internal/i18n"
+	"mygo-music/internal/music"
 )
 
 // settings are the listener's choices, kept in settings.json in the user
@@ -28,9 +29,13 @@ type settings struct {
 	// NotchGreeted says the notch showed itself, once, as the first song
 	// played (greet).
 	NotchGreeted bool `json:"notchGreeted"`
-	// Quality is what's asked of sources: high, lossless or hires. One that
-	// isn't a level any more reads as high (quality).
+	// Quality is the level asked of sources: efficient, high, lossless or
+	// hires. One that isn't a level any more reads as high (level).
 	Quality string `json:"quality"`
+	// Atmos is how a song with a Dolby Atmos version plays (atmosModes):
+	// off, or as its stereo version for headphones or for speakers. Apart
+	// from Quality, which songs without one play at.
+	Atmos string `json:"atmos,omitempty"`
 	// Appearance is light, dark, or system to follow the system.
 	Appearance string `json:"appearance"`
 	// GrowFromCover opens Now Playing out of the player bar's cover, and
@@ -138,21 +143,43 @@ func (s settings) applyAppearance() {
 
 // qualityLevels are what can be asked of sources, by Apple Music's names.
 var qualityLevels = []struct{ level, label string }{
+	{"efficient", N("High Efficiency")},
 	{"high", N("High Quality")},
 	{"lossless", N("Lossless")},
 	{"hires", N("Hi-Res Lossless")},
 }
 
-// quality is the level asked of sources: one the settings keep that isn't a
+// level is the level asked of sources: one the settings keep that isn't a
 // level any more asks for high.
-func (s settings) quality() string {
+func (s settings) level() string {
 	for _, q := range qualityLevels {
 		if q.level == s.Quality {
 			return q.level
 		}
 	}
-	return qualityLevels[0].level
+	return "high"
 }
+
+// atmosModes are how a song with a Dolby Atmos version can play: the
+// settings keep "off" for music.AtmosOff.
+var atmosModes = []struct{ mode, label string }{
+	{"off", N("Off")},
+	{music.AtmosHeadphones, N("Headphones")},
+	{music.AtmosSpeakers, N("Speakers")},
+}
+
+// atmos is how a song with a Dolby Atmos version plays, music.AtmosOff for
+// anything the settings keep that isn't a mode.
+func (s settings) atmos() string {
+	if s.Atmos == music.AtmosHeadphones || s.Atmos == music.AtmosSpeakers {
+		return s.Atmos
+	}
+	return music.AtmosOff
+}
+
+// quality is what's asked of sources (music.Ask): the level, and how songs
+// with a Dolby Atmos version play.
+func (s settings) quality() string { return music.Ask(s.level(), s.atmos()) }
 
 // cacheLimits are the sizes the song cache may take, in megabytes.
 var cacheLimits = []struct {

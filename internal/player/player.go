@@ -36,7 +36,8 @@ type Player struct {
 	// Failed, if set, hears that a source said the listener has something to
 	// do first, ErrSignIn or ErrSetup, of a song they asked to play.
 	Failed func(source string, err error)
-	// Quality returns the quality to ask sources for, as the settings say.
+	// Quality returns what to ask sources for, as the settings say: a
+	// music.Ask, of a level and how songs with Dolby Atmos play.
 	Quality func() string
 	// Normalize reports whether to even out the loudness of tracks, as
 	// the settings say.
@@ -814,7 +815,7 @@ func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duratio
 
 	p.loadCover(gen, &t)
 	p.loadLyrics(gen, src, t)
-	quality := music.Qualities[0]
+	quality := "high"
 	if p.Quality != nil {
 		quality = p.Quality()
 	}

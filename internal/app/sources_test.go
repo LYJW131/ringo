@@ -891,6 +891,39 @@ func TestSettingsSidebarOpensPages(t *testing.T) {
 	}
 }
 
+// Dolby Atmos is a setting of its own beside Streaming: choosing it for
+// headphones, then High Efficiency, asks the songs played next for both,
+// and turning it off again for the level alone.
+func TestDolbyAtmosSettingAsksForItsVersion(t *testing.T) {
+	a := newTestApp()
+	a.settingsPage = "playback"
+	tt := ui.NewTester(a.settingsView, 780, 900)
+	tt.Frame()
+	choose := func(shown, option string) {
+		t.Helper()
+		if err := tt.Click(shown); err != nil {
+			t.Fatal(err)
+		}
+		settled(tt)
+		if err := tt.Click(option); err != nil {
+			t.Fatal(err)
+		}
+		settled(tt)
+	}
+	choose("Off", "Headphones")
+	if got := a.settings.quality(); got != music.Ask("high", music.AtmosHeadphones) {
+		t.Fatalf("asks for %q", got)
+	}
+	choose("High Quality", "High Efficiency")
+	if got := a.settings.quality(); got != music.Ask("efficient", music.AtmosHeadphones) {
+		t.Fatalf("asks for %q", got)
+	}
+	choose("Headphones", "Off")
+	if got := a.settings.quality(); got != "efficient" {
+		t.Fatalf("asks for %q", got)
+	}
+}
+
 // A search finds settings across the pages, and only those; one that finds
 // nothing says so; and choosing a page leaves it.
 func TestSettingsSearch(t *testing.T) {

@@ -52,13 +52,27 @@ var songTypes = []string{"m4a"}
 // keepable reports whether a song of quality and type ext may be kept: they
 // name its file, so only those known, which keep it in the cache's folder.
 func keepable(quality, ext string) bool {
-	return slices.Contains(music.Qualities, quality) && slices.Contains(songTypes, ext)
+	return (slices.Contains(music.Qualities, quality) || music.IsAtmos(quality)) && slices.Contains(songTypes, ext)
 }
 
-// lookup returns a song kept at quality or a better one, open to read, with
-// its stream.
-func (c *Cache) lookup(source, id, quality string) (*download, *music.Stream, bool) {
-	f, st, ok := c.find(source, id, quality)
+// What the cache is asked for is an Ask: a level, and maybe how a song with a
+// Dolby Atmos version plays. Its songs are each kept under what the stream
+// was (music.Stream.Quality), and found by these rules:
+//
+//   - A level is served by a song kept at it or a better level, as Hi-Res
+//     Lossless serves Lossless.
+//   - With Dolby Atmos on, the song's Dolby Atmos version as that setting
+//     plays it comes first: Apple's binaural rendering for headphones, or
+//     Dolby's downmix for speakers, never the one for the other, as they
+//     sound nothing alike.
+//   - After it, a song kept at a level serves only if it says the song has
+//     no Dolby Atmos version (NoAtmos): one kept with Dolby Atmos off may
+//     have one, which the listener now wants instead.
+//   - A Dolby Atmos version serves no level: it's AAC, and another mix.
+
+// lookup returns a song kept as ask wants it, open to read, with its stream.
+func (c *Cache) lookup(source, id, ask string) (*download, *music.Stream, bool) {
+	f, st, ok := c.find(source, id, ask)
 	if !ok {
 		return nil, nil, false
 	}
@@ -68,55 +82,73 @@ func (c *Cache) lookup(source, id, quality string) (*download, *music.Stream, bo
 	return opened(f, st.Size), st, true
 }
 
-// has reports whether a song is kept at quality or a better one.
-func (c *Cache) has(source, id, quality string) bool {
-	f, _, ok := c.find(source, id, quality)
+// has reports whether a song is kept as ask wants it.
+func (c *Cache) has(source, id, ask string) bool {
+	f, _, ok := c.find(source, id, ask)
 	if ok {
 		f.Close()
 	}
 	return ok
 }
 
-// find opens a song kept at quality or a better one, all of it there, with its
-// stream.
-func (c *Cache) find(source, id, quality string) (*os.File, *music.Stream, bool) {
+// find opens a song kept as ask wants it, all of it there, with its stream.
+func (c *Cache) find(source, id, ask string) (*os.File, *music.Stream, bool) {
 	if c == nil {
 		return nil, nil, false
 	}
-	at := max(slices.Index(music.Qualities, quality), 0)
+	level, atmos := music.SplitAsk(ask)
+	if atmos != music.AtmosOff {
+		if f, st, ok := c.open(source, id, music.AtmosQualities[atmos]); ok {
+			return f, st, true
+		}
+	}
+	at := max(slices.Index(music.Qualities, level), 0)
 	for _, q := range music.Qualities[at:] {
-		key := cacheKey(source, id, q)
-		meta, err := os.ReadFile(filepath.Join(c.dir, key+".json"))
-		if err != nil {
+		f, st, ok := c.open(source, id, q)
+		if !ok {
 			continue
 		}
-		var st music.Stream
-		if json.Unmarshal(meta, &st) != nil || !keepable(q, st.Type) {
-			continue
-		}
-		f, err := os.Open(filepath.Join(c.dir, key+"."+st.Type))
-		if err != nil {
-			continue
-		}
-		if info, err := f.Stat(); err != nil || info.Size() != st.Size {
+		if atmos != music.AtmosOff && !st.NoAtmos {
 			f.Close()
 			continue
 		}
-		return f, &st, true
+		return f, st, true
 	}
 	return nil, nil, false
 }
 
-// download fetches the song of the stream st, asked for at quality, into a
+// open opens the song kept under quality, all of it there, with its stream.
+func (c *Cache) open(source, id, quality string) (*os.File, *music.Stream, bool) {
+	key := cacheKey(source, id, quality)
+	meta, err := os.ReadFile(filepath.Join(c.dir, key+".json"))
+	if err != nil {
+		return nil, nil, false
+	}
+	var st music.Stream
+	if json.Unmarshal(meta, &st) != nil || !keepable(quality, st.Type) {
+		return nil, nil, false
+	}
+	f, err := os.Open(filepath.Join(c.dir, key+"."+st.Type))
+	if err != nil {
+		return nil, nil, false
+	}
+	if info, err := f.Stat(); err != nil || info.Size() != st.Size {
+		f.Close()
+		return nil, nil, false
+	}
+	return f, &st, true
+}
+
+// download fetches the song of the stream st, asked for as ask, into a
 // file, to keep once it has all come in; or into memory, if the cache would
 // not keep it.
-func (c *Cache) download(source, id, quality string, st *music.Stream) *download {
+func (c *Cache) download(source, id, ask string, st *music.Stream) *download {
 	part := c.part(st)
 	if part == nil {
 		return startDownload(st.URL, st.Size, nil, nil)
 	}
 	return startDownload(st.URL, st.Size, part, func(path string, n int64) (string, bool) {
-		return c.keep(source, id, quality, st, path, n)
+		return c.keep(source, id, ask, st, path, n)
 	})
 }
 
@@ -145,10 +177,10 @@ func (c *Cache) part(st *music.Stream) *os.File {
 }
 
 // keep keeps the song of the stream st, n bytes, from the file part, which
-// is closed, and drops what is over the limit then. It's kept at the quality
-// the source says it is, or else the one asked for. It returns where the song
-// is: kept, or still at part.
-func (c *Cache) keep(source, id, quality string, st *music.Stream, part string, n int64) (string, bool) {
+// is closed, and drops what is over the limit then. It's kept under the
+// quality the source says it is, or else the level asked for. It returns
+// where the song is: kept, or still at part.
+func (c *Cache) keep(source, id, ask string, st *music.Stream, part string, n int64) (string, bool) {
 	c.mu.Lock()
 	limit := c.limit
 	c.mu.Unlock()
@@ -162,7 +194,8 @@ func (c *Cache) keep(source, id, quality string, st *music.Stream, part string, 
 	kept.Size = n
 	// The URL is of no use once it's here, and a source may sign it.
 	kept.URL = ""
-	if slices.Contains(music.Qualities, kept.Quality) {
+	quality, _ := music.SplitAsk(ask)
+	if keepable(kept.Quality, kept.Type) {
 		quality = kept.Quality
 	}
 	if !keepable(quality, kept.Type) {

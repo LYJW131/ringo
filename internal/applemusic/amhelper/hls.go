@@ -11,26 +11,75 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// track is one song's ALAC: the encrypted file and the keys of its sample
-// descriptions, in order.
+// track is one song's audio, as a variant of its master playlist: the
+// encrypted file and the keys of its sample descriptions, in order.
 type track struct {
-	MediaURL   string   `json:"-"`
-	Keys       []string `json:"-"`
-	SampleRate int      `json:"sampleRate"`
-	BitDepth   int      `json:"bitDepth"`
-	Bandwidth  int      `json:"bandwidth"`
+	MediaURL string   `json:"-"`
+	Keys     []string `json:"-"`
+	// Codec is what the samples are: "alac", or "aac" for every other kind,
+	// HE-AAC among them. It says how a key decrypting them is checked.
+	Codec      string `json:"codec"`
+	SampleRate int    `json:"sampleRate"`
+	BitDepth   int    `json:"bitDepth"`
+	Bandwidth  int    `json:"bandwidth"`
+	// BitRate is what Apple calls an AAC variant, from its group, as 256000
+	// of audio-stereo-256-binaural; 0 of ALAC.
+	BitRate int `json:"bitRate,omitempty"`
 	// Seconds is how long it plays, from its media playlist; 0 unknown.
 	Seconds float64 `json:"-"`
 }
 
-var errNoALAC = errors.New("the song has no ALAC")
+// describe says what the track is, for the log: 24-bit/96 kHz ALAC, or
+// AAC at 256 kbps.
+func (t track) describe() string {
+	if t.Codec == "alac" {
+		return fmt.Sprintf("%d Hz / %d bit ALAC", t.SampleRate, t.BitDepth)
+	}
+	return fmt.Sprintf("AAC at %d kbps", t.BitRate/1000)
+}
 
-var alacGroup = regexp.MustCompile(`^audio-alac-stereo-\d{5,6}-\d{2}$`)
+// errNoAudio is the song lacking the kind asked for: no ALAC, or no Dolby
+// Atmos version.
+var errNoAudio = errors.New("the song has no such audio")
+
+// The kinds of a song's audio that can be asked for, besides ALAC, by the
+// groups of its master playlist, which Apple names for what they hold. Only
+// a song with a Dolby Atmos version has the binaural and downmix ones, of
+// that version: Apple's rendering of it for headphones, and Dolby's mix of
+// it down to stereo. Both are AAC, as is HE-AAC.
+const (
+	kindALAC     = ""
+	kindBinaural = "binaural"
+	kindDownmix  = "downmix"
+	kindHE       = "he"
+)
+
+// kinds are the groups of each kind, by the first that a song has: within
+// one, the variant of most bandwidth. A few older songs have AAC at 64 kbps
+// where others have HE-AAC, which is HE-AAC all the same, whatever its
+// group says.
+var kinds = map[string][]*regexp.Regexp{
+	kindALAC:     {regexp.MustCompile(`^audio-alac-stereo-\d{5,6}-\d{2}$`)},
+	kindBinaural: {regexp.MustCompile(`^audio-stereo-\d{2,3}-binaural$`)},
+	kindDownmix:  {regexp.MustCompile(`^audio-stereo-\d{2,3}-downmix$`)},
+	kindHE:       {regexp.MustCompile(`^audio-HE-stereo-\d{2,3}$`), regexp.MustCompile(`^audio-stereo-64$`)},
+}
+
+// knownKind says whether kind is one that can be asked for.
+func knownKind(kind string) bool {
+	_, ok := kinds[kind]
+	return ok
+}
+
+// groupRate is the bit rate an AAC group is named for, as 256000 of
+// audio-stereo-256-binaural, or 0.
+var groupRate = regexp.MustCompile(`^audio-(?:HE-)?stereo-(\d{2,3})(?:-|$)`)
 
 type variant struct {
 	uri                             string
@@ -38,27 +87,39 @@ type variant struct {
 	bandwidth, bitDepth, sampleRate int
 }
 
-// resolveTrack picks the best ALAC variant within the limits (0 for none)
-// and reads its media playlist.
-func resolveTrack(ctx context.Context, client *http.Client, masterURL string, maxRate, maxBits int, tm *timings) (track, error) {
+// pickVariant returns the variant of the kind asked for, within the limits on
+// ALAC (0 for none), or nil.
+func pickVariant(variants []variant, kind string, maxRate, maxBits int) *variant {
+	for _, group := range kinds[kind] {
+		var best *variant
+		for _, v := range variants {
+			if !group.MatchString(v.audio) ||
+				(kind == kindALAC && ((maxRate > 0 && v.sampleRate > maxRate) || (maxBits > 0 && v.bitDepth > maxBits))) {
+				continue
+			}
+			if best == nil || v.bandwidth > best.bandwidth {
+				best = &v
+			}
+		}
+		if best != nil {
+			return best
+		}
+	}
+	return nil
+}
+
+// resolveTrack picks the song's variant of the kind, and reads its media
+// playlist.
+func resolveTrack(ctx context.Context, client *http.Client, masterURL, kind string, maxRate, maxBits int, tm *timings) (track, error) {
 	start := time.Now()
 	master, err := getText(ctx, client, masterURL)
 	tm.Master = time.Since(start).Milliseconds()
 	if err != nil {
 		return track{}, err
 	}
-	var best *variant
-	for _, v := range parseMaster(master, masterURL) {
-		if !alacGroup.MatchString(v.audio) ||
-			(maxRate > 0 && v.sampleRate > maxRate) || (maxBits > 0 && v.bitDepth > maxBits) {
-			continue
-		}
-		if best == nil || v.bandwidth > best.bandwidth {
-			best = &v
-		}
-	}
+	best := pickVariant(parseMaster(master, masterURL), kind, maxRate, maxBits)
 	if best == nil {
-		return track{}, errNoALAC
+		return track{}, errNoAudio
 	}
 	start = time.Now()
 	media, err := getText(ctx, client, best.uri)
@@ -66,11 +127,21 @@ func resolveTrack(ctx context.Context, client *http.Client, masterURL string, ma
 	if err != nil {
 		return track{}, err
 	}
-	mediaURL, keys, seconds, err := parseMedia(media, best.uri)
+	codec := "aac"
+	if kind == kindALAC {
+		codec = "alac"
+	}
+	mediaURL, keys, seconds, err := parseMedia(media, best.uri, codec)
 	if err != nil {
 		return track{}, err
 	}
-	return track{MediaURL: mediaURL, Keys: keys, SampleRate: best.sampleRate, BitDepth: best.bitDepth, Bandwidth: best.bandwidth, Seconds: seconds}, nil
+	t := track{MediaURL: mediaURL, Keys: keys, Codec: codec, Bandwidth: best.bandwidth, Seconds: seconds}
+	if codec == "alac" {
+		t.SampleRate, t.BitDepth = best.sampleRate, best.bitDepth
+	} else if m := groupRate.FindStringSubmatch(best.audio); m != nil {
+		t.BitRate = atoi(m[1]) * 1000
+	}
+	return t, nil
 }
 
 func getText(ctx context.Context, client *http.Client, u string) (string, error) {
@@ -121,10 +192,15 @@ func parseMaster(body, base string) []variant {
 	return out
 }
 
+// keySuffixes are the ends of the keys of each codec's samples, as amdl
+// has them: ALAC's own (c23), AAC's (c22, or c24 of a Dolby Atmos version's),
+// and the one they share (c6), which is what Apple's playlists name today.
+var keySuffixes = map[string][]string{"alac": {"c23", "c6"}, "aac": {"c22", "c24", "c6"}}
+
 // parseMedia returns the media file, its keys (the prefetch key, which
-// opens every track, then ALAC's (c23) or the shared one (c6)) and how long
-// it plays: its segments' lengths add up to within a frame of it.
-func parseMedia(body, base string) (string, []string, float64, error) {
+// opens every track, then the codec's) and how long it plays: its
+// segments' lengths add up to within a frame of it.
+func parseMedia(body, base, codec string) (string, []string, float64, error) {
 	keys := []string{prefetchKey}
 	mediaURL := ""
 	seconds := 0.0
@@ -139,7 +215,7 @@ func parseMedia(body, base string) (string, []string, float64, error) {
 		}
 		if strings.HasPrefix(line, "#EXT-X-KEY:") {
 			key := parseAttrs(strings.TrimPrefix(line, "#EXT-X-KEY:"))["URI"]
-			if strings.HasPrefix(key, "skd://") && (strings.HasSuffix(key, "c23") || strings.HasSuffix(key, "c6")) {
+			if strings.HasPrefix(key, "skd://") && slices.ContainsFunc(keySuffixes[codec], func(end string) bool { return strings.HasSuffix(key, end) }) {
 				keys = append(keys, key)
 			}
 		}

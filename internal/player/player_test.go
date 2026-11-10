@@ -236,6 +236,53 @@ func TestCacheServesTheLevelsBelow(t *testing.T) {
 	}
 }
 
+// With Dolby Atmos on, a song's Dolby Atmos version is kept apart, by how
+// it plays: the binaural one for headphones never serves speakers, nor the
+// downmix headphones, and neither serves a level. A song kept at a level
+// serves Dolby Atmos only where it says the song has no such version, as
+// one kept with Dolby Atmos off may have one.
+func TestCacheKeepsDolbyAtmosApart(t *testing.T) {
+	c := NewCache(t.TempDir(), 10000)
+	keep := func(id, ask string, st music.Stream) {
+		st.Type = "m4a"
+		f := c.part(&st)
+		f.Write(make([]byte, 100))
+		f.Close()
+		c.keep("src", id, ask, &st, f.Name(), 100)
+	}
+	headphones, speakers := music.Ask("hires", music.AtmosHeadphones), music.Ask("hires", music.AtmosSpeakers)
+	keep("atmos", headphones, music.Stream{Quality: "atmos-binaural"})
+	keep("plain", headphones, music.Stream{Quality: "hires", NoAtmos: true})
+	keep("before", "hires", music.Stream{Quality: "hires"})
+	keep("efficient", "efficient", music.Stream{Quality: "efficient"})
+	for _, want := range []struct {
+		id, ask string
+		found   string
+	}{
+		{"atmos", headphones, "atmos-binaural"},
+		{"atmos", speakers, ""},
+		{"atmos", "hires", ""},
+		{"atmos", "high", ""},
+		{"plain", headphones, "hires"},
+		{"plain", speakers, "hires"},
+		{"plain", "lossless", "hires"},
+		{"before", "hires", "hires"},
+		{"before", headphones, ""},
+		{"efficient", "efficient", "efficient"},
+		{"efficient", "high", ""},
+	} {
+		f, st, ok := c.find("src", want.id, want.ask)
+		got := ""
+		if ok {
+			got = st.Quality
+			f.Close()
+		}
+		if got != want.found {
+			t.Errorf("%s asked as %s: found %q, want %q", want.id, want.ask, got, want.found)
+		}
+	}
+}
+
 // Leaving a radio keeps the song playing and those before it, drops those
 // it queued after, and asks it for no more.
 func TestEndRadio(t *testing.T) {

@@ -565,8 +565,9 @@ func (a *app) radioChip(c *ui.Context, name string) {
 // qualityBadge marks a lossless stream, as it plays, with the badge of an
 // album's page (traitBadge): Hi-Res Lossless past 48 kHz, as Apple Music
 // has it, and Lossless up to that, or where the rate isn't known, whichever
-// level it was asked at. Its
-// tooltip says what the stream is. AAC has none.
+// level it was asked at. A song's Dolby Atmos version, played as either of
+// its stereo versions, has Dolby Atmos's. Its tooltip says what the stream
+// is. The other AAC has none.
 func qualityBadge(c *ui.Context, st *music.Stream, color ui.Color) {
 	if label := qualityLabel(st); label != "" {
 		traitBadge(c, label, color).Shrink(0).Tooltip(streamSpec(st))
@@ -574,10 +575,14 @@ func qualityBadge(c *ui.Context, st *music.Stream, color ui.Color) {
 }
 
 // qualityLabel is what the badge of a stream says, or "" for one without a
-// badge: lossless, or Hi-Res above 48 kHz.
+// badge: Dolby Atmos, lossless, or Hi-Res above 48 kHz.
 func qualityLabel(st *music.Stream) string {
 	switch {
-	case st == nil || !music.IsLossless(st.Quality):
+	case st == nil:
+		return ""
+	case music.IsAtmos(st.Quality):
+		return traitAtmos
+	case !music.IsLossless(st.Quality):
 		return ""
 	case st.SampleRate > 48000:
 		return traitHiRes
@@ -585,9 +590,20 @@ func qualityLabel(st *music.Stream) string {
 	return traitLosless
 }
 
-// streamSpec says what a lossless stream is, as 24-bit/96 kHz ALAC, or ""
-// where the source doesn't know.
+// streamSpec says what a stream with a badge is, as 24-bit/96 kHz ALAC, or
+// a Dolby Atmos version's as binaural rendering, AAC, 256 kbps; "" where
+// the source doesn't know.
 func streamSpec(st *music.Stream) string {
+	if music.IsAtmos(st.Quality) {
+		how := T("Binaural rendering")
+		if st.Quality == music.AtmosQualities[music.AtmosSpeakers] {
+			how = T("Stereo downmix")
+		}
+		if st.BitRate <= 0 {
+			return how + " · AAC"
+		}
+		return Tf("%s · AAC · %d kbps", how, st.BitRate/1000)
+	}
 	if st.SampleRate <= 0 || st.BitDepth <= 0 {
 		return ""
 	}

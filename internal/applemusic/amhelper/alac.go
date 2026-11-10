@@ -19,8 +19,32 @@ func plausibleALAC(sample []byte) bool {
 // it's used.
 const samplesChecked = 8
 
-// decryptsALAC reports whether the samples, just decrypted, look like ALAC.
-func decryptsALAC(samples [][]byte) bool {
+// plausibleAAC reports whether sample starts as Apple's AAC packets do, of
+// every kind, HE-AAC among them: a channel pair element, or a single
+// channel's, instance 0. Noise starts so once in 64 tries; the eight samples
+// checked settle it.
+func plausibleAAC(sample []byte) bool {
+	if len(sample) < 1 {
+		return false
+	}
+	element := sample[0] >> 5
+	instance := (sample[0] >> 1) & 0xF
+	return (element == 0 || element == 1) && instance == 0
+}
+
+// decrypts is the check of a codec's samples just decrypted: whether they
+// look like what they are.
+func decrypts(codec string) func([][]byte) bool {
+	plausible := plausibleALAC
+	if codec == "aac" {
+		plausible = plausibleAAC
+	}
+	return func(samples [][]byte) bool { return looksLike(samples, plausible) }
+}
+
+// looksLike reports whether the first samples, those long enough to be
+// encrypted at all, are each plausible.
+func looksLike(samples [][]byte, plausible func([]byte) bool) bool {
 	checked := 0
 	for _, s := range samples {
 		if checked == samplesChecked {
@@ -29,7 +53,7 @@ func decryptsALAC(samples [][]byte) bool {
 		if len(s) < 16 {
 			continue // too short to be encrypted at all
 		}
-		if !plausibleALAC(s) {
+		if !plausible(s) {
 			return false
 		}
 		checked++

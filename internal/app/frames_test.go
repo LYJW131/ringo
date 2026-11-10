@@ -179,8 +179,9 @@ func contactSheet(shots []image.Image, cols int) image.Image {
 
 // With MM_FRAMES set, saves every page of the settings, light and dark at the
 // window's size and dark at the smallest it gets, the account page signed in
-// and out, the playback page asking for High Quality and for Lossless with no
-// wrapper to play it, a search, and two pages in Chinese.
+// and out, the playback page asking for High Quality, for Lossless with no
+// wrapper to play it, and for Dolby Atmos for headphones, a search, and
+// three pages in Chinese.
 func TestSettingsFrame(t *testing.T) {
 	dir := framesDir(t)
 	checks, downloads, checked := true, false, 0
@@ -189,12 +190,14 @@ func TestSettingsFrame(t *testing.T) {
 		name, page, query string
 		signedIn          bool
 		lossless          bool
+		atmos             string
 	}{
 		{name: "general", page: "general"},
 		{name: "account-in", page: "account", signedIn: true},
 		{name: "account-out", page: "account"},
 		{name: "playback-high", page: "playback"},
 		{name: "playback-lossless", page: "playback", lossless: true},
+		{name: "playback-atmos", page: "playback", atmos: music.AtmosHeadphones},
 		{name: "advanced", page: "advanced"},
 		{name: "search-wrapper", page: "general", query: "wrapper"},
 	}
@@ -210,6 +213,7 @@ func TestSettingsFrame(t *testing.T) {
 		if s.lossless {
 			a.settings.Quality = "lossless"
 		}
+		a.settings.Atmos = s.atmos
 		if s.signedIn {
 			a.account = &music.Account{ID: "1", Name: "Alex"}
 		}
@@ -229,7 +233,7 @@ func TestSettingsFrame(t *testing.T) {
 	defer i18n.SetLanguage(i18n.English)
 	i18n.SetLanguage(i18n.Chinese)
 	for i, s := range shots {
-		if s.name == "account-in" || s.name == "playback-lossless" {
+		if s.name == "account-in" || s.name == "playback-lossless" || s.name == "playback-atmos" {
 			save(s.name+"-zh-dark.png", i, 780, 640, true)
 			save(s.name+"-zh-min-dark.png", i, 640, 420, true)
 		}
@@ -310,7 +314,8 @@ func TestStillLyricsFrames(t *testing.T) {
 }
 
 // With MM_FRAMES set, saves the badge of a Hi-Res stream in Now Playing, and
-// of a lossless one in the player bar, light and dark.
+// of a lossless one in the player bar, light and dark, and of a song's
+// Dolby Atmos version in both.
 func TestQualityBadgeFrames(t *testing.T) {
 	dir := framesDir(t)
 	a := newTestApp()
@@ -333,4 +338,13 @@ func TestQualityBadgeFrames(t *testing.T) {
 		bar := img.SubImage(image.Rect(b.Min.X, b.Max.Y-b.Dy()*120/780, b.Max.X, b.Max.Y))
 		saveFrame(t, dir, fmt.Sprintf("badge-player-bar-dark-%v.png", dark), bar)
 	}
+	a.pl.SetStream(&music.Stream{Quality: "atmos-binaural", BitRate: 256000})
+	tt.SetDark(true)
+	settled(tt)
+	img := tt.Image()
+	b := img.Bounds()
+	saveFrame(t, dir, "badge-atmos-player-bar.png", img.SubImage(image.Rect(b.Min.X, b.Max.Y-b.Dy()*120/780, b.Max.X, b.Max.Y)))
+	a.nowPlaying = true
+	settled(tt)
+	saveFrame(t, dir, "badge-atmos-now-playing.png", tt.Image())
 }

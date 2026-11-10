@@ -43,7 +43,7 @@ type streamOptions struct {
 	// one song runs into the next without a gap.
 	prime uint64
 	// check, if not nil, is asked whether the first samples each key
-	// decrypts came out right (decryptsALAC); when not, keyOf is asked for
+	// decrypts came out right (decrypts); when not, keyOf is asked for
 	// the key again, fresh, and the samples are decrypted anew before any of
 	// them is written.
 	check func([][]byte) bool
