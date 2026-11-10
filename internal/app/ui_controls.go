@@ -245,11 +245,16 @@ func glassInk(accent ui.Color) ui.Color {
 	return accent.Mix(ui.RGB(0, 0, 0), 0.78)
 }
 
+// badgeGold is the color of the badge of how a stream sounds, on glass:
+// white with a little of the gold its outline had on an album's page, to
+// say it is the better sound without standing out of the column.
+var badgeGold = white.Mix(ui.Hex("#f5d58a"), 0.5).Alpha(0.94)
+
 // glassBadge marks how a stream sounds, as qualityBadge does, on a slip
-// of glass.
+// of glass, in letters faintly gold.
 func glassBadge(c *ui.Context, st *music.Stream) {
 	if label := qualityLabel(st); label != "" {
-		badge := ui.Text(c.Key(label), T(label)).FontSize(9.5).FontWeight(700).LetterSpacing(0.3).TextColor(white.Alpha(0.82)).SingleLine().
+		badge := ui.Text(c.Key(label), T(label)).FontSize(9.5).FontWeight(700).LetterSpacing(0.3).TextColor(badgeGold).SingleLine().
 			Padding(2.5, 7).Radius(999).Shrink(0).Tooltip(streamSpec(st))
 		glassOn(c, badge, ui.Transparent, false)
 	}
