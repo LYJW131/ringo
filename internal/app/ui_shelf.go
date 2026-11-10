@@ -627,11 +627,15 @@ func (a *app) itemButton(c *ui.Context, secs []music.Section, s, i int) ui.Eleme
 // artRadius rounds the corners of a shelf's pictures, as Apple Music's.
 const artRadius = 7
 
-// hoverShade darkens a picture under the pointer, as Apple Music's do.
+// hoverShade darkens a picture under the pointer, as Apple Music's do. It
+// fades as the card's play button comes and goes, in step with it.
 func (a *app) hoverShade(c *ui.Context, hovered bool, radius float32) {
+	shade := ui.Box(c.Key("shade")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(radius).IgnoreInput(true)
+	target := ui.Transparent
 	if hovered {
-		ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(radius).Background(ui.RGBA(0, 0, 0, 0.18)).IgnoreInput(true)
+		target = ui.RGBA(0, 0, 0, 0.18)
 	}
+	shade.Background(shade.AnimateColor("shade", target, ui.Snappy))
 }
 
 // explicitMark is the E an explicit song or album has after its title.

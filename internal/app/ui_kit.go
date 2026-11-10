@@ -185,6 +185,10 @@ func bitmap(art *artwork) *ui.Bitmap {
 	return art.bmp
 }
 
+// hoverFade is how long what shows under the pointer takes to fade in and
+// out, as the sidebar's rows fade their backgrounds.
+const hoverFade = 120 * time.Millisecond
+
 // artFade is how an artwork fades in over its placeholder.
 var artFade = ui.Animation{Duration: 320 * time.Millisecond}
 

@@ -63,12 +63,15 @@ func (a *app) scrubber(c *ui.Context, st *scrubState, track, fill ui.Color, heig
 	if hot {
 		thick = 6
 	}
-	thick = s.AnimateTo("thick", thick, ui.Snappy)
+	// Quick out of the blocks: a spring starts still, and the knob showed
+	// only a few frames after the pointer came.
+	grow := ui.Animation{Duration: 140 * time.Millisecond, Ease: ui.EaseOut}
+	thick = s.AnimateTo("thick", thick, grow)
 	knob := float32(0)
 	if hot {
 		knob = 1
 	}
-	knob = s.AnimateTo("knob", knob, ui.Snappy)
+	knob = s.AnimateTo("knob", knob, grow)
 	// The smoke settles away as the music pauses, and while dragging.
 	smoking := float32(0)
 	if smoke.A > 0 && a.settings.Smoke && pl.Playing() && !pl.Loading() && !st.active {
@@ -410,12 +413,16 @@ func (a *app) playerBar(c *ui.Context) {
 				}
 				mini.Children(func() {
 					a.cover(c, tr.Album.ImageURL, 120, 48, npFromRadius).Shadow(0, 2, 8, 0, p.cardShade)
+					// The shade and its arrow fade in under the pointer, and out.
+					fade := float32(1)
 					if hovered {
-						ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(8).Center().
-							Background(ui.RGBA(0, 0, 0, 0.35)).TextColor(ui.RGB(255, 255, 255)).Children(func() {
-							ui.Icon(c, iconDown).Size(18, 18).Rotate(180)
-						})
+						fade = 0
 					}
+					ui.Box(c.Key("open-shade")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(8).Center().IgnoreInput(true).
+						Background(ui.RGBA(0, 0, 0, 0.35)).TextColor(ui.RGB(255, 255, 255)).
+						AnimatePose(ui.Pose{Fade: fade}, ui.Animation{Duration: hoverFade}).Children(func() {
+						ui.Icon(c, iconDown).Size(18, 18).Rotate(180)
+					})
 				})
 				ui.Column(c).Shrink(1).MinWidth(0).Gap(3).Children(func() {
 					ui.Row(c).Gap(barBadgeGap).AlignItems(ui.Center).MinWidth(0).Children(func() {

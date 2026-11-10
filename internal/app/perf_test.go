@@ -80,6 +80,35 @@ func TestNowPlayingFrameBudget(t *testing.T) {
 	}
 }
 
+// The lyrics, between a line sung to its last word and the next, build the
+// view no more than the times shown ask for. Counted as builds, which
+// FramePending misses for a frame waiting on After: the words asked to be
+// lit every 40 ms after the last of them was, 25 builds a second of the
+// whole of Now Playing.
+func TestLyricsBuildBudget(t *testing.T) {
+	a, tt, builds := playingApp()
+	a.nowPlaying, a.npPane = true, paneLyrics
+	count := func(pos time.Duration) int {
+		a.pl.Seek(pos)
+		tt.Frame()
+		// Opened, and come to rest: the backdrop fades in from the first.
+		tt.Advance(2 * time.Second)
+		tt.Frame()
+		n := *builds
+		tt.Advance(time.Second)
+		tt.Frame()
+		return *builds - n
+	}
+	// Sung over its first 5 seconds, the second line rests from 15 s to 20 s.
+	if n := count(16 * time.Second); n > 3 {
+		t.Errorf("the lyrics between lines: %d builds a second", n)
+	}
+	// While its words light, the line asks for them, as it should.
+	if n := count(11 * time.Second); n < 10 {
+		t.Errorf("the lyrics lighting a line's words: %d builds a second", n)
+	}
+}
+
 // Home with a source's own page, its feature card at rest while nothing plays,
 // asks for no frames once shown.
 func TestHomeFrameBudget(t *testing.T) {

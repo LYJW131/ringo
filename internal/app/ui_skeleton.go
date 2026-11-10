@@ -236,6 +236,41 @@ func (a *app) trackRowSkeleton(c *ui.Context, s shimmer, i int, covers bool) {
 	})
 }
 
+// playlistSkeleton is a playlist's page while it loads: its header, the
+// head of its table and its songs, each where playlistColumns and
+// playlistRow put theirs, so that nothing moves as the songs come.
+func (a *app) playlistSkeleton(c *ui.Context, s shimmer) {
+	_, h := c.Size()
+	wide := a.playlistWide(c)
+	a.rowsSkeleton(c, func(c *ui.Context) { a.playlistHeaderSkeleton(c, s) }, func() {
+		// The head's hairline, without its words.
+		ui.Row(c.Key("head")).Height(30).Shrink(0).Margin(0, 12).BorderWidth(0, 0, 0.5, 0).BorderColor(a.pal.hairline)
+		for i := range max(8, int(h/52)) {
+			ui.Row(c.Key(i)).Height(52).Shrink(0).Margin(0, 12).PaddingX(8).Gap(12).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Grow(3).Basis(0).MinWidth(0).Gap(12).AlignItems(ui.Center).Children(func() {
+					s.bone(c, 4).Size(40, 40)
+					ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+						s.text(c, 13.5, 1.3).WidthPercent(boneWidth(i) * 0.8)
+						if !wide {
+							s.text(c, 12.5, 1.3).WidthPercent(boneWidth(i+5) * 0.55)
+						}
+					})
+				})
+				if wide {
+					for k := range 2 {
+						ui.Box(c.Key(k)).Grow(2).Basis(0).MinWidth(0).Children(func() {
+							s.text(c, 13, 1.3).WidthPercent(boneWidth(i+3+4*k) * 0.7)
+						})
+					}
+				}
+				ui.Box(c).Size(30, 30)
+				ui.Row(c).Width(44).Justify(ui.End).Children(func() { s.text(c, 13, 1.3).Width(30) })
+				ui.Box(c).Width(24)
+			})
+		}
+	})
+}
+
 // albumSkeleton is an album's page while it loads: its header, and its songs
 // in albumTrackRow's rows of a line each. Most albums are of one disc, whose
 // songs have no title over them.

@@ -2,6 +2,7 @@ package app
 
 import (
 	"runtime"
+	"slices"
 	"time"
 
 	"github.com/egoist/mygo/plugins/glass"
@@ -248,6 +249,7 @@ func (a *app) back() {
 	r := a.history[len(a.history)-1]
 	a.history = a.history[:len(a.history)-1]
 	a.show(r)
+	a.returning = a.route
 }
 
 // goForward goes to the page back left, as the forward button of a mouse
@@ -261,6 +263,7 @@ func (a *app) goForward() {
 	a.forward = a.forward[:len(a.forward)-1]
 	a.nowPlaying = false
 	a.show(r)
+	a.returning = a.route
 }
 
 // clearSearch empties the field and forgets the search last shown, which
@@ -321,6 +324,7 @@ func (a *app) startMark(c *ui.Context) {
 	if b.W > 0 {
 		top, _ := a.insets(c)
 		a.underTop = b.Y < top+pageGap-0.5
+		a.marked = true
 	}
 }
 
@@ -346,6 +350,29 @@ func edgeShown(el ui.Element, under bool) float32 {
 	return el.AnimateTo("shown", target, ui.Animation{Duration: 180 * time.Millisecond})
 }
 
+// topEdge returns how much of the edge over the page shows, under says
+// whether it should. It fades as content scrolls under it; but a page just
+// turned to has its edge as it should be at once, rather than the last
+// page's fading out over it: as soon as the page's start mark says where it
+// is, or a frame on where it has none, the edge held as it was till then.
+func (a *app) topEdge(c *ui.Context, edge ui.Element, under bool) float32 {
+	if a.edgeSnap > 0 {
+		a.edgeSnap--
+		if !a.marked && a.edgeSnap > 0 {
+			c.AnimationFrame()
+			return edge.Jump("shown", a.topShown)
+		}
+		a.edgeSnap = 0
+		a.topShown = 0
+		if under {
+			a.topShown = 1
+		}
+		return edge.Jump("shown", a.topShown)
+	}
+	a.topShown = edgeShown(edge, under)
+	return a.topShown
+}
+
 // pageTop is the strip over the top of a page, frosting what scrolls under
 // it as macOS 26's hard scroll edge does: it drags the window, and holds
 // the back button once there is a page to go back to.
@@ -354,7 +381,7 @@ func (a *app) pageTop(c *ui.Context) {
 	edge := ui.Box(c.Key("top-edge")).Absolute().Top(0).Left(0).Right(0).Height(top).DragWindow().
 		Material(glass.ScrollEdge{Hard: true, Background: a.pal.bg})
 	// The pointer over it brings the edge up too, as AppKit's does.
-	edge.Opacity(edgeShown(edge, a.underTop || edge.Hovered()))
+	edge.Opacity(a.topEdge(c, edge, a.underTop || edge.Hovered()))
 	if len(a.history) > 0 || len(a.forward) > 0 {
 		ui.Row(c).Absolute().Top(0).Left(20).Height(topBar(c)).AlignItems(ui.Center).Children(func() {
 			back := iconButton(c.Key("back"), iconBack, 18, a.pal.muted, T("Back")).Disabled(len(a.history) == 0)
@@ -371,15 +398,52 @@ func (a *app) pageTop(c *ui.Context) {
 	}
 }
 
+// pagePlace is where a page was scrolled, down and its shelves across.
+type pagePlace struct {
+	list       ui.ListState
+	scroll     ui.ScrollState
+	shelves    map[int]*ui.ScrollState
+	shelfSongs map[int]*shelfTracks
+}
+
+// turnPage keeps where the page left was scrolled, and starts the page now
+// shown where it was left if back or forward went to it, else at its top,
+// as Music does. Only the pages there is a way back or forward to are kept.
+func (a *app) turnPage() {
+	if a.pagePlaces == nil {
+		a.pagePlaces = map[route]pagePlace{}
+	}
+	if a.scrolled != (route{}) {
+		a.pagePlaces[a.scrolled] = pagePlace{a.trackList, a.pageScroll, a.shelves, a.shelfSongs}
+	}
+	var p pagePlace
+	if a.returning == a.route {
+		p = a.pagePlaces[a.route]
+	}
+	// What was kept goes back to the page, not shared with a copy here.
+	delete(a.pagePlaces, a.route)
+	a.trackList, a.pageScroll, a.shelves, a.shelfSongs = p.list, p.scroll, p.shelves, p.shelfSongs
+	a.scrolled, a.returning = a.route, route{}
+	// The edge over it goes where it should at once (topEdge), as soon as
+	// the page says where that is: a list takes a build or two to lay out
+	// its first row, and a page without marks says nothing.
+	a.edgeSnap = 4
+	for r := range a.pagePlaces {
+		if !slices.Contains(a.history, r) && !slices.Contains(a.forward, r) {
+			delete(a.pagePlaces, r)
+		}
+	}
+}
+
 func (a *app) content(c *ui.Context) {
-	// A new page starts at its top. Not as it is opened: a control in a
-	// list, as a page's tabs in its header, opens it as the list builds.
+	// A new page starts at its top, and one gone back to where it was left.
+	// Not as it is opened: a control in a list, as a page's tabs in its
+	// header, opens it as the list builds.
 	if a.scrolled != a.route {
-		a.trackList, a.pageScroll, a.scrolled = ui.ListState{}, ui.ScrollState{}, a.route
-		a.shelves, a.shelfSongs = nil, nil
+		a.turnPage()
 	}
 	// Pages mark where their content is, as they scroll.
-	a.underTop, a.underBottom = false, false
+	a.underTop, a.underBottom, a.marked = false, false, false
 	switch a.route.page {
 	case pageHome:
 		a.homePage(c)

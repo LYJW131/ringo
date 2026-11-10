@@ -234,8 +234,7 @@ func (a *app) playlistPage(c *ui.Context) {
 			a.centered(c, a.plErr[id], func() { a.loadPlaylist(a.library, id, false) })
 			return
 		}
-		s := a.pageShimmer(c)
-		a.trackSkeleton(c, s, true, func(c *ui.Context) { a.playlistHeaderSkeleton(c, s) })
+		a.playlistSkeleton(c, a.pageShimmer(c))
 		return
 	}
 	shelves := a.shelfRows(c, pl.Sections)
@@ -342,7 +341,8 @@ func (a *app) playlistRow(c *ui.Context, tracks []music.Track, i int, pid string
 			ui.Box(c).Size(40, 40).Shrink(0).Children(func() {
 				a.cover(c, tr.Album.ImageURL, 96, 40, 4)
 				if playing || hovered && !tr.Unavailable {
-					ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(4).Center().Background(ui.RGBA(0, 0, 0, 0.4)).Children(func() {
+					ui.Box(c.Key("cover-shade")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(4).Center().Background(ui.RGBA(0, 0, 0, 0.4)).
+						Transition(rowHoverIn).Children(func() {
 						if playing {
 							a.nowPlayingBarsIn(c, white)
 						} else {
@@ -380,7 +380,9 @@ func (a *app) playlistRow(c *ui.Context, tracks []music.Track, i int, pid string
 		}
 		ui.Box(c).Size(30, 30).Center().Children(func() {
 			if a.isLiked(tr) || hovered {
-				a.likeButton(c.Key("like"), tr, 14, p.muted)
+				ui.Box(c.Key("like-in")).Transition(rowHoverIn).Children(func() {
+					a.likeButton(c.Key("like"), tr, 14, p.muted)
+				})
 			}
 		})
 		ui.Text(c, clock(tr.Length())).FontSize(13).FontFeatures("tnum").TextColor(p.muted).Width(44).TextAlign(ui.End)
@@ -390,6 +392,10 @@ func (a *app) playlistRow(c *ui.Context, tracks []music.Track, i int, pid string
 		a.pl.PlayTrack(tracks, i)
 	}
 }
+
+// rowHoverIn fades in what a song's row shows under the pointer, its cover's
+// play button and its star, and fades it out, as its background does.
+var rowHoverIn = ui.ElementTransition{Duration: 100 * time.Millisecond, Enter: &ui.Motion{Opacity: 0}, Exit: &ui.Motion{Opacity: 0}}
 
 // playButtons are the buttons of a page that play what it lists, in order or
 // shuffled.

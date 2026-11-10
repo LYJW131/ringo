@@ -90,6 +90,12 @@ type app struct {
 	shelves map[int]*ui.ScrollState
 	// shelfSongs are the songs of the page's sections, by their section.
 	shelfSongs map[int]*shelfTracks
+	// pagePlaces are where the pages back and forward lead to were scrolled
+	// as they were left, for them to show again as they were.
+	pagePlaces map[route]pagePlace
+	// returning is the page back or forward went to, which shows where it
+	// was left rather than at its top.
+	returning route
 
 	libraryCollapsed, mineCollapsed bool
 
@@ -130,6 +136,15 @@ type app struct {
 	mutedFrom  float64
 
 	rowBars barState
+	// marked says the page's start mark was laid out as it was built, and
+	// so underTop is where the page is.
+	marked bool
+	// edgeSnap counts down the builds in which the edge over a page turned
+	// to goes where it should at once (topEdge), and topShown is how much
+	// of it last showed.
+	edgeSnap int
+	topShown float32
+
 	// underTop and underBottom say whether the page has content under its
 	// bars, which show their scroll edges then.
 	underTop, underBottom bool

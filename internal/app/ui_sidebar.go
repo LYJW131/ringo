@@ -210,12 +210,15 @@ func (a *app) playlistRows(c *ui.Context, lists []music.Playlist, mine bool) {
 		// Its name starts where the pages' names above do: 8+22+7 is
 		// navItem's 10+17+10.
 		b := ui.ButtonBase(c.Key(pl.ID)).Height(32).PaddingX(8).Gap(7).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(pl.Name)
+		bg := ui.Transparent
 		switch {
 		case selected:
-			b.Background(p.press)
+			bg = p.press
 		case b.Hovered():
-			b.Background(p.hover)
+			bg = p.hover
 		}
+		// As the pages' rows above it fade theirs.
+		b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: hoverFade}))
 		b.Children(func() {
 			a.cover(c, pl.ImageURL, 80, 22, 4)
 			ui.Text(c, pl.Name).FontSize(13).SingleLine().Shrink(1).MinWidth(0)

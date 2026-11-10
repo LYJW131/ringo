@@ -108,6 +108,11 @@ func (a *app) nowPlayingLayer(c *ui.Context, open, settled bool) {
 		shift = layer.AnimateTo("pull", 0, ui.Animation{Spring: npSpring})
 	}
 	fresh, was := a.npT <= 0 && t > 0, a.npT
+	if reduce {
+		// Fading, its first frame is the one its fade starts in, still clear:
+		// laid out there, it shows from the next, not a frame later.
+		fresh = was <= 0 && t <= 0 && open
+	}
 	a.npT, a.npShift = t, shift
 	if a.npAtRest(open) != settled {
 		// Another build, for the page under it to come or go, and the
@@ -676,8 +681,10 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 									ui.Text(c.Key(wi), wd.Text).TextColor(white.Alpha(0.38 + 0.62*lit))
 								}
 							})
-							if pl.Playing() {
-								// Words brighten smoothly enough at 25 frames a second.
+							if pl.Playing() && pos < l.Words[len(l.Words)-1].End {
+								// Words brighten smoothly enough at 25 frames a second,
+								// until the last is lit: then the next line's After
+								// is the next change.
 								c.After(40 * time.Millisecond)
 							}
 						} else {

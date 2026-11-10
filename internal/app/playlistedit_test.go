@@ -370,6 +370,46 @@ func TestPlaylistEditsGoBack(t *testing.T) {
 	}
 }
 
+// A dialog's backdrop fades in as it opens and out as it closes. Its
+// transition was set on the panel, which MyGo doesn't play in a parent new
+// in the same frame, so the dialog came and went in one frame.
+func TestDialogFades(t *testing.T) {
+	a := editTestApp()
+	tt := ui.NewTester(a.view, 1200, 800)
+	settled(tt)
+	// A point of the backdrop, beside the panel in the middle.
+	s := tt.Image().Bounds().Dx() / 1200
+	shade := func() int {
+		c := tt.Image().RGBAAt(80*s, 720*s)
+		return int(c.R) + int(c.G) + int(c.B)
+	}
+	before := shade()
+	a.deleting = deleteDialog{open: true, id: "11", name: "睡前"}
+	tt.Frame()
+	first := shade()
+	tt.Advance(dialogFade + 100*time.Millisecond)
+	tt.Frame()
+	open := shade()
+	if open >= before-30 {
+		t.Fatalf("the backdrop doesn't darken the window: %d, before %d", open, before)
+	}
+	if first <= open {
+		t.Errorf("the backdrop is as dark in its first frame as once open: %d", first)
+	}
+	a.deleting.open = false
+	tt.Frame()
+	tt.Advance(dialogFade / 2)
+	tt.Frame()
+	if mid := shade(); mid <= open || mid >= before {
+		t.Errorf("halfway out, the backdrop is %d: open %d, before %d", mid, open, before)
+	}
+	tt.Advance(dialogFade)
+	tt.Frame()
+	if after := shade(); after != before {
+		t.Errorf("closed, the window is %d, before %d", after, before)
+	}
+}
+
 // With MM_FRAMES set, saves the listener's playlist with its sidebar, and
 // the dialogs that name and delete playlists, to look at.
 func TestPlaylistEditFrames(t *testing.T) {

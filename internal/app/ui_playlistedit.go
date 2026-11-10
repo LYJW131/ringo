@@ -346,6 +346,26 @@ func (a *app) playlistItems(m *ui.Menu, tr *music.Track, pid string) bool {
 	return true
 }
 
+// dialogFade is how long a dialog's backdrop takes to fade in, and out.
+const dialogFade = 200 * time.Millisecond
+
+// dialogIn brings a dialog in and takes it away: its backdrop fades in and
+// out, and its panel grows to its size from a little smaller as it comes.
+// MyGo plays the Enter and Exit of the backdrop, the overlay's own child, but
+// not of the panel, which is new in a parent new in the same frame: the
+// panel is posed smaller in its first frame and springs to its size from
+// the next.
+func dialogIn(c *ui.Context, backdrop, panel ui.Element) {
+	backdrop.Transition(ui.ElementTransition{Duration: dialogFade, Enter: &ui.Motion{Opacity: 0}, Exit: &ui.Motion{Opacity: 0}})
+	entered := ui.Local(panel, "entered", func() bool { return false })
+	pose := ui.Pose{}
+	if !*entered {
+		pose, *entered = ui.Pose{Scale: 0.94}, true
+		c.Invalidate()
+	}
+	panel.AnimatePose(pose, ui.Snappy)
+}
+
 // playlistNameDialog asks for the name of a playlist to make, or a new
 // name for one.
 func (a *app) playlistNameDialog(c *ui.Context) {
@@ -354,8 +374,8 @@ func (a *app) playlistNameDialog(c *ui.Context) {
 	ui.DialogBase(c.Key("playlist-name"), &d.open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
 		panel.Width(360).Padding(24).Radius(18).Gap(16).
-			Background(p.bg).Border(1, p.hairline).Shadow(0, 24, 60, -12, ui.RGBA(0, 0, 0, 0.4)).
-			Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.94}, Exit: &ui.Motion{Scale: 0.96}})
+			Background(p.bg).Border(1, p.hairline).Shadow(0, 24, 60, -12, ui.RGBA(0, 0, 0, 0.4))
+		dialogIn(c, backdrop, panel)
 		title, action := T("New Playlist"), T("Create")
 		if d.rename != "" {
 			title, action = T("Edit Playlist"), T("Done")
@@ -391,8 +411,8 @@ func (a *app) deletePlaylistDialog(c *ui.Context) {
 	ui.DialogBase(c.Key("playlist-delete"), &d.open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
 		panel.Width(360).Padding(24).Radius(18).Gap(8).
-			Background(p.bg).Border(1, p.hairline).Shadow(0, 24, 60, -12, ui.RGBA(0, 0, 0, 0.4)).
-			Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.94}, Exit: &ui.Motion{Scale: 0.96}})
+			Background(p.bg).Border(1, p.hairline).Shadow(0, 24, 60, -12, ui.RGBA(0, 0, 0, 0.4))
+		dialogIn(c, backdrop, panel)
 		ui.Text(c, T("Delete Playlist")).FontSize(17).FontWeight(700)
 		ui.Text(c, Tf("Delete the playlist “%s”? This can't be undone.", d.name)).FontSize(13).TextColor(p.muted).LineHeight(1.45)
 		ui.Row(c).Gap(10).Justify(ui.End).Margin(8, 0, 0, 0).Children(func() {

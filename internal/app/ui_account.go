@@ -165,7 +165,8 @@ func (a *app) signInDialog(c *ui.Context, p palette, settings bool) {
 		// as half a second after a sign-in failed.
 		panel.Width(360).Padding(24).Radius(18).Gap(10).
 			Background(p.bg).Border(1, p.hairline).Shadow(0, 24, 60, -12, ui.RGBA(0, 0, 0, 0.4)).
-			Transition(ui.ElementTransition{Animation: &ui.Snappy, Colors: true, Enter: &ui.Motion{Scale: 0.94}, Exit: &ui.Motion{Scale: 0.96}})
+			Transition(ui.ElementTransition{Animation: &ui.Snappy, Colors: true})
+		dialogIn(c, backdrop, panel)
 		name := ""
 		if d.lib != nil {
 			name = d.lib.name()
