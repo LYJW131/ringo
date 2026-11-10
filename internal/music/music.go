@@ -331,6 +331,10 @@ type Browse struct {
 	// comes in parts, as a library's songs do: its sections go on from the
 	// last of this one's, items after items.
 	Next string `json:"next,omitempty"`
+	// Total is how many items the page has in all, those of Next's parts
+	// included, if the source knows. The app sizes what is yet to come by it,
+	// and asks for the parts ahead of the listener's scrolling.
+	Total int `json:"total,omitempty"`
 }
 
 // Section is a heading over what it lists. A section may hold several kinds,
@@ -560,6 +564,19 @@ type Recorder interface {
 type Flusher interface {
 	// Flush returns once what the source was told is sent, or after d.
 	Flush(d time.Duration)
+}
+
+// A Preloader answers what the app asks for before the listener does, to
+// show it as they open it: the pages of the sidebar, their playlists and
+// their favorite songs. It answers as the source would to the listener's own
+// asking, but without what that sets off: working out the songs on the page
+// to play, and waking what plays them. An answer may be kept a while, so
+// that the listener's asking for it then is quick.
+type Preloader interface {
+	PreloadBrowse(page string) (*Browse, error)
+	PreloadPlaylist(id string) (*Playlist, error)
+	// PreloadLiked is the first page of Liked.
+	PreloadLiked() (*Page, error)
 }
 
 // Source is where music comes from. Everything but Info and Can may take a

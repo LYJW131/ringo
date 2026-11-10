@@ -29,6 +29,12 @@ const (
 func (a *app) pageShimmer(c *ui.Context) shimmer {
 	// The page is loading: what takes its place arrives later (footEdge).
 	a.skelOf = a.route
+	return a.rowShimmer(c)
+}
+
+// rowShimmer is pageShimmer for blocks in the rows of a page that shows,
+// standing in for those to come: the page isn't loading, only its end is.
+func (a *app) rowShimmer(c *ui.Context) shimmer {
 	s := shimmer{base: ui.RGBA(0, 0, 0, 0.06), sheen: ui.RGBA(0, 0, 0, 0.022)}
 	if a.pal.dark {
 		s.base, s.sheen = white.Alpha(0.07), white.Alpha(0.13)
@@ -155,10 +161,20 @@ func (a *app) librarySkeleton(c *ui.Context, s shimmer, id string) {
 		}
 		return
 	}
+	artists := id == music.PageLibraryArtist
+	ui.Column(c.Key("library-skeleton")).Children(func() {
+		for row := range 2 {
+			a.cardsSkeletonRow(c.Key(row), s, artists, row)
+		}
+	})
+}
+
+// cardsSkeletonRow is row number row of a library's cards while they load, or
+// of those yet to come.
+func (a *app) cardsSkeletonRow(c *ui.Context, s shimmer, artists bool, row int) {
 	// As shelfGrid lays out the cards, squareCard and circleCard their
 	// pictures and cardLines their words: an artist's name alone, under
 	// their round picture.
-	artists := id == music.PageLibraryArtist
 	min, gap, align := float32(squareMin), float32(7), ui.Start
 	if artists {
 		min, gap, align = circleMin, 8, ui.Center
@@ -168,20 +184,16 @@ func (a *app) librarySkeleton(c *ui.Context, s shimmer, id string) {
 	if artists {
 		round = w / 2
 	}
-	ui.Column(c.Key("library-skeleton")).Children(func() {
-		for row := range 2 {
-			ui.Row(c.Key(row)).Gap(shelfGap).AlignItems(ui.Start).Margin(0, 12, 24, 12).Children(func() {
-				for i := range n {
-					ui.Column(c.Key(i)).Width(w).Gap(gap).AlignItems(align).Children(func() {
-						s.bone(c, round).Size(w, w)
-						ui.Column(c).Gap(1).Width(w).AlignItems(align).Children(func() {
-							s.text(c, 12.5, 1.3).WidthPercent(boneWidth(i + row))
-							if !artists {
-								s.text(c, 12, 1.3).WidthPercent(boneWidth(i+row+4) * 0.7)
-							}
-						})
-					})
-				}
+	ui.Row(c).Gap(shelfGap).AlignItems(ui.Start).Margin(0, 12, 24, 12).Children(func() {
+		for i := range n {
+			ui.Column(c.Key(i)).Width(w).Gap(gap).AlignItems(align).Children(func() {
+				s.bone(c, round).Size(w, w)
+				ui.Column(c).Gap(1).Width(w).AlignItems(align).Children(func() {
+					s.text(c, 12.5, 1.3).WidthPercent(boneWidth(i + row))
+					if !artists {
+						s.text(c, 12, 1.3).WidthPercent(boneWidth(i+row+4) * 0.7)
+					}
+				})
 			})
 		}
 	})

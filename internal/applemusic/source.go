@@ -173,6 +173,7 @@ var (
 	_ music.Keeper     = (*Source)(nil)
 	_ music.Autoplayer = (*Source)(nil)
 	_ music.Switcher   = (*Source)(nil)
+	_ music.Preloader  = (*Source)(nil)
 )
 
 // New makes the source. It asks nothing and starts nothing until it's first called.
@@ -367,6 +368,25 @@ func (s *Source) Home() (*music.Browse, error) {
 func (s *Source) Browse(page string) (*music.Browse, error) {
 	defer s.asked(true)()
 	return s.browse(page)
+}
+
+// What the app asks for before the listener does isn't the listener being
+// about: it doesn't wake the wrapper, and the songs on what it fetches
+// aren't worked out to play (music.Preloader).
+
+func (s *Source) PreloadBrowse(page string) (*music.Browse, error) {
+	defer s.asked(false)()
+	return s.browseAt(page)
+}
+
+func (s *Source) PreloadPlaylist(id string) (*music.Playlist, error) {
+	defer s.asked(false)()
+	return s.playlistAt(id, false)
+}
+
+func (s *Source) PreloadLiked() (*music.Page, error) {
+	defer s.asked(false)()
+	return s.likedPage(0, false, false)
 }
 
 func (s *Source) Favorite(kind, id string, on bool) error {

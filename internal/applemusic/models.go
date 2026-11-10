@@ -286,7 +286,17 @@ type body struct {
 		Results struct {
 			Order []string `json:"order"`
 		} `json:"results"`
+		// Total is how many a list has in all, which the library's lists say.
+		Total int `json:"total"`
 	} `json:"meta"`
+}
+
+// total is how many the list has in all, or 0 where Apple didn't say.
+func (b *body) total() int {
+	if b == nil || b.Meta == nil {
+		return 0
+	}
+	return b.Meta.Total
 }
 
 // get is what ref points at: itself, when Apple put it in place (no map),

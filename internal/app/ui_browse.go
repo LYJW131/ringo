@@ -69,6 +69,7 @@ func (a *app) loadBrowse(lib *library, page string, again bool) {
 				return
 			}
 			d.page, d.at, d.next, d.paged = b, time.Now(), paged{loaded: true, more: b.Next != ""}, false
+			a.keepPages(lib)
 		})
 	}()
 }
@@ -104,6 +105,9 @@ func (a *app) loadNext(lib *library, d *browseData) {
 func joinPages(page, next *music.Browse) *music.Browse {
 	joined := *page
 	joined.Next = next.Next
+	if next.Total > 0 {
+		joined.Total = next.Total
+	}
 	joined.Sections = slices.Clone(page.Sections)
 	more := next.Sections
 	if n := len(joined.Sections); n > 0 && len(more) > 0 {
@@ -280,14 +284,99 @@ const (
 	rowText
 )
 
+// Going on through a page that comes in parts. The next part is asked for
+// well before the listener scrolls to the end of what's loaded, so that the
+// end is seldom in view: once the page opens, for a library's lists, which
+// the source gives a few parts of at once, up to eagerItems; then as the last
+// row in view comes within aheadScreens of the end of what's loaded.
+const (
+	eagerItems   = 400
+	aheadScreens = 3
+	// pendingItems is how many items stand in, as blocks in the shape of
+	// the rows to come, past what's loaded: no more than the next ask brings,
+	// so that the page doesn't show a length it can't back.
+	pendingItems = 300
+)
+
+// nearEnd reports whether the list showed in the last frame is within
+// aheadScreens of the end of its rows loaded, or didn't show one yet.
+func (a *app) nearEnd(rows int) bool {
+	first, last := a.trackList.Visible()
+	if last < first {
+		return true
+	}
+	return rows-1-last <= aheadScreens*(last-first+1)
+}
+
+// loadedItems is how many items a page's sections hold.
+func loadedItems(page *music.Browse) int {
+	n := 0
+	for i := range page.Sections {
+		n += len(page.Sections[i].Items)
+	}
+	return n
+}
+
+// wantsMore reports whether a page of rows loaded rows long should ask for its
+// next part now.
+func (a *app) wantsMore(page *music.Browse, rows int) bool {
+	return page.Total > 0 && loadedItems(page) < eagerItems || a.nearEnd(rows)
+}
+
+// pendingRows is how many rows stand in for the items of a page that are yet
+// to come: as many as it says it has in all, but pendingItems at most. A
+// page that doesn't say has none, and a foot instead.
+func (a *app) pendingRows(c *ui.Context, page *music.Browse) int {
+	if page.Total <= 0 || len(page.Sections) == 0 {
+		return 0
+	}
+	last := &page.Sections[len(page.Sections)-1]
+	per := 1
+	switch last.Style {
+	case music.ShelfList:
+	case music.ShelfGrid:
+		m := a.shelfMetrics(c)
+		per, _ = m.fit(squareMin)
+		if allOf(last.Items, music.ItemArtist) {
+			per, _ = m.fit(circleMin)
+		}
+	default:
+		return 0
+	}
+	left := min(page.Total-loadedItems(page), pendingItems)
+	if left <= 0 {
+		return 0
+	}
+	return (left + per - 1) / per
+}
+
+// pendingRow is row i of those that stand in for what is yet to come, as
+// high as the row of the real thing, so that nothing moves as it takes their
+// place.
+func (a *app) pendingRow(c *ui.Context, page *music.Browse, i int) {
+	last := &page.Sections[len(page.Sections)-1]
+	s := a.rowShimmer(c)
+	if last.Style == music.ShelfList {
+		a.trackRowSkeleton(c, s, i, true)
+		return
+	}
+	a.cardsSkeletonRow(c, s, allOf(last.Items, music.ItemArtist), i)
+}
+
 // browseRows shows a page under a header, which scrolls with it, and asks
-// for its next part as its foot comes near, if d says it has one.
+// for its next part ahead of the listener's scrolling, if d says it has one.
+// Where the page says how many items it has, blocks stand in for those to
+// come; else its foot says it is loading.
 func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, header func(c *ui.Context), d *browseData) {
 	layout := a.shelfLayout(c, page.Sections, pageID == music.PageSearchLanding)
 	top, bottom := a.insets(c)
 	a.underTop, a.underBottom = true, true
-	foot := d != nil && (d.next.more || d.next.err != "")
-	rows := len(layout) + 1
+	pending := 0
+	if d != nil && d.next.more && d.next.err == "" {
+		pending = a.pendingRows(c, page)
+	}
+	foot := d != nil && (d.next.more || d.next.err != "") && pending == 0
+	rows := len(layout) + 1 + pending
 	if foot {
 		rows++
 	}
@@ -315,12 +404,18 @@ func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, heade
 		if i == rows-1 {
 			defer a.endMark(c)
 		}
-		if i > len(layout) {
+		switch {
+		case i > len(layout)+pending:
 			a.pageFoot(c, &d.next, func() { a.loadNext(lib, d) })
-			return
+		case i > len(layout):
+			a.pendingRow(c, page, i-len(layout)-1)
+		default:
+			a.shelfRow(c, page.Sections, layout[i-1])
 		}
-		a.shelfRow(c, page.Sections, layout[i-1])
 	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
+	if d != nil && d.next.more && !d.next.loading && d.next.err == "" && a.wantsMore(page, len(layout)+1) {
+		a.loadNext(lib, d)
+	}
 }
 
 // cardRowGap is the room under a row of cards.

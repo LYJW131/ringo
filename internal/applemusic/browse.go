@@ -64,6 +64,12 @@ func (s *Source) pageKey(page string) string {
 
 func (s *Source) browse(page string) (*music.Browse, error) {
 	s.warm()
+	return s.browseAt(page)
+}
+
+// browseAt is browse without the wrapper being woken (s.warm), for what the
+// app asks for before the listener does.
+func (s *Source) browseAt(page string) (*music.Browse, error) {
 	if alias, ok := pageAliases[page]; ok {
 		page = alias
 	}
@@ -75,7 +81,13 @@ func (s *Source) browse(page string) (*music.Browse, error) {
 			return nil, err
 		}
 	}
-	return kept(s, s.pageKey(page), freshness{maxAge: listKept}, func(func()) (*music.Browse, error) {
+	// What the listener keeps in their library changes where they can't be
+	// told of it, so a page of it is asked for again sooner than the editors'.
+	maxAge := listKept
+	if strings.HasPrefix(page, "library") {
+		maxAge = libraryKept
+	}
+	return kept(s, s.pageKey(page), freshness{maxAge: maxAge}, func(func()) (*music.Browse, error) {
 		return s.makePage(page)
 	}, false)
 }

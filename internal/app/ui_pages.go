@@ -448,6 +448,9 @@ func (a *app) likedPage(c *ui.Context) {
 			a.empty(c, T("Songs you favorite will show here"))
 		}
 	})
+	if p := &lib.likedPaged; p.more && !p.loading && p.err == "" && a.nearEnd(len(lib.likedList)+1) {
+		a.loadLikedPage(lib)
+	}
 }
 
 // loadLikedPage loads the next page of the songs the listener likes.
@@ -476,6 +479,7 @@ func (a *app) loadLikedPage(lib *library) {
 			for i := range page.Tracks {
 				lib.liked[page.Tracks[i].ID] = true
 			}
+			a.keepPages(lib)
 		})
 	}()
 }
@@ -487,12 +491,42 @@ func (a *app) freshenLiked(lib *library) {
 	if lib.likedFresh || lib.likedPaged.loading || time.Since(lib.likedAt) <= listsFresh {
 		return
 	}
+	a.refreshLiked(lib, false, nil)
+}
+
+// setLiked takes page as the first part of the songs the listener likes,
+// before any was loaded, as one asked for ahead (prefetch.go) is.
+func (a *app) setLiked(lib *library, page *music.Page, at time.Time) {
+	lib.likedList = append([]music.Track(nil), page.Tracks...)
+	lib.likedPaged.loaded, lib.likedPaged.more = true, page.More && len(page.Tracks) > 0
+	lib.likedAt = at
+	if lib.liked == nil {
+		lib.liked = map[string]bool{}
+	}
+	for i := range page.Tracks {
+		lib.liked[page.Tracks[i].ID] = true
+	}
+}
+
+// refreshLiked is freshenLiked, whatever its age. quiet asks as for the
+// listener's sidebar before they open it (preloadLiked), and then is called
+// when it's over.
+func (a *app) refreshLiked(lib *library, quiet bool, then func()) {
 	lib.likedFresh, lib.likedAt = true, time.Now()
 	was := lib.likedList
 	who := lib.listener()
 	go func() {
-		page, err := answered(lib.src.Liked(0))
+		var page *music.Page
+		var err error
+		if quiet {
+			page, err = preloadLiked(lib.src)
+		} else {
+			page, err = answered(lib.src.Liked(0))
+		}
 		a.post(func() {
+			if then != nil {
+				defer then()
+			}
 			lib.likedFresh = false
 			// Liked or not in the app meanwhile, or more of it loaded, or
 			// forgotten: what's there is newer than what was asked for.
@@ -514,6 +548,7 @@ func (a *app) freshenLiked(lib *library) {
 					delete(lib.liked, was[i].ID)
 				}
 			}
+			a.keepPages(lib)
 		})
 	}()
 }

@@ -95,6 +95,18 @@ type library struct {
 	homeErr     string
 	homeLoading bool
 	homeAt      time.Time // when what the home page shows was asked for
+	// homeKept says home is what was kept from last time (pagecache.go),
+	// which stays if asking again fails.
+	homeKept bool
+
+	// warm is what's being fetched ahead (prefetch.go), forgotten with what
+	// was loaded, as answers to it that come after aren't the new listener's.
+	warm *warmQueue
+	// pages is what's kept on this computer of what's loaded for the listener,
+	// for the next time the app starts, and staged what was kept of the last
+	// time, waiting for the source to say who's signed in (pagecache.go).
+	pages  *pageStore
+	staged *pageFile
 
 	playlists map[string]*music.Playlist
 	loadingPl map[string]bool
@@ -140,6 +152,7 @@ func (l *library) forget() {
 	l.favorites, l.kept, l.busy = map[string]bool{}, map[string]bool{}, map[string]bool{}
 	l.wantKept, l.askedKept, l.doubted = nil, map[string]bool{}, map[string]bool{}
 	l.likedList, l.likedPaged, l.likedAt = nil, paged{}, time.Time{}
+	l.warm = newWarmQueue()
 }
 
 // can reports whether the source does what's named.
@@ -192,6 +205,7 @@ func (a *app) startLibrary(lib *library) {
 		return
 	}
 	lib.started = true
+	a.stagePages(lib)
 	a.loadAccount(lib)
 	a.loadMine(lib)
 	a.loadHome(lib)

@@ -86,6 +86,8 @@ func (a *app) loadMine(lib *library) {
 					lib.saved = append(lib.saved, pl)
 				}
 			}
+			a.keepPages(lib)
+			a.warmPages(lib)
 		})
 	}()
 }

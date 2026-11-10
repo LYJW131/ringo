@@ -1,6 +1,7 @@
 package app
 
 import (
+	"log"
 	"runtime"
 	"slices"
 	"time"
@@ -82,6 +83,7 @@ func (a *app) view(c *ui.Context) {
 	}
 	a.toasts(c, !npOpen)
 	a.askLikes()
+	a.pumpWarm(a.library)
 	a.syncWindows()
 }
 
@@ -541,13 +543,20 @@ func (a *app) loadHome(lib *library) {
 		}
 		a.post(func() {
 			lib.homeLoading = false
-			lib.home, lib.recent = home, recent
+			// What was kept from last time stays, if Home can't be loaded now.
+			if homeErr != nil && lib.homeKept && lib.home != nil {
+				log.Printf("source %s: Home: %v", lib.id, homeErr)
+				return
+			}
+			lib.home, lib.recent, lib.homeKept = home, recent, false
 			lib.homeAt = at
 			switch {
 			case homeErr != nil:
 				lib.homeErr = a.problem(lib, homeErr, T("Couldn't load this page"))
 			case recentErr != nil:
 				lib.homeErr = a.problem(lib, recentErr, T("Couldn't load this page"))
+			default:
+				a.keepPages(lib)
 			}
 		})
 	}()
@@ -597,20 +606,35 @@ func (a *app) loadPlaylist(lib *library, id string, thenPlay bool) {
 			if thenPlay {
 				a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks), playlistOrigin(pl))
 			}
+			a.keepPages(lib)
 		})
 	}()
 }
 
-// freshenPlaylist asks for a loaded playlist anew, which shows as it was until
-// the answer takes its place. Failing, it stays as it was.
-func (a *app) freshenPlaylist(lib *library, id string) {
+// freshenPlaylist asks for a loaded playlist anew (refreshPlaylist).
+func (a *app) freshenPlaylist(lib *library, id string) { a.refreshPlaylist(lib, id, false, nil) }
+
+// refreshPlaylist asks for a loaded playlist anew, which shows as it was until
+// the answer takes its place. Failing, it stays as it was. quiet asks as for
+// the listener's sidebar before they open it (preloadPlaylist), and then is
+// called when it's over.
+func (a *app) refreshPlaylist(lib *library, id string, quiet bool, then func()) {
 	was := lib.playlists[id]
 	before := *was
 	lib.freshPl[id] = true
 	at := time.Now()
 	go func() {
-		pl, err := answered(lib.src.Playlist(id))
+		var pl *music.Playlist
+		var err error
+		if quiet {
+			pl, err = preloadPlaylist(lib.src, id)
+		} else {
+			pl, err = answered(lib.src.Playlist(id))
+		}
 		a.post(func() {
+			if then != nil {
+				defer then()
+			}
 			delete(lib.freshPl, id)
 			// Changed in the app meanwhile, its songs or name, or forgotten:
 			// what's there is newer than what was asked for.
@@ -619,6 +643,7 @@ func (a *app) freshenPlaylist(lib *library, id string) {
 				return
 			}
 			lib.playlists[id], lib.plAt[id] = pl, at
+			a.keepPages(lib)
 		})
 	}()
 }
@@ -643,6 +668,7 @@ func (a *app) freshen() {
 	if r := a.route; r.src == lib.id && (r.page == pagePlaylist || r.page == pageLiked) {
 		a.load(r)
 	}
+	a.warmPages(lib)
 }
 
 func firstPlayable(tracks []music.Track) int {

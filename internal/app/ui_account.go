@@ -50,6 +50,7 @@ func (a *app) loadAccount(lib *library) {
 			}
 			was := lib.account
 			lib.account = acc
+			a.adoptPages(lib)
 			a.loadAccounts(lib, false)
 			switch {
 			case first && was == nil && acc != nil && lib.homeErr == "" && !lib.needsSignIn:
@@ -62,6 +63,7 @@ func (a *app) loadAccount(lib *library) {
 			case (was == nil) != (acc == nil):
 				a.afterAccount(lib)
 			}
+			a.warmPages(lib)
 		})
 	}()
 }
@@ -71,6 +73,7 @@ func (a *app) afterAccount(lib *library) {
 	lib.accountAsked = true
 	lib.forget()
 	a.doubtPlayer(lib)
+	a.resetPages(lib)
 	lib.needsSignIn, lib.askedSignIn = false, false
 	lib.choicesAt = time.Time{}
 	a.loadAccounts(lib, false)
@@ -79,6 +82,7 @@ func (a *app) afterAccount(lib *library) {
 	if a.route.src == lib.id {
 		a.reload(a.route)
 	}
+	a.warmPages(lib)
 }
 
 // promptSignIn asks the listener to sign in to a source, showing the window it

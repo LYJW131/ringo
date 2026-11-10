@@ -143,6 +143,11 @@ func (s *Source) recent() ([]music.Track, error) {
 // its library's songs.
 
 func (s *Source) liked(offset int, ahead bool) (*music.Page, error) {
+	return s.likedPage(offset, ahead, !ahead)
+}
+
+// likedPage is liked, whose songs are worked out to play if work.
+func (s *Source) likedPage(offset int, ahead, work bool) (*music.Page, error) {
 	if _, known := s.favorites(); !known {
 		if _, err := s.libraryPlaylists(ahead); err != nil {
 			return nil, err
@@ -176,7 +181,7 @@ func (s *Source) liked(offset int, ahead bool) (*music.Page, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !ahead {
+	if work {
 		s.prefetch(page.Tracks, nil)
 	}
 	return page, nil

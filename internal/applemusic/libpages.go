@@ -1,7 +1,12 @@
 package applemusic
 
 import (
+	"net/url"
+	"slices"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"mygo-music/internal/i18n"
 	"mygo-music/internal/music"
@@ -124,8 +129,96 @@ var libraryLists = map[string]libraryList{
 	}, func() string { return i18n.T("Playlists") }, music.ShelfGrid, emptyLibrary},
 }
 
+// libraryParts is how many parts of a library's list one ask for the next
+// brings. Apple gives a hundred at most to a request (twenty-five for what
+// was added lately), and says where each part starts, so a few are asked for
+// together, which takes as long as asking for one.
+const libraryParts = 3
+
+// libraryKept is how long a page of the library, as its first part came, is
+// kept: the listener adds to it elsewhere, and the app asks again to show
+// what's new as the page opens, a little after.
+const libraryKept = time.Minute
+
+// totalMark carries how many a list has in all in the address of its next
+// part, after what Apple's own address says (a fragment, which a request
+// leaves out), so that parts past the end aren't asked for.
+const totalMark = "#"
+
+// splitTotal is the address of a part, and the total that went with it, or 0.
+func splitTotal(next string) (string, int) {
+	addr, total, ok := strings.Cut(next, totalMark)
+	if !ok {
+		return next, 0
+	}
+	n, _ := strconv.Atoi(total)
+	return addr, n
+}
+
+// followParts is the part of a list at next, and the parts after it, up to
+// parts in all, asked for together and joined. total, if known, keeps it from
+// asking past the end of the list. If a part after the first fails, what came
+// before it is answered and Next is the address of the failed one.
+func (s *Source) followParts(next string, base params, parts, total int) (*body, error) {
+	addrs := []string{next}
+	if u, err := url.Parse(next); err == nil && u.Query().Has("offset") {
+		at, _ := strconv.Atoi(u.Query().Get("offset"))
+		limit, _ := strconv.Atoi(base["limit"])
+		for i := 1; i < parts && limit > 0; i++ {
+			from := at + i*limit
+			if total > 0 && from >= total {
+				break
+			}
+			q := u.Query()
+			q.Set("offset", strconv.Itoa(from))
+			part := *u
+			part.RawQuery = q.Encode()
+			addrs = append(addrs, part.RequestURI())
+		}
+	}
+	got := make([]*body, len(addrs))
+	errs := make([]error, len(addrs))
+	var wg sync.WaitGroup
+	for i, addr := range addrs {
+		wg.Go(func() { got[i], errs[i] = s.follow(addr, base) })
+	}
+	wg.Wait()
+	if errs[0] != nil {
+		return nil, errs[0]
+	}
+	out := got[0]
+	for i := 1; i < len(addrs) && out.Next != ""; i++ {
+		if errs[i] != nil {
+			joined := *out
+			joined.Next = addrs[i]
+			return &joined, nil
+		}
+		out = joinBodies(out, got[i])
+	}
+	return out, nil
+}
+
+// joinBodies is two parts of a list as one, the second's next the next.
+func joinBodies(first, more *body) *body {
+	joined := *first
+	joined.Data = slices.Concat(first.Data, more.Data)
+	joined.Next = more.Next
+	joined.Resources = map[string]map[string]*resource{}
+	for _, from := range []*body{first, more} {
+		for kind, byID := range from.Resources {
+			if joined.Resources[kind] == nil {
+				joined.Resources[kind] = map[string]*resource{}
+			}
+			for id, r := range byID {
+				joined.Resources[kind][id] = r
+			}
+		}
+	}
+	return &joined
+}
+
 // libraryPage is the first part of a library page, or, with next, the part
-// that goes on there.
+// that goes on there and the parts after it (libraryParts).
 func (s *Source) libraryPage(page, next string) (*music.Browse, error) {
 	if err := s.needAccount(); err != nil {
 		return nil, err
@@ -140,22 +233,30 @@ func (s *Source) libraryPage(page, next string) (*music.Browse, error) {
 	p := s.mapped(list.params)
 	var b *body
 	var err error
+	total := 0
 	if next != "" {
-		b, err = s.follow(next, p)
+		next, total = splitTotal(next)
+		b, err = s.followParts(next, p, libraryParts, total)
 	} else {
 		b, err = s.me(list.path, p, reqOpts{})
 	}
 	if err != nil {
 		return nil, err
 	}
+	if n := b.total(); n > 0 {
+		total = n
+	}
 	items := s.editedItems(s.items(b, b.Data))
-	out := &music.Browse{Sections: []music.Section{{Style: list.style, Items: items}}}
+	out := &music.Browse{Sections: []music.Section{{Style: list.style, Items: items}}, Total: total}
 	if next == "" {
 		out.Title = list.title()
 		out.Sections[0].Empty = list.empty()
 	}
 	if b.Next != "" {
 		out.Next = page + "|" + b.Next
+		if total > 0 {
+			out.Next += totalMark + strconv.Itoa(total)
+		}
 	}
 	s.listed(songItems(items), nil)
 	return out, nil
@@ -201,7 +302,7 @@ func (s *Source) recentlyAdded(ahead bool) (*music.Browse, error) {
 	if err := s.needAccount(); err != nil {
 		return nil, err
 	}
-	return kept(s, s.pageKey(music.PageRecentlyAdded), freshness{maxAge: listKept}, func(func()) (*music.Browse, error) {
+	return kept(s, s.pageKey(music.PageRecentlyAdded), freshness{maxAge: libraryKept}, func(func()) (*music.Browse, error) {
 		return s.libraryPage(music.PageRecentlyAdded, "")
 	}, ahead)
 }

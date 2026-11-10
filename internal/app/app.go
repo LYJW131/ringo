@@ -58,6 +58,10 @@ type app struct {
 
 	wasBehind bool // the window wasn't at the front as last built
 
+	// pagesDir is where what the pages showed is kept for the next start
+	// (pagecache.go), or empty to keep none.
+	pagesDir string
+
 	route   route
 	history []route
 	forward []route // the pages gone back from, the last first to go to
@@ -341,7 +345,9 @@ func Run() error {
 			Content:              ui.View(a.view),
 		})
 		a.setMenu()
+		a.pagesDir = userDataDir("pages")
 		a.boot()
+		a.warmTick()
 		// The notch player is macOS's, over its menu bar: elsewhere it would
 		// hang at the top of the screen as a black box.
 		if runtime.GOOS == "darwin" {
@@ -382,6 +388,7 @@ func Run() error {
 		a.settings.Volume = a.volume
 		a.settings.save()
 		a.saveSession()
+		a.flushPages()
 		// The end of what plays is sent before the app is, if Apple is quick.
 		a.pl.Exit()
 		a.flushSources(sendAtQuit)

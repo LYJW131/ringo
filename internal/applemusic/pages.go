@@ -471,6 +471,12 @@ func playlistParams() params {
 
 func (s *Source) playlist(id string) (*music.Playlist, error) {
 	s.warm()
+	return s.playlistAt(id, true)
+}
+
+// playlistAt is playlist, whose songs are worked out to play if work: not for
+// a playlist the app asks for before the listener does.
+func (s *Source) playlistAt(id string, work bool) (*music.Playlist, error) {
 	if strings.HasPrefix(id, "p.") {
 		found, err := s.libraryPlaylist(id, false)
 		if err != nil {
@@ -491,7 +497,9 @@ func (s *Source) playlist(id string) (*music.Playlist, error) {
 			}
 			found = &edited
 		}
-		s.prefetch(found.Tracks, nil)
+		if work {
+			s.prefetch(found.Tracks, nil)
+		}
 		return found, nil
 	}
 	q := playlistParams()
@@ -505,7 +513,7 @@ func (s *Source) playlist(id string) (*music.Playlist, error) {
 	// edit it, and not to unsave it, which would delete it.
 	if own != nil && strings.HasPrefix(id, "pl.u-") {
 		if theirs, err := s.me("/library/playlists/"+own.ID, nil, reqOpts{}); err == nil && len(theirs.Data) > 0 && theirs.Data[0] != nil && theirs.Data[0].attrs().CanEdit {
-			return s.playlist(own.ID)
+			return s.playlistAt(own.ID, work)
 		}
 	}
 	item, err := first(b)
@@ -529,7 +537,9 @@ func (s *Source) playlist(id string) (*music.Playlist, error) {
 	}
 	songs := s.songsOf(tracks)
 	libraryKnown(songs, asked)
-	s.prefetch(songs, nil)
+	if work {
+		s.prefetch(songs, nil)
+	}
 	p := s.toPlaylist(item)
 	p.Saved, p.Favorite, p.TrackCount, p.Tracks = own != nil, favorite, len(songs), songs
 	if c := item.related("curator").Data; len(c) > 0 && c[0] != nil {
