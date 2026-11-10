@@ -110,8 +110,11 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 		}
 		songs := s.songsOf(tracks)
 		s.prefetch(songs, nil)
-		a := toAlbum(item)
+		a := s.toAlbum(item)
 		a.ID, a.Saved = id, true
+		for _, song := range songs {
+			a.Uploaded = a.Uploaded || song.Uploaded
+		}
 		return &music.AlbumPage{Album: a, Tracks: songs}, nil
 	}
 	b, own, favorite, err := s.withLibrary("albums", id, albumParams())
@@ -139,7 +142,7 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 	songs := s.songsOf(tracks)
 	markPopular(refs, songs)
 	s.prefetch(songs, nil)
-	a := toAlbum(item)
+	a := s.toAlbum(item)
 	a.Saved, a.Favorite = own != nil, favorite
 	if labels := b.all(item.related("record-labels").Data); a.Label == "" && len(labels) > 0 {
 		a.Label = labels[0].attrs().Name

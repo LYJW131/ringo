@@ -32,8 +32,9 @@ func (s *Source) helperConfig() amhelper.Config {
 		Token:   strings.TrimSpace(s.Setting("wrapperKey")),
 		// amhelper keeps key templates and the songs it worked out in
 		// cache, so that a song played before plays at once after a restart.
-		Cache:  filepath.Join(s.dataDir, "lossless"),
-		Covers: s.dataDir,
+		Cache:   filepath.Join(s.dataDir, "lossless"),
+		Covers:  s.dataDir,
+		Uploads: filepath.Join(s.dataDir, "uploads"),
 	}
 }
 

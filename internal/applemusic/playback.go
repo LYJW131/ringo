@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -50,17 +51,7 @@ func (s *Source) webPlayback(id string) (string, error) {
 		return "", err
 	}
 	if code := string(b.FailureType); code != "" {
-		switch code {
-		case "2002":
-			return "", s.playbackSignInAgain()
-		case "3076", "3077":
-			return "", fail("unavailable", i18n.T("This song isn't available in your country or region"))
-		}
-		why := code
-		if b.CustomerMessage != "" {
-			why += ": " + b.CustomerMessage
-		}
-		return "", fail("unavailable", i18n.T("Apple Music won't play this song")+" ("+why+")")
+		return "", s.playbackFailed(code, b.CustomerMessage)
 	}
 	if len(b.SongList) == 0 {
 		return "", fail("unavailable", i18n.T("Apple Music won't play this song"))
@@ -79,6 +70,97 @@ func (s *Source) webPlayback(id string) (string, error) {
 		return "", fail("unavailable", i18n.T("Apple Music has no AAC of this song"))
 	}
 	return playlist, nil
+}
+
+// playbackFailed says why Apple won't play a song, from the failureType of
+// its answer. 3077 is also its word for a library song the catalog no
+// longer has.
+func (s *Source) playbackFailed(code, message string) error {
+	switch code {
+	case "2002":
+		return s.playbackSignInAgain()
+	case "3076", "3077":
+		return fail("unavailable", i18n.T("This song isn't available in your country or region"))
+	}
+	why := code
+	if message != "" {
+		why += ": " + message
+	}
+	return fail("unavailable", i18n.T("Apple Music won't play this song")+" ("+why+")")
+}
+
+// A song the listener uploaded is asked for by its library ID, as the web
+// player asks for it. Apple answers a link to the file as uploaded, or as
+// iTunes made it from theirs: AAC at 256 kbps in a plain .m4a, unencrypted.
+// The link lasts a day, so it isn't kept. From one connection it comes at
+// half the speed it plays at, so amhelper fetches it over several, and
+// keeps it (amhelper/upload.go).
+
+func (s *Source) uploadStream(id string) (*music.Stream, error) {
+	link, err := s.uploadLink(id)
+	if err != nil {
+		return nil, err
+	}
+	base, err := s.helperBase()
+	if err != nil {
+		return nil, err
+	}
+	res, err := s.helperDo("POST", base+"/upload/"+id, map[string]string{"url": link})
+	if err != nil {
+		return nil, err
+	}
+	if !res.ok() {
+		why := res.err().Message
+		if why == "" {
+			why = strconv.Itoa(res.status)
+		}
+		return nil, &helperFailed{why, false}
+	}
+	var b struct {
+		Size int64 `json:"size"`
+	}
+	json.Unmarshal(res.body, &b)
+	return &music.Stream{URL: base + "/upload/" + id + ".m4a", Type: "m4a", Quality: "high", BitRate: 256000, Size: b.Size}, nil
+}
+
+// uploadLink is the link Apple answers for the upload id, valid for a day.
+func (s *Source) uploadLink(id string) (string, error) {
+	if err := s.needAccount(); err != nil {
+		return "", err
+	}
+	var b struct {
+		FailureType     flexString `json:"failureType"`
+		CustomerMessage string     `json:"customerMessage"`
+		SongList        []struct {
+			Assets []struct {
+				URL      string `json:"URL"`
+				Metadata struct {
+					FileExtension string `json:"fileExtension"`
+				} `json:"metadata"`
+			} `json:"assets"`
+		} `json:"songList"`
+	}
+	err := s.requestJSON(s.playURL, reqOpts{
+		method:     "POST",
+		body:       map[string]any{"universalLibraryId": id, "isLibrary": true, "language": "en-US"},
+		userHeader: "X-Apple-Music-User-Token",
+	}, &b)
+	if err != nil {
+		return "", err
+	}
+	if code := string(b.FailureType); code != "" {
+		return "", s.playbackFailed(code, b.CustomerMessage)
+	}
+	// Only the unencrypted .m4a: a song bought or matched comes as an .m4p,
+	// whose key this doesn't ask for.
+	for _, song := range b.SongList {
+		for _, a := range song.Assets {
+			if a.Metadata.FileExtension == "m4a" && blobstore.MatchString(a.URL) {
+				return a.URL, nil
+			}
+		}
+	}
+	return "", fail("unavailable", i18n.T("Apple Music won't play this song"))
 }
 
 var m3u8Attribute = regexp.MustCompile(`([A-Z0-9-]+)=("[^"]*"|[^,]*)`)
@@ -384,8 +466,12 @@ func (s *Source) wantedQuality() string {
 }
 
 func (s *Source) stream(id, quality string) (*music.Stream, error) {
+	if isLibrarySong(id) {
+		// At every quality: there is no lossless of an upload to ask for.
+		return s.uploadStream(id)
+	}
 	if !isCatalogID(id) {
-		return nil, fail("unavailable", i18n.T("Only songs in the Apple Music catalog play"))
+		return nil, fail("unavailable", i18n.T("Apple Music won't play this song"))
 	}
 	if quality != s.wantedQuality() {
 		s.qualityMu.Lock()

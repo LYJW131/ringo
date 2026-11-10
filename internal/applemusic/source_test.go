@@ -46,7 +46,7 @@ func TestSignedOut(t *testing.T) {
 	if l, err := ts.Lyrics("1783644604"); l != nil || err != nil {
 		t.Errorf("lyrics %v %v", l, err)
 	}
-	if _, err := ts.Stream("i.abc", ""); !errors.Is(err, music.ErrUnavailable) {
+	if _, err := ts.Stream("i.abc", ""); !errors.Is(err, music.ErrSignIn) {
 		t.Errorf("an upload: %v", err)
 	}
 	if err := ts.FollowArtist("1", true); !errors.Is(err, music.ErrUnsupported) {
@@ -134,7 +134,7 @@ func TestSpeaksTheListenersLanguage(t *testing.T) {
 	ts := newTestSource(t, nowhere(t))
 	i18n.SetLanguage(i18n.Chinese)
 	defer i18n.SetLanguage(i18n.English)
-	if _, err := ts.Stream("i.abc", ""); err == nil || !strings.Contains(err.Error(), "只能播放 Apple Music 曲库里的歌曲") {
+	if _, err := ts.Stream("pl.abc", ""); err == nil || !strings.Contains(err.Error(), "Apple Music 无法播放这首歌") {
 		t.Errorf("error %v", err)
 	}
 }

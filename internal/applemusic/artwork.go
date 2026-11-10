@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-// Covers. Apple's catalog ones are templates the app sizes; a private
-// playlist's is kept on this machine (see playlistArt).
+// Covers. Apple's catalog ones are templates the app sizes; those the
+// listener uploaded are kept on this machine (see keptArt).
 
 // art is a catalog cover, as the template the app fills in: {size} for both sides.
 func art(a *artwork) string {
@@ -33,10 +33,12 @@ func ImageHeaders(u *url.URL) map[string]string {
 	return map[string]string{"user-agent": userAgent, "referer": "https://music.apple.com/"}
 }
 
-// A cover the listener chose for their own playlist is a presigned link to
-// Apple's blobstore, at the size they uploaded it and no other. From some
-// places it takes 20 to 35 seconds, past the 30 the app waits for a cover,
-// so the bigger ones never show. amhelper fetches each once, with no
+// A cover the listener chose for their own playlist, or that came with songs
+// they uploaded, is a presigned link to Apple's blobstore, at the size they
+// uploaded it and no other. From some places it takes 20 to 35 seconds, and
+// a 4000-pixel one of an album took 73, past the 30 the app waits for a
+// cover, so the bigger ones never show. Each uploaded song has a picture of
+// its own, too. amhelper fetches each once, with no
 // deadline, and keeps it 600 pixels wide in the source's data; from then on
 // the app reads it from there. Until then the cover is left out: given the
 // link, the app would spend one of the few covers it loads at once on each
@@ -52,8 +54,8 @@ var blobstore = regexp.MustCompile(`^https://[^/]+\.blobstore\.apple\.com/`)
 
 type coverJob struct{ name, url string }
 
-// playlistArt is a library playlist's cover.
-func (s *Source) playlistArt(a *artwork) string {
+// keptArt is a cover of the library, which may be the listener's own.
+func (s *Source) keptArt(a *artwork) string {
 	if a == nil || !blobstore.MatchString(a.URL) {
 		return art(a)
 	}

@@ -92,14 +92,14 @@ func TestSongs(t *testing.T) {
 	if library.ID != "1783644604" || library.Album.ID != "1783644603" || library.Artists[0].ID != "name:MyGO!!!!!" || library.Unavailable {
 		t.Errorf("library song: %+v", library)
 	}
-	upload := s.toTrack(resourceOf(t, `{"id":"i.xyz","type":"library-songs","attributes":{"name":"mine"}}`))
-	if !upload.Unavailable {
-		t.Error("an upload plays")
+	gone := s.toTrack(resourceOf(t, `{"id":"i.xyz","type":"library-songs","attributes":{"name":"gone"}}`))
+	if !gone.Unavailable {
+		t.Error("a song the catalog no longer has plays")
 	}
 	if n := len(s.songsOf([]*resource{{ID: "1", Type: "music-videos"}})); n != 0 {
 		t.Errorf("music videos among songs: %d", n)
 	}
-	if id := toAlbum(resourceOf(t, `{"id":"l.abc","type":"library-albums","attributes":{"playParams":{"catalogId":42}}}`)).ID; id != "42" {
+	if id := (&Source{}).toAlbum(resourceOf(t, `{"id":"l.abc","type":"library-albums","attributes":{"playParams":{"catalogId":42}}}`)).ID; id != "42" {
 		t.Errorf("album by its catalog ID: %s", id)
 	}
 }

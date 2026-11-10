@@ -83,6 +83,27 @@ func TestAlbumSongPlaysAlbum(t *testing.T) {
 	}
 }
 
+// A click on a greyed-out song plays nothing, and says why, rather than
+// doing nothing at all.
+func TestAlbumUnavailableSongSaysWhy(t *testing.T) {
+	a := albumApp()
+	a.albums["1440755169"].album.Tracks[2].Unavailable = true
+	tt := ui.NewTester(a.view, 1180, 900)
+	tt.Frame()
+	if err := tt.Click("Back To December"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Advance(400 * time.Millisecond)
+	tt.Frame()
+	if a.pl.Current() != nil {
+		t.Fatalf("playing %+v", a.pl.Current())
+	}
+	if _, ok := tt.Find("This song isn't available in your country or region"); !ok {
+		t.Fatal("no word of why")
+	}
+}
+
 // An album of several discs has each disc's number over its songs, and one
 // of a disc none.
 func TestAlbumRowsByDisc(t *testing.T) {
@@ -239,6 +260,46 @@ func TestAlbumFavorite(t *testing.T) {
 		t.Errorf("the menu shows %q", tt.Menu())
 	}
 	tt.CloseMenu()
+}
+
+// An album in the library with songs the listener uploaded isn't offered to
+// be deleted from it, from its menu or its Added button: the uploads
+// couldn't be added back. One without is.
+func TestAlbumWithUploadsStays(t *testing.T) {
+	for _, uploads := range []bool{true, false} {
+		asked := make(chan bool, 4)
+		a := albumApp()
+		page := a.albums["1440755169"].album
+		page.Album.Saved, page.Album.Uploaded = true, uploads
+		fake(a).addToLibrary = func(kind, id string, on bool) error { asked <- on; return nil }
+		tt := ui.NewTester(a.view, 1180, 900)
+		tt.Frame()
+		if err := tt.Click("More"); err != nil {
+			t.Fatal(err)
+		}
+		if offered := slices.Contains(tt.Menu(), "Delete From Library"); offered == uploads {
+			t.Errorf("uploads %v: the menu shows %q", uploads, tt.Menu())
+		}
+		tt.CloseMenu()
+		tt.Frame()
+		if !uploads {
+			continue
+		}
+		if err := tt.Click("Added"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		tt.Advance(400 * time.Millisecond)
+		tt.Frame()
+		select {
+		case on := <-asked:
+			t.Errorf("asked the source to set it in the library: %v", on)
+		default:
+		}
+		if _, ok := tt.Find("Songs you uploaded can't be added back once deleted, so this album stays in your library"); !ok {
+			t.Error("no word of why")
+		}
+	}
 }
 
 // The star by an artist's name makes them a favorite with the source.

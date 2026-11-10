@@ -372,7 +372,7 @@ func TestTraits(t *testing.T) {
 	if !tr.Explicit || tr.Traits != (music.Traits{Lossless: true, HiRes: true, Atmos: true, DigitalMaster: true}) || tr.Number != 3 || tr.Disc != 2 || tr.Composer != "C" {
 		t.Errorf("song %+v", tr)
 	}
-	al := toAlbum(resourceOf(t, `{"id":"2","type":"albums","attributes":{"name":"y","contentRating":"clean","audioTraits":["lossy-stereo"],"isMasteredForItunes":true,"artwork":{"url":"u/{w}x{h}bb.{f}","bgColor":"101010","textColor1":"f0f0f0","textColor4":"a0a0a0"},"editorialNotes":{"standard":"<i>One</i> &amp; two","tagline":"New Album"}}}`))
+	al := (&Source{}).toAlbum(resourceOf(t, `{"id":"2","type":"albums","attributes":{"name":"y","contentRating":"clean","audioTraits":["lossy-stereo"],"isMasteredForItunes":true,"artwork":{"url":"u/{w}x{h}bb.{f}","bgColor":"101010","textColor1":"f0f0f0","textColor4":"a0a0a0"},"editorialNotes":{"standard":"<i>One</i> &amp; two","tagline":"New Album"}}}`))
 	if al.Explicit || al.Traits != (music.Traits{DigitalMaster: true}) || al.Colors != (music.Colors{BG: "101010", Text1: "f0f0f0", Text4: "a0a0a0"}) || al.Notes != "One & two" || al.Tagline != "New Album" {
 		t.Errorf("album %+v", al)
 	}

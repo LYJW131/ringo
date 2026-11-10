@@ -44,6 +44,10 @@ type Album struct {
 	Released string   `json:"released,omitempty"` // as the source has it, such as 2024-03-01
 	// Saved says the listener saved it, for a source with saveAlbum.
 	Saved bool `json:"saved,omitempty"`
+	// Uploaded says some of its songs are the listener's uploads (see
+	// Track.Uploaded), so it stays in their library: deleted, those
+	// couldn't be added back. Known on its page.
+	Uploaded bool `json:"uploaded,omitempty"`
 
 	Explicit bool   `json:"explicit,omitempty"`
 	Traits   Traits `json:"traits,omitzero"`
@@ -92,6 +96,10 @@ type Track struct {
 	Video bool `json:"video,omitempty"`
 	// Saved says it's in the listener's library.
 	Saved bool `json:"saved,omitempty"`
+	// Uploaded says it's a song the listener uploaded to their library,
+	// which the source's catalog doesn't have: it plays, and goes on their
+	// playlists, but deleted from the library it couldn't be added back.
+	Uploaded bool `json:"uploaded,omitempty"`
 }
 
 // ArtistNames joins the track's artists as the credits read.

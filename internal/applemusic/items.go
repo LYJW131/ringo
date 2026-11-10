@@ -31,8 +31,8 @@ func (s *Source) item(b *body, r *resource) (music.Item, bool) {
 	}
 	switch r.Type {
 	case "albums", "library-albums":
-		album := toAlbum(r)
-		it.Kind, it.ID, it.Album, it.Subtitle = music.ItemAlbum, album.ID, &album, a.ArtistName
+		album := s.toAlbum(r)
+		it.Kind, it.ID, it.Album, it.Subtitle, it.ImageURL = music.ItemAlbum, album.ID, &album, a.ArtistName, album.ImageURL
 		it.VideoURL = album.VideoURL
 	case "playlists", "library-playlists":
 		p := s.toPlaylist(r)

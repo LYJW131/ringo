@@ -282,7 +282,7 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 	}
 	a.detailHeader(c, pl.ImageURL, lines, pl.Description, pl.Tracks, func(compact bool) {
 		if !pl.Mine && !pl.Fixed && !a.ownList(pl.ID) {
-			a.libraryButton(c, lib, music.ItemPlaylist, pl.ID, pl.Saved || a.isSaved(pl), compact)
+			a.libraryButton(c, lib, music.ItemPlaylist, pl.ID, pl.Saved || a.isSaved(pl), false, compact)
 		}
 		a.moreButton(c, a.playlistItemsOf(lib, *pl))
 	})
@@ -388,8 +388,8 @@ func (a *app) playlistRow(c *ui.Context, tracks []music.Track, i int, pid string
 		ui.Text(c, clock(tr.Length())).FontSize(13).FontFeatures("tnum").TextColor(p.muted).Width(44).TextAlign(ui.End)
 		a.songMenu(c.Key("menu"), tr, 15, p.muted).Margin(0, -6, 0, 0)
 	})
-	if row.Clicked() && !tr.Unavailable {
-		a.pl.PlayTrack(tracks, i)
+	if row.Clicked() {
+		a.playRow(tracks, i)
 	}
 }
 
@@ -624,8 +624,8 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 		})
 		ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
 	})
-	if row.Clicked() && !tr.Unavailable {
-		a.pl.PlayTrack(tracks, i)
+	if row.Clicked() {
+		a.playRow(tracks, i)
 	}
 }
 

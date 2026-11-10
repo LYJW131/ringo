@@ -3,6 +3,7 @@ package applemusic
 import (
 	"errors"
 	"regexp"
+	"strings"
 
 	"mygo-music/internal/music"
 )
@@ -33,3 +34,7 @@ func coded(err error) bool {
 var catalogID = regexp.MustCompile(`^\d+$`)
 
 func isCatalogID(id string) bool { return catalogID.MatchString(id) }
+
+// isLibrarySong says id is a song of the listener's library, by its own ID
+// rather than the catalog's: as an upload is known.
+func isLibrarySong(id string) bool { return strings.HasPrefix(id, "i.") && len(id) > 2 }

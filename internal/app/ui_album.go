@@ -163,7 +163,7 @@ func (a *app) albumHeader(c *ui.Context, lib *library, page *music.AlbumPage) {
 		})
 	}
 	a.detailHeader(c, al.ImageURL, lines, al.Notes, page.Tracks, func(compact bool) {
-		a.libraryButton(c, lib, music.ItemAlbum, al.ID, al.Saved, compact)
+		a.libraryButton(c, lib, music.ItemAlbum, al.ID, al.Saved, al.Uploaded, compact)
 		a.moreButton(c, a.albumItems(lib, *al))
 	})
 }
@@ -234,8 +234,8 @@ func (a *app) albumTrackRow(c *ui.Context, tracks []music.Track, i int, various 
 		ui.Text(c, clock(tr.Length())).FontSize(13).FontFeatures("tnum").TextColor(p.muted).Width(44).TextAlign(ui.End)
 		a.songMenu(c.Key("menu"), tr, 15, p.muted).Margin(0, -6, 0, 0)
 	})
-	if row.Clicked() && !tr.Unavailable {
-		a.pl.PlayTrack(tracks, i)
+	if row.Clicked() {
+		a.playRow(tracks, i)
 	}
 }
 

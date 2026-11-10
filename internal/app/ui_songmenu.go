@@ -11,6 +11,17 @@ import (
 // copyText puts text on the clipboard; tests replace it.
 var copyText = func(text string) error { return mygo.Clipboard.Write(transfer.TextData(text)) }
 
+// playRow plays tracks from the i-th, a row of them clicked; or says why it
+// can't, for a song greyed out, as one the catalog no longer has in the
+// listener's country.
+func (a *app) playRow(tracks []music.Track, i int) {
+	if tracks[i].Unavailable {
+		a.toast = T("This song isn't available in your country or region")
+		return
+	}
+	a.pl.PlayTrack(tracks, i)
+}
+
 // songMenu is three dots that open the menu of tr.
 func (a *app) songMenu(c *ui.Context, tr *music.Track, size float32, color ui.Color) ui.Element {
 	b := iconButton(c, iconMore, size, color, T("More"))
@@ -29,7 +40,9 @@ func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 		lib := a.trackLib(tr)
 		kind := trackKind(tr)
 		group := false
-		if lib.can("addToLibrary") && !lib.signedOut() {
+		// An upload deleted from the library would be gone for good, with
+		// no catalog to add it back from: the library is left as it is.
+		if lib.can("addToLibrary") && !lib.signedOut() && !tr.Uploaded {
 			if lib.inLibrary(kind, tr.ID, tr.Saved) {
 				if m.Item(T("Delete From Library")).Chosen() {
 					a.setInLibrary(lib, kind, tr.ID, false)

@@ -116,6 +116,9 @@ type playParams struct {
 	Kind        string     `json:"kind,omitempty"`
 	CatalogID   flexString `json:"catalogId,omitempty"`
 	ReportingID string     `json:"reportingId,omitempty"`
+	// Reporting is false for a song the listener uploaded, whose plays Apple
+	// isn't told of.
+	Reporting *bool `json:"reporting,omitempty"`
 }
 
 type video struct {
@@ -319,6 +322,15 @@ func songID(item *resource) string {
 	return item.ID
 }
 
+// uploaded says item is a song the listener uploaded to their library,
+// which the catalog doesn't have: it plays by its library ID alone. A song
+// the catalog no longer has comes without playParams, and doesn't play.
+func uploaded(item *resource) bool {
+	play := item.attrs().PlayParams
+	return item.Type == "library-songs" && play != nil && play.Kind == "song" &&
+		isLibrarySong(play.ID) && play.CatalogID == "" && !isCatalogID(play.ReportingID)
+}
+
 var albumInURL = regexp.MustCompile(`/album/[^/]+/(\d+)`)
 
 func albumIDOf(item *resource) string {
@@ -433,6 +445,7 @@ func (s *Source) toTrack(item *resource) music.Track {
 	if a.AlbumArtistName != "" {
 		albumArtists = []music.Artist{byName(a.AlbumArtistName)}
 	}
+	own := uploaded(item)
 	return music.Track{
 		ID:      id,
 		Name:    a.Name,
@@ -440,12 +453,13 @@ func (s *Source) toTrack(item *resource) music.Track {
 		Album: music.Album{
 			ID:       albumIDOf(item),
 			Name:     a.AlbumName,
-			ImageURL: art(a.Artwork),
+			ImageURL: s.keptArt(a.Artwork),
 			Artists:  albumArtists,
 		},
 		Duration:    a.DurationInMillis,
 		URL:         a.URL,
-		Unavailable: !isCatalogID(id) || (a.PlayParams == nil && !strings.HasPrefix(item.ID, "i.")),
+		Unavailable: !own && (!isCatalogID(id) || (a.PlayParams == nil && !strings.HasPrefix(item.ID, "i."))),
+		Uploaded:    own,
 		Number:      a.TrackNumber,
 		Disc:        a.DiscNumber,
 		Explicit:    explicit(a),
@@ -455,7 +469,7 @@ func (s *Source) toTrack(item *resource) music.Track {
 	}
 }
 
-// songsOf is the songs among items: music videos and uploads that aren't in the catalog don't play.
+// songsOf is the songs among items, music videos left out.
 func (s *Source) songsOf(items []*resource) []music.Track {
 	out := []music.Track{}
 	for _, i := range items {
@@ -466,7 +480,7 @@ func (s *Source) songsOf(items []*resource) []music.Track {
 	return out
 }
 
-func toAlbum(item *resource) music.Album {
+func (s *Source) toAlbum(item *resource) music.Album {
 	a := item.attrs()
 	id := item.ID
 	if a.PlayParams != nil && a.PlayParams.CatalogID != "" {
@@ -486,7 +500,7 @@ func toAlbum(item *resource) music.Album {
 	}
 	tagline := a.EditorialNotes.tag()
 	return music.Album{
-		ID: id, Name: a.Name, ImageURL: art(a.Artwork), Artists: artists, Released: a.ReleaseDate,
+		ID: id, Name: a.Name, ImageURL: s.keptArt(a.Artwork), Artists: artists, Released: a.ReleaseDate,
 		Explicit:   explicit(a),
 		Traits:     traits(a),
 		Colors:     colors(a.Artwork),
@@ -502,11 +516,11 @@ func toAlbum(item *resource) music.Album {
 	}
 }
 
-func toAlbums(items []*resource) []music.Album {
+func (s *Source) toAlbums(items []*resource) []music.Album {
 	out := []music.Album{}
 	for _, i := range items {
 		if i != nil {
-			out = append(out, toAlbum(i))
+			out = append(out, s.toAlbum(i))
 		}
 	}
 	return out
@@ -564,7 +578,7 @@ func (s *Source) toPlaylist(item *resource) music.Playlist {
 	library := item.Type == "library-playlists"
 	image := art(a.Artwork)
 	if library {
-		image = s.playlistArt(a.Artwork)
+		image = s.keptArt(a.Artwork)
 	}
 	description := a.Description.long()
 	if description == "" {

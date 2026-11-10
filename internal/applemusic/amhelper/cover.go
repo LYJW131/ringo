@@ -1,8 +1,9 @@
 package amhelper
 
-// The covers listeners give their own playlists are presigned links to
-// Apple's blobstore, at the size they were uploaded, and from some places
-// take half a minute to come: past what the app waits for a cover. The
+// The covers listeners give their own playlists, and those of songs they
+// upload, are presigned links to Apple's blobstore, at the size they were
+// uploaded, and from some places take half a minute or more to come: past
+// what the app waits for a cover. The
 // applemusic package has each fetched once, with no hurry, and kept 600 pixels wide in
 // its data, where the app reads it from then on.
 

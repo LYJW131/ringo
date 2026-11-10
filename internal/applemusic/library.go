@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"mygo-music/internal/i18n"
 	"mygo-music/internal/music"
 )
 
@@ -179,26 +180,37 @@ func (s *Source) liked(offset int, ahead bool) (*music.Page, error) {
 	return page, nil
 }
 
+// ratingsOf is where a song's rating is: an upload, known by its library ID,
+// is rated as a library song.
+func ratingsOf(id string) string {
+	if isLibrarySong(id) {
+		return "/ratings/library-songs"
+	}
+	return "/ratings/songs"
+}
+
 func (s *Source) isLiked(ids []string) (map[string]bool, error) {
 	out := map[string]bool{}
-	var catalogIDs []string
+	byKind := map[string][]string{}
 	for _, id := range ids {
 		out[id] = false
-		if isCatalogID(id) {
-			catalogIDs = append(catalogIDs, id)
+		if isCatalogID(id) || isLibrarySong(id) {
+			byKind[ratingsOf(id)] = append(byKind[ratingsOf(id)], id)
 		}
 	}
-	if !s.signedIn() || len(catalogIDs) == 0 {
+	if !s.signedIn() {
 		return out, nil
 	}
-	for i := 0; i < len(catalogIDs); i += 100 {
-		b, err := s.me("/ratings/songs", params{"ids": strings.Join(catalogIDs[i:min(i+100, len(catalogIDs))], ",")}, reqOpts{})
-		if err != nil {
-			return nil, err
-		}
-		for _, r := range b.Data {
-			if r != nil {
-				out[r.ID] = r.attrs().Value == 1
+	for path, some := range byKind {
+		for i := 0; i < len(some); i += 100 {
+			b, err := s.me(path, params{"ids": strings.Join(some[i:min(i+100, len(some))], ",")}, reqOpts{})
+			if err != nil {
+				return nil, err
+			}
+			for _, r := range b.Data {
+				if r != nil {
+					out[r.ID] = r.attrs().Value == 1
+				}
 			}
 		}
 	}
@@ -206,16 +218,18 @@ func (s *Source) isLiked(ids []string) (map[string]bool, error) {
 }
 
 func (s *Source) like(id string, on bool) error {
-	if !isCatalogID(id) {
+	if !isCatalogID(id) && !isLibrarySong(id) {
 		return fail("unsupported", "")
 	}
 	if on {
-		if _, err := s.me("/ratings/songs/"+id, nil, reqOpts{method: "PUT", body: map[string]any{"type": "rating", "attributes": map[string]any{"value": 1}}}); err != nil {
+		if _, err := s.me(ratingsOf(id)+"/"+id, nil, reqOpts{method: "PUT", body: map[string]any{"type": "rating", "attributes": map[string]any{"value": 1}}}); err != nil {
 			return err
 		}
-		s.me("/library", params{"ids[songs]": id}, reqOpts{method: "POST"})
-		s.forget("recentlyAdded")
-	} else if _, err := s.me("/ratings/songs/"+id, nil, reqOpts{method: "DELETE"}); err != nil {
+		if isCatalogID(id) {
+			s.me("/library", params{"ids[songs]": id}, reqOpts{method: "POST"})
+			s.forget("recentlyAdded")
+		}
+	} else if _, err := s.me(ratingsOf(id)+"/"+id, nil, reqOpts{method: "DELETE"}); err != nil {
 		return err
 	}
 	s.forget("liked:")
@@ -235,7 +249,7 @@ func (s *Source) savedAlbums(offset int, ahead bool) (*music.AlbumList, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &music.AlbumList{Albums: toAlbums(b.Data), More: b.Next != ""}, nil
+		return &music.AlbumList{Albums: s.toAlbums(b.Data), More: b.Next != ""}, nil
 	}, ahead)
 }
 
@@ -293,6 +307,14 @@ func (s *Source) saveAlbum(id string, on bool) error {
 	if err != nil {
 		return err
 	}
+	// An album with songs the listener uploaded stays: those deleted
+	// couldn't be added back. Its menu on a card, which doesn't know, still
+	// offers it.
+	for _, song := range songs {
+		if uploaded(song) {
+			return fail("unsupported", uploadsStay())
+		}
+	}
 	for _, song := range songs {
 		if song.Type != "library-songs" {
 			continue
@@ -303,6 +325,10 @@ func (s *Source) saveAlbum(id string, on bool) error {
 	}
 	_, err = s.me("/library/albums/"+own, nil, reqOpts{method: "DELETE"})
 	return err
+}
+
+func uploadsStay() string {
+	return i18n.T("Songs you uploaded can't be added back once deleted, so this album stays in your library")
 }
 
 func (s *Source) savePlaylist(id string, on bool) error {
@@ -372,8 +398,12 @@ func (s *Source) createPlaylist(name string) (*music.Playlist, error) {
 func (s *Source) addToPlaylist(id string, trackIDs []string) error {
 	var data []map[string]string
 	for _, song := range trackIDs {
-		if isCatalogID(song) {
+		switch {
+		case isCatalogID(song):
 			data = append(data, map[string]string{"id": song, "type": "songs"})
+		case isLibrarySong(song):
+			// An upload, which goes by its library ID, as Apple's API takes.
+			data = append(data, map[string]string{"id": song, "type": "library-songs"})
 		}
 	}
 	if len(data) == 0 {

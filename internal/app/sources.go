@@ -253,6 +253,8 @@ func (a *app) actionFailed(lib *library, err error, msg string) {
 	case errors.Is(err, music.ErrSetup):
 		lib.needsSetup, lib.setupReason = true, music.Reason(err)
 		a.openAccountSettings()
+	case errors.Is(err, music.ErrUnsupported) && music.Reason(err) != "":
+		a.toast = music.Reason(err) // the source's word for why it won't
 	default:
 		a.toast = msg
 	}

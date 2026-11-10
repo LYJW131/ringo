@@ -3,7 +3,7 @@
 // 127.0.0.1, where the player fetches them. The AAC the applemusic package gets
 // the key of itself (aac.go). The ALAC it asks a wrapper for: the playlist and
 // the key templates. It also keeps the covers of the listener's own playlists
-// (cover.go).
+// (cover.go), and fetches the songs they uploaded (upload.go).
 //
 // Start listens on 127.0.0.1 under a random secret and serves until Close;
 // Base is the address to call, http://127.0.0.1:<port>/<secret>:
@@ -11,6 +11,8 @@
 //	POST <base>/aac/<id>            {media, key, seconds}: the song's AAC
 //	GET <base>/aac/<id>.m4a         that song, decrypted, as fragmented MP4
 //	POST <base>/cover/<name>        {url}: keeps a playlist cover in Config.Covers
+//	POST <base>/upload/<id>         {url}: an uploaded song's link; answers {size}
+//	GET <base>/upload/<id>.m4a      that song, as it comes in, kept in Config.Uploads
 //	GET <base>/status               the wrapper's {ready, regions}
 //	POST <base>/wake                wakes the wrapper (one on Cloudflare sleeps)
 //	GET <base>/token?account=       an account's {token, region, next, account} (account.go)
@@ -57,6 +59,7 @@ type Config struct {
 	Token   string // the wrapper's API key
 	Cache   string // a folder to keep key templates and tracks in; "" for none
 	Covers  string // a folder to keep playlist covers in; "" for none
+	Uploads string // a folder to keep uploaded songs in; "" for none
 	Apple   string // for tests: a base URL to ask for Apple's files instead of Apple's CDN
 }
 
@@ -100,7 +103,8 @@ func Start(cfg Config) (*Server, error) {
 		return nil, err
 	}
 	s := &server{ctx: ctx, wrapper: w, store: st, cdn: cdn, tracks: newLRU[cachedTrack](tracksKept), resolving: map[string]*resolveCall{},
-		aac: newLRU[aacSong](aacKept), aacOpened: map[string]*openedMedia{}, covers: newCovers(cfg.Covers)}
+		aac: newLRU[aacSong](aacKept), aacOpened: map[string]*openedMedia{}, covers: newCovers(cfg.Covers),
+		uploads: newUploads(ctx, cfg.Uploads, cdn)}
 	for k, t := range st.tracks() {
 		s.tracks.put(k, t)
 	}
@@ -109,6 +113,8 @@ func Start(cfg Config) (*Server, error) {
 	mux.HandleFunc("POST "+prefix+"/aac/{id}", s.aacRegister)
 	mux.HandleFunc("GET "+prefix+"/aac/{file}", s.aacSongFile)
 	mux.HandleFunc("POST "+prefix+"/cover/{name}", s.cover)
+	mux.HandleFunc("POST "+prefix+"/upload/{id}", s.uploadRegister)
+	mux.HandleFunc("GET "+prefix+"/upload/{file}", s.uploadFile)
 	needsWrapper := func(h http.HandlerFunc) http.HandlerFunc {
 		return func(rw http.ResponseWriter, r *http.Request) {
 			if s.wrapper == nil {
@@ -152,6 +158,7 @@ type server struct {
 	store   *store
 	cdn     *http.Client
 	covers  *covers
+	uploads *uploads
 
 	mu        sync.Mutex
 	tracks    *lru[cachedTrack]

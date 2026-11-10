@@ -189,8 +189,10 @@ func (a *app) share(url string) {
 // listItems are the items of the menu of an album or a playlist, as the
 // listener's library has it or not, and their favorites; then, if more is
 // set, what more its menu has, before Share and Favorite.
-func (a *app) listItems(m *ui.Menu, lib *library, kind, id, name, url string, saved, favorite bool, more func()) {
-	if lib.can("addToLibrary") {
+func (a *app) listItems(m *ui.Menu, lib *library, kind, id, name, url string, saved, favorite, stays bool, more func()) {
+	// What stays in the library, as an album with uploads, isn't offered
+	// to be taken out.
+	if lib.can("addToLibrary") && !(stays && lib.inLibrary(kind, id, saved)) {
 		if lib.inLibrary(kind, id, saved) {
 			if m.Item(T("Delete From Library")).Chosen() {
 				a.setInLibrary(lib, kind, id, false)
@@ -239,7 +241,7 @@ func (a *app) shareAndFavorite(m *ui.Menu, lib *library, kind, id, url string, f
 // right click on its card.
 func (a *app) albumItems(lib *library, al music.Album) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
-		a.listItems(m, lib, music.ItemAlbum, al.ID, al.Name, al.URL, al.Saved, al.Favorite, func() {
+		a.listItems(m, lib, music.ItemAlbum, al.ID, al.Name, al.URL, al.Saved, al.Favorite, al.Uploaded, func() {
 			first := true
 			for _, ar := range al.Artists {
 				if ar.ID == "" || !lib.can("artist") {
@@ -278,7 +280,7 @@ func (a *app) playlistItemsOf(lib *library, pl music.Playlist) func(m *ui.Menu) 
 			}
 			return
 		}
-		a.listItems(m, lib, music.ItemPlaylist, pl.ID, pl.Name, pl.URL, saved, pl.Favorite, nil)
+		a.listItems(m, lib, music.ItemPlaylist, pl.ID, pl.Name, pl.URL, saved, pl.Favorite, false, nil)
 	}
 }
 

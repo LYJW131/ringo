@@ -55,7 +55,7 @@ func (s *Source) search(term string, kind music.SearchKind, offset int) (*music.
 			s.prefetch(out.Tracks, run)
 		}
 	case music.SearchAlbums:
-		out.Albums = toAlbums(r.Data)
+		out.Albums = s.toAlbums(r.Data)
 	case music.SearchArtists:
 		out.Artists = []music.Artist{}
 		for _, i := range r.Data {
@@ -117,7 +117,7 @@ func (s *Source) fromLink(link *appleLink, kind music.SearchKind) (*music.Search
 		if err != nil {
 			return nil, err
 		}
-		return &music.SearchResult{Albums: []music.Album{toAlbum(r)}}, nil
+		return &music.SearchResult{Albums: []music.Album{s.toAlbum(r)}}, nil
 	case link.kind == "album" && kind == music.SearchTracks:
 		page, err := s.album(link.id)
 		if err != nil {

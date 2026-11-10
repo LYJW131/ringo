@@ -198,8 +198,9 @@ func (a *app) notes(c *ui.Context, text string) {
 
 // libraryButton adds what kind and id name to the listener's library, or
 // says it's there, which a click undoes, for a source that keeps a library.
-// compact, it is its icon alone, its words its label and tooltip.
-func (a *app) libraryButton(c *ui.Context, lib *library, kind, id string, was, compact bool) {
+// compact, it is its icon alone, its words its label and tooltip. What
+// stays in the library, as an album with uploads, says why instead.
+func (a *app) libraryButton(c *ui.Context, lib *library, kind, id string, was, stays, compact bool) {
 	if !lib.can("addToLibrary") {
 		return
 	}
@@ -217,6 +218,10 @@ func (a *app) libraryButton(c *ui.Context, lib *library, kind, id string, was, c
 		b = pillButton(c.Key("library"), icon, label, p.hover.Over(p.bg), p.text)
 	}
 	if b.Clicked() {
+		if in && stays {
+			a.toast = T("Songs you uploaded can't be added back once deleted, so this album stays in your library")
+			return
+		}
 		a.setInLibrary(lib, kind, id, !in)
 	}
 }
