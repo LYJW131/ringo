@@ -6,7 +6,7 @@ export default () => ({
   slug: "ringo",
   version: "0.1.0",
   out: "build",
-  resources: ["LICENSE"],
+  resources: ["LICENSE", "THIRD_PARTY_NOTICES.md", "licenses/LGPL-2.1.txt"],
   macos: {
     icon: "icon/AppIcon.icon",
     minimumSystemVersion: "13.0",
