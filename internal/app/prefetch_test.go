@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -234,6 +235,47 @@ func TestWarmQueueRules(t *testing.T) {
 	a.pumpWarm(lib)
 	if started == before {
 		t.Error("nothing was asked for once the listener's page was up")
+	}
+}
+
+// A list of the library is kept as it was last sorted, but not what was
+// looked for in it: the word the listener typed isn't written to the file.
+func TestKeptPagesLeaveOutWhatWasLookedFor(t *testing.T) {
+	a := newTestApp()
+	lib := a.library
+	_, albums, _, _ := keptSample()
+	const sorted = "library:albums?sort=-dateAdded"
+	lib.browses[sorted] = &browseData{page: albums}
+	lib.browses[sorted+"&term=jay"] = &browseData{page: albums}
+	data := encodePages(lib, "who")
+	var f pageFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		t.Fatal(err)
+	}
+	if f.Browses[sorted] == nil {
+		t.Error("the list as sorted wasn't kept")
+	}
+	if strings.Contains(string(data), "jay") {
+		t.Errorf("what was looked for was kept: %v", reflect.ValueOf(f.Browses).MapKeys())
+	}
+}
+
+// A list of the library that was last sorted another way is asked for ahead
+// sorted that way, the page the sidebar opens. It was asked for as Apple keeps
+// it, so the sidebar's page still had to load.
+func TestWarmLibraryListsAsLastSorted(t *testing.T) {
+	a := newTestApp()
+	a.library.account = &music.Account{ID: "1"}
+	a.settings.LibraryViews = map[string]string{music.PageLibraryAlbums: "library:albums?sort=-dateAdded"}
+	keys := map[string]bool{}
+	for _, j := range a.warmJobs(a.library) {
+		keys[j.key] = true
+	}
+	if !keys["browse:library:albums?sort=-dateAdded"] || keys["browse:"+music.PageLibraryAlbums] {
+		t.Errorf("Albums asked for ahead as %v", keys)
+	}
+	if !keys["browse:"+music.PageLibrarySongs] {
+		t.Errorf("Songs, never sorted, not asked for as Apple keeps it: %v", keys)
 	}
 }
 

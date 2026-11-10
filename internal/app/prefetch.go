@@ -123,7 +123,9 @@ func (a *app) warmJobs(lib *library) []warmJob {
 		}
 	}
 	if signedIn {
-		for _, page := range []string{music.PageRecentlyAdded, music.PageLibraryAlbums, music.PageLibrarySongs, music.PageLibraryArtist} {
+		// Albums and Songs as they were last sorted, which is the page the
+		// sidebar opens.
+		for _, page := range []string{music.PageRecentlyAdded, a.libraryPage(music.PageLibraryAlbums), a.libraryPage(music.PageLibrarySongs), music.PageLibraryArtist} {
 			browse(page)
 		}
 		if lib.can("liked") {

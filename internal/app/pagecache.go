@@ -250,7 +250,12 @@ func encodePages(lib *library, account string) []byte {
 	f := pageFile{Version: pagesVersion, Lang: i18n.Language(), Account: account, Home: lib.home, Mine: lib.mine, Saved: lib.saved}
 	f.Recent = lib.recent[:min(len(lib.recent), pagesRecent)]
 	for page, d := range lib.browses {
-		// What's gone on past its first part isn't kept as that.
+		// What's gone on past its first part isn't kept as that. Nor is what
+		// was looked for in a list of the library: the word isn't written
+		// down, and what has it can be most of the list.
+		if _, v := music.ParseLibraryPage(page); v.Term != "" {
+			continue
+		}
 		if d.page != nil && !d.paged && d.err == "" {
 			if f.Browses == nil {
 				f.Browses = map[string]*music.Browse{}
