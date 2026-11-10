@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -123,5 +125,59 @@ func TestWrites(t *testing.T) {
 	}
 	if len(next) != 1 || next[0].ID != "11" || next[0].Name != "Next" {
 		t.Errorf("autoplay: %+v", next)
+	}
+}
+
+// Whether songs are in the library is asked a hundred at a time, of the
+// catalog with nothing but inLibrary, as the web player asks; a song that
+// isn't may come without the attribute, and one the storefront doesn't have
+// doesn't come at all.
+func TestInLibraryOf(t *testing.T) {
+	var (
+		mu      sync.Mutex
+		queries []string
+	)
+	ts := newTestSource(t, func(r *http.Request) *http.Response {
+		if r.URL.Hostname() != "amp-api.music.apple.com" || r.URL.Path != "/v1/catalog/us" {
+			return answer(404, "")
+		}
+		q := r.URL.Query()
+		mu.Lock()
+		queries = append(queries, q.Get("fields[songs]"))
+		mu.Unlock()
+		var data []any
+		for _, id := range strings.Split(q.Get("ids[songs]"), ",") {
+			switch id {
+			case "999":
+			case "1", "150":
+				data = append(data, map[string]any{"id": id, "type": "songs", "attributes": map[string]any{"inLibrary": true}})
+			default:
+				data = append(data, map[string]any{"id": id, "type": "songs", "attributes": map[string]any{}})
+			}
+		}
+		return answer(200, map[string]any{"data": data})
+	})
+	ts.storage.set(userTokenKey, "token")
+	ts.storage.set(storefrontKey, "us")
+	var ids []string
+	for i := 1; i <= 150; i++ {
+		ids = append(ids, strconv.Itoa(i))
+	}
+	in, err := ts.InLibrary(music.ItemSong, append(ids, "999", "i.own"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for id, on := range in {
+		if on {
+			got = append(got, id)
+		}
+	}
+	slices.Sort(got)
+	if !slices.Equal(got, []string{"1", "150", "i.own"}) {
+		t.Errorf("in the library: %v", got)
+	}
+	if len(queries) != 2 || queries[0] != "inLibrary" {
+		t.Errorf("asked %d times, for %q", len(queries), queries)
 	}
 }

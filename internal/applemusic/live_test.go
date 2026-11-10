@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -214,6 +215,77 @@ func TestLiveSignedIn(t *testing.T) {
 	step("recentlyAdded", func() (string, error) { h, err := s.Browse("recentlyAdded"); return sectionsOr(h), err })
 	// Nothing is reported as played: the test leaves the account's listening
 	// history as it found it.
+}
+
+// Asked of the library's first five songs and five found by a search that
+// the library doesn't have (as each one's own resource says), all at once,
+// InLibrary says the first are in it and the others aren't. Only counts are
+// logged: what's in the library would say whose it is.
+func TestLiveInLibrary(t *testing.T) {
+	file := os.Getenv("APPLE_MUSIC_TOKEN_FILE")
+	if file == "" {
+		t.Skip("APPLE_MUSIC_TOKEN_FILE names a file holding a media-user-token")
+	}
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New(Options{DataDir: t.TempDir()})
+	defer s.Close()
+	s.storage.set(userTokenKey, strings.TrimSpace(string(raw)))
+
+	lib, err := s.me("/library/songs", params{"limit": "25"}, reqOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := map[string]bool{}
+	var ids []string
+	for _, r := range lib.Data {
+		if id := songID(r); isCatalogID(id) && len(ids) < 5 {
+			in[id] = true
+			ids = append(ids, id)
+		}
+	}
+	found, err := s.Search("lullaby music box", music.SearchTracks, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, tr := range found.Tracks {
+		if len(out) == 5 {
+			break
+		}
+		if !isCatalogID(tr.ID) || in[tr.ID] {
+			continue
+		}
+		if own, _, err := s.personal("songs", tr.ID); err != nil || own != nil {
+			continue
+		}
+		out = append(out, tr.ID)
+	}
+	if len(ids) < 5 || len(out) < 5 {
+		t.Fatalf("%d songs of the library and %d not in it to ask about, of %d found", len(ids), len(out), len(found.Tracks))
+	}
+	start := time.Now()
+	got, err := s.InLibrary(music.ItemSong, append(slices.Clone(ids), out...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	right := 0
+	for _, id := range ids {
+		if got[id] {
+			right++
+		}
+	}
+	for _, id := range out {
+		if !got[id] {
+			right++
+		}
+	}
+	t.Logf("%d of 10 right, in %d ms", right, time.Since(start).Milliseconds())
+	if right != 10 {
+		t.Errorf("%d of 10 right", right)
+	}
 }
 
 // sectionsOr is a signed-in page's shape, without its titles, which can

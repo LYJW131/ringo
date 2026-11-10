@@ -94,8 +94,11 @@ type Track struct {
 	Composer string `json:"composer,omitempty"`
 	// Video says it's a music video, whose picture is wider than tall.
 	Video bool `json:"video,omitempty"`
-	// Saved says it's in the listener's library.
-	Saved bool `json:"saved,omitempty"`
+	// Saved says it's in the listener's library. SavedKnown says the source
+	// asked, so that Saved false means it isn't, rather than that no one
+	// knows; it isn't kept with the track, as the library changes meanwhile.
+	Saved      bool `json:"saved,omitempty"`
+	SavedKnown bool `json:"-"`
 	// Uploaded says it's a song the listener uploaded to their library,
 	// which the source's catalog doesn't have: it plays, and goes on their
 	// playlists, but deleted from the library it couldn't be added back.

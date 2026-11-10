@@ -95,6 +95,7 @@ type fakeSource struct {
 	// Autoplayer).
 	favorite     func(kind, id string, on bool) error
 	addToLibrary func(kind, id string, on bool) error
+	inLibrary    func(kind string, ids []string) (map[string]bool, error)
 	autoplay     func(ids []string) ([]music.Track, error)
 
 	// music.Switcher.
@@ -112,6 +113,9 @@ func newFakeSource(id string) *fakeSource {
 	// Autoplay asks the source as soon as a queue nears its end, which a
 	// test of something else doesn't expect: one of it turns it on.
 	delete(s.caps, "autoplay")
+	// Asking whether songs shown are in the library goes as they show, as
+	// autoplay does: one of it turns it on.
+	delete(s.caps, "inLibrary")
 	return s
 }
 
@@ -306,6 +310,12 @@ func (s *fakeSource) AddToLibrary(kind, id string, on bool) error {
 		return nil
 	}
 	return s.addToLibrary(kind, id, on)
+}
+func (s *fakeSource) InLibrary(kind string, ids []string) (map[string]bool, error) {
+	if s.inLibrary == nil {
+		return map[string]bool{}, nil
+	}
+	return s.inLibrary(kind, ids)
 }
 func (s *fakeSource) Autoplay(ids []string) ([]music.Track, error) {
 	if s.autoplay == nil {

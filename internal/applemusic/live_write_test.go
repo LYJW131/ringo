@@ -95,14 +95,23 @@ func TestLiveWrites(t *testing.T) {
 		}
 	}
 
+	// A song is read back as the app asks of the songs it shows (InLibrary).
 	song := firstItem(found, music.ItemSong)
-	if _, lib := state("songs", song); lib {
+	inLib := func() bool {
+		t.Helper()
+		in, err := s.InLibrary(music.ItemSong, []string{song})
+		if err != nil {
+			t.Fatalf("asking about the song: %v", err)
+		}
+		return in[song]
+	}
+	if inLib() {
 		t.Fatalf("the song is in the library already")
 	}
 	if err := s.AddToLibrary(music.ItemSong, song, true); err != nil {
 		t.Fatalf("adding a song: %v", err)
 	}
-	waitFor("the song in the library", func() bool { _, lib := state("songs", song); return lib })
+	waitFor("the song in the library", inLib)
 	added, err := s.Browse(music.PageLibrarySongs)
 	if err == nil {
 		t.Logf("library songs: %s", shape(added))
@@ -110,7 +119,7 @@ func TestLiveWrites(t *testing.T) {
 	if err := s.AddToLibrary(music.ItemSong, song, false); err != nil {
 		t.Errorf("taking the song out: %v", err)
 	}
-	waitFor("the song out of the library", func() bool { _, lib := state("songs", song); return !lib })
+	waitFor("the song out of the library", func() bool { return !inLib() })
 
 	next, err := s.Autoplay([]string{song})
 	if err != nil {

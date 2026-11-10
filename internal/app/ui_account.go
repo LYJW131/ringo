@@ -70,6 +70,7 @@ func (a *app) loadAccount(lib *library) {
 func (a *app) afterAccount(lib *library) {
 	lib.accountAsked = true
 	lib.forget()
+	a.doubtPlayer(lib)
 	lib.needsSignIn, lib.askedSignIn = false, false
 	lib.choicesAt = time.Time{}
 	a.loadAccounts(lib, false)

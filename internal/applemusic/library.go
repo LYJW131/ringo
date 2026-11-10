@@ -263,6 +263,62 @@ func (s *Source) inLibrary(typ, id string) *resource {
 	return own
 }
 
+// inLibraryOf says which songs or music videos of ids are in the library, a
+// hundred to a request, as the web player asks for its rows' "in library"
+// state: the catalog's resources by ID, with nothing but inLibrary. Those
+// that aren't come with it false, or without it, and those the storefront
+// doesn't have don't come at all. The library's own IDs are in it.
+func (s *Source) inLibraryOf(kind string, ids []string) (map[string]bool, error) {
+	if kind != music.ItemSong && kind != music.ItemVideo {
+		return nil, fail("unsupported", "")
+	}
+	typ := catalogTypes[kind]
+	out := make(map[string]bool, len(ids))
+	var ask []string
+	for _, id := range ids {
+		switch {
+		case isCatalogID(id):
+			ask = append(ask, id)
+		case isLibrarySong(id):
+			out[id] = true
+		}
+	}
+	if !s.signedIn() {
+		return out, nil
+	}
+	for i := 0; i < len(ask); i += 100 {
+		b, err := s.catalog("", params{"ids[" + typ + "]": strings.Join(ask[i:min(i+100, len(ask))], ","), "fields[" + typ + "]": "inLibrary", "omit[resource]": "autos"})
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range b.Data {
+			if r != nil && r.attrs().InLibrary {
+				out[r.ID] = true
+			}
+		}
+	}
+	return out, nil
+}
+
+// askInLibrary has a page's songs say whether they're in the library, which
+// Apple adds to their attributes for an extend asked of songs, and reports
+// whether it did: signed out, there's no library to ask about.
+func (s *Source) askInLibrary(p params) bool {
+	if !s.signedIn() {
+		return false
+	}
+	p["extend[songs]"] = "extendedAssetUrls,inLibrary"
+	return true
+}
+
+// libraryKnown marks songs as having said whether they're in the library,
+// if they were asked.
+func libraryKnown(songs []music.Track, asked bool) {
+	for i := range songs {
+		songs[i].SavedKnown = songs[i].SavedKnown || asked
+	}
+}
+
 // personal is what the listener has of what of the catalog: its library's
 // own resource, if it's in the library, and whether it's a favorite. Apple
 // answers these only when the fields are asked for by name.

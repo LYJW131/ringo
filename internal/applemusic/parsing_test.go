@@ -107,7 +107,7 @@ func TestSongs(t *testing.T) {
 // Can names what the plugin exported, and nothing else.
 func TestCan(t *testing.T) {
 	want := []string{
-		"account", "accounts", "addToLibrary", "addToPlaylist", "album", "artist", "autoplay", "browse", "createPlaylist", "deletePlaylist", "favorite", "home", "isLiked", "like",
+		"account", "accounts", "addToLibrary", "addToPlaylist", "album", "artist", "autoplay", "browse", "createPlaylist", "deletePlaylist", "favorite", "home", "inLibrary", "isLiked", "like",
 		"liked", "lyrics", "movePlaylistTrack", "played", "playlist", "playlists", "recent", "removeFromPlaylist", "renamePlaylist", "saveAlbum", "savePlaylist",
 		"savedAlbums", "search", "setSetting", "signIn", "signOut", "stationNext", "stations", "stream", "suggest",
 	}

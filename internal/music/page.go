@@ -169,6 +169,12 @@ type Keeper interface {
 	AddToLibrary(kind, id string, on bool) error
 }
 
+// A LibraryChecker says which of ids, of an Item's kind, are in the
+// listener's library, all at once: those it leaves out aren't.
+type LibraryChecker interface {
+	InLibrary(kind string, ids []string) (map[string]bool, error)
+}
+
 // An Autoplayer answers songs to go on with once the queue ends, like
 // those of ids, the songs it ended with.
 type Autoplayer interface {

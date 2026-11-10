@@ -497,6 +497,10 @@ func (s *Source) toTrack(item *resource) music.Track {
 		Traits:      traits(a),
 		Composer:    a.ComposerName,
 		Video:       strings.HasSuffix(item.Type, "music-videos"),
+		// What the library lists is in it; the catalog's songs say so only
+		// when asked (askInLibrary), and then only those that are.
+		Saved:      strings.HasPrefix(item.Type, "library-") || a.InLibrary,
+		SavedKnown: strings.HasPrefix(item.Type, "library-"),
 	}
 }
 

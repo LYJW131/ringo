@@ -248,7 +248,7 @@ func (s *Source) Info() music.Info {
 // can is what the plugin exported: what the app may call.
 var can = map[string]bool{
 	"account": true, "accounts": true, "addToLibrary": true, "addToPlaylist": true, "album": true, "artist": true, "autoplay": true, "browse": true,
-	"createPlaylist": true, "deletePlaylist": true, "favorite": true, "home": true, "isLiked": true, "like": true, "liked": true,
+	"createPlaylist": true, "deletePlaylist": true, "favorite": true, "home": true, "inLibrary": true, "isLiked": true, "like": true, "liked": true,
 	"lyrics": true, "movePlaylistTrack": true, "played": true, "playlist": true, "playlists": true, "recent": true,
 	"removeFromPlaylist": true, "renamePlaylist": true, "saveAlbum": true, "savePlaylist": true, "savedAlbums": true, "search": true,
 	"setSetting": true, "signIn": true, "signOut": true, "stationNext": true,
@@ -377,6 +377,11 @@ func (s *Source) Favorite(kind, id string, on bool) error {
 func (s *Source) AddToLibrary(kind, id string, on bool) error {
 	defer s.asked(true)()
 	return s.addToLibrary(kind, id, on)
+}
+
+func (s *Source) InLibrary(kind string, ids []string) (map[string]bool, error) {
+	defer s.asked(true)()
+	return s.inLibraryOf(kind, ids)
 }
 
 func (s *Source) Autoplay(ids []string) ([]music.Track, error) {

@@ -28,7 +28,8 @@ func (a *app) wantLike(tr *music.Track) {
 	lib.wantLikes = append(lib.wantLikes, tr.ID)
 }
 
-// askLikes asks the sources about the hearts this frame showed, as it ends.
+// askLikes asks the sources about the hearts this frame showed, as it ends,
+// and about the songs whose place in the library it showed.
 func (a *app) askLikes() {
 	for _, lib := range a.libs {
 		if len(lib.wantLikes) > 0 {
@@ -36,6 +37,7 @@ func (a *app) askLikes() {
 			lib.wantLikes = nil
 		}
 	}
+	a.askInLibrary()
 }
 
 // askLiked asks a source about tracks, which show not liked until it answers.
@@ -122,6 +124,9 @@ func (a *app) toggleLike(tr *music.Track) {
 				return
 			}
 			a.likedChanged(lib, liked, like)
+			if like {
+				a.reaskInLibrary(lib, liked)
+			}
 		})
 	}()
 }

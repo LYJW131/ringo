@@ -41,15 +41,18 @@ func (a *app) songMenuIn(c *ui.Context, tr *music.Track, pid string, size float3
 // in, if set; playing it next or last; sharing it; making it a favorite; and
 // going to its album's or artists' pages. What its source can't do isn't
 // offered.
+//
+// The menu is built as it opens, at once, so whether tr is in the library
+// is asked about already as its row, card or dots show. Not known yet, it
+// offers to add it, which does no harm if it was.
 func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
+	a.wantInLibrary(tr)
 	return func(m *ui.Menu) {
 		lib := a.trackLib(tr)
 		kind := trackKind(tr)
 		group := false
-		// An upload deleted from the library would be gone for good, with
-		// no catalog to add it back from: the library is left as it is.
-		if lib.can("addToLibrary") && !lib.signedOut() && !tr.Uploaded {
-			if lib.inLibrary(kind, tr.ID, tr.Saved) {
+		if lib.canKeep(tr) {
+			if in, _ := a.songInLibrary(tr); in {
 				if m.Item(T("Delete From Library")).Chosen() {
 					a.setInLibrary(lib, kind, tr.ID, false)
 				}

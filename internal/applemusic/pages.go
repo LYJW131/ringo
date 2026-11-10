@@ -118,7 +118,9 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 		}
 		return &music.AlbumPage{Album: a, Tracks: songs}, nil
 	}
-	b, own, favorite, err := s.withLibrary("albums", id, albumParams())
+	p := albumParams()
+	asked := s.askInLibrary(p)
+	b, own, favorite, err := s.withLibrary("albums", id, p)
 	if err != nil {
 		return nil, err
 	}
@@ -132,6 +134,8 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 	refs := item.related("tracks").Data
 	tracks := b.all(refs)
 	if item.related("tracks").Next != "" {
+		// The pages after the first don't say: the app asks of their songs.
+		asked = false
 		path, err := s.catalogPath("/albums/" + id + "/tracks")
 		if err != nil {
 			return nil, err
@@ -141,6 +145,7 @@ func (s *Source) album(id string) (*music.AlbumPage, error) {
 		}
 	}
 	songs := s.songsOf(tracks)
+	libraryKnown(songs, asked)
 	markPopular(refs, songs)
 	s.prefetch(songs, nil)
 	a := s.toAlbum(item)
@@ -489,7 +494,9 @@ func (s *Source) playlist(id string) (*music.Playlist, error) {
 		s.prefetch(found.Tracks, nil)
 		return found, nil
 	}
-	b, own, favorite, err := s.withLibrary("playlists", id, playlistParams())
+	q := playlistParams()
+	asked := s.askInLibrary(q)
+	b, own, favorite, err := s.withLibrary("playlists", id, q)
 	if err != nil {
 		return nil, err
 	}
@@ -510,6 +517,8 @@ func (s *Source) playlist(id string) (*music.Playlist, error) {
 	}
 	tracks := b.all(item.related("tracks").Data)
 	if item.related("tracks").Next != "" {
+		// The pages after the first don't say: the app asks of their songs.
+		asked = false
 		path, err := s.catalogPath("/playlists/" + id + "/tracks")
 		if err != nil {
 			return nil, err
@@ -519,6 +528,7 @@ func (s *Source) playlist(id string) (*music.Playlist, error) {
 		}
 	}
 	songs := s.songsOf(tracks)
+	libraryKnown(songs, asked)
 	s.prefetch(songs, nil)
 	p := s.toPlaylist(item)
 	p.Saved, p.Favorite, p.TrackCount, p.Tracks = own != nil, favorite, len(songs), songs

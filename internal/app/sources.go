@@ -36,9 +36,9 @@ var capabilities = []string{
 	"createPlaylist", "renamePlaylist", "deletePlaylist", "addToPlaylist", "removeFromPlaylist", "movePlaylistTrack", "savePlaylist",
 	"stationNext",
 	"lyrics", "stream",
-	// music.Favorer, music.Keeper and music.Autoplayer, which a source
-	// may be or not.
-	"favorite", "addToLibrary", "autoplay",
+	// music.Favorer, music.Keeper, music.LibraryChecker and
+	// music.Autoplayer, which a source may be or not.
+	"favorite", "addToLibrary", "inLibrary", "autoplay",
 }
 
 func probeCaps(src music.Source) map[string]bool {
@@ -111,6 +111,13 @@ type library struct {
 	// source's answers said, which it may say again only as they load
 	// anew. busy are those on their way to the source.
 	favorites, kept, busy map[string]bool
+	// kept also holds what the source answered of songs shown whose own
+	// word wasn't known (songInLibrary): wantKept are those of this frame,
+	// askedKept those asked, which aren't asked again. doubted are the
+	// player's songs as another listener signed in, whose word was theirs.
+	wantKept  []keptSong
+	askedKept map[string]bool
+	doubted   map[string]bool
 }
 
 func newLibrary(src music.Source) *library {
@@ -131,6 +138,7 @@ func (l *library) forget() {
 	l.browses = map[string]*browseData{}
 	l.liked = nil
 	l.favorites, l.kept, l.busy = map[string]bool{}, map[string]bool{}, map[string]bool{}
+	l.wantKept, l.askedKept, l.doubted = nil, map[string]bool{}, map[string]bool{}
 	l.likedList, l.likedPaged, l.likedAt = nil, paged{}, time.Time{}
 }
 
