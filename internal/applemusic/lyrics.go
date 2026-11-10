@@ -111,8 +111,11 @@ func stripTags(s string) string { return unescapeXML(anyTag.ReplaceAllString(s, 
 // where there is one, and their pronunciation where Apple sends it: asked
 // for a script (l[script]), it does for lines written in another.
 func parseTTML(ttml, language string) *music.Lyrics {
-	// Translations, by the line they're for.
-	translations := map[string]string{}
+	// Translations, by the line they're for. One that is a replacement
+	// isn't a translation: it is the line itself in the listener's script,
+	// Simplified Chinese for a song written in Traditional, span for span,
+	// and stands in the line's place as it does in Apple Music.
+	translations, replacements := map[string]string{}, map[string]string{}
 	for _, b := range translationBlock.FindAllStringSubmatch(ttml, -1) {
 		lang, ok := attribute(b[1], "xml:lang")
 		if !ok {
@@ -121,12 +124,23 @@ func parseTTML(ttml, language string) *music.Lyrics {
 		if !strings.HasPrefix(lang, language) {
 			continue
 		}
+		replaces := attr(b[1], "type") == "replacement"
+		into := translations
+		if replaces {
+			into = replacements
+		}
+		if len(into) > 0 {
+			continue // the first of a kind is the one
+		}
 		for _, m := range textBlock.FindAllStringSubmatch(b[2], -1) {
-			if key := attr(m[1], "for"); key != "" {
-				translations[key] = strings.TrimSpace(stripTags(m[2]))
+			switch key := attr(m[1], "for"); {
+			case key == "":
+			case replaces:
+				into[key] = m[2]
+			default:
+				into[key] = strings.TrimSpace(stripTags(m[2]))
 			}
 		}
-		break
 	}
 	// How the lines are said, by the line: a line's own words again, span
 	// for span, in Latin letters.
@@ -152,6 +166,9 @@ func parseTTML(ttml, language string) *music.Lyrics {
 		text, words, behind := lineParts(m[2])
 		if text == "" {
 			continue
+		}
+		if t, w, b := lineParts(replacements[key]); key != "" && t != "" {
+			text, words, behind = t, w, b
 		}
 		line := music.LyricLine{Start: milliseconds(attr(m[1], "begin")), End: milliseconds(attr(m[1], "end")), Text: text}
 		line.Words, line.Background = words, unbracketed(behind, line.Start, line.End)

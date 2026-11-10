@@ -204,3 +204,33 @@ func TestTTMLPronunciation(t *testing.T) {
 		}
 	}
 }
+
+// A song written in Traditional Chinese shows in Simplified to a listener
+// who reads that, where Apple sends it as the lines' replacement: the line
+// itself, with its words' times, and not as a translation under it, which
+// said every line twice.
+func TestTTMLReplacement(t *testing.T) {
+	ns := ` xmlns="http://www.w3.org/ns/ttml"`
+	ttml := `<tt itunes:timing="Word" xml:lang="zh-Hant"><head><metadata><iTunesMetadata>` +
+		`<translations><translation type="replacement" xml:lang="zh-Hans">` +
+		`<text for="L1"><span begin="1" end="2"` + ns + `>风</span><span begin="2" end="3"` + ns + `>铃</span></text>` +
+		`</translation></translations></iTunesMetadata></metadata></head><body><div>` +
+		`<p begin="1" end="3" itunes:key="L1"><span begin="1" end="2">風</span><span begin="2" end="3">鈴</span></p>` +
+		`<p begin="4" end="6" itunes:key="L2">窗外</p>` +
+		`</div></body></tt>`
+	parsed := parseTTML(ttml, "zh")
+	if parsed == nil || len(parsed.Lines) != 2 {
+		t.Fatalf("lines: %+v", parsed)
+	}
+	want := []music.LyricWord{{Start: 1000, End: 2000, Text: "风"}, {Start: 2000, End: 3000, Text: "铃"}}
+	if l := parsed.Lines[0]; l.Text != "风铃" || !slices.Equal(l.Words, want) || l.Translation != "" {
+		t.Errorf("a line with a replacement: %q, %+v, translated %q", l.Text, l.Words, l.Translation)
+	}
+	if l := parsed.Lines[1]; l.Text != "窗外" {
+		t.Errorf("a line without one: %q", l.Text)
+	}
+	// Another language's listener reads it as it was written.
+	if l := parseTTML(ttml, "en").Lines[0]; l.Text != "風鈴" {
+		t.Errorf("read in English: %q", l.Text)
+	}
+}
