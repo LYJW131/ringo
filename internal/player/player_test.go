@@ -152,14 +152,69 @@ func TestNormGain(t *testing.T) {
 	}{
 		{nil, 1},
 		{&music.Stream{}, 1},
-		{&music.Stream{Gain: -6.6, Peak: 1}, math.Pow(10, -2.6/20)},
+		{&music.Stream{Gain: -6.6, Peak: 1}, math.Pow(10, -6.6/20)},
 		// Quiet, it is lifted, but not past its peak.
 		{&music.Stream{Gain: 3, Peak: 0.8}, 1.25},
-		{&music.Stream{Gain: -4, Peak: 0}, 1},
+		{&music.Stream{Gain: 1, Peak: 0.5}, math.Pow(10, 1.0/20)},
+		{&music.Stream{Gain: -4, Peak: 0}, math.Pow(10, -4.0/20)},
+		// A true peak past full scale neither lifts it nor turns it down more.
+		{&music.Stream{Gain: 0.5, Peak: 1.29}, 1},
+		{&music.Stream{Gain: -11.25, Peak: 1.29}, math.Pow(10, -11.25/20)},
 	} {
 		if g := normGain(c.st); math.Abs(g-c.want) > 1e-9 {
 			t.Errorf("%+v: %v, want %v", c.st, g, c.want)
 		}
+	}
+}
+
+// leveled is a source whose song says how loud it is.
+type leveled struct {
+	nothing
+	url        string
+	gain, peak float64
+}
+
+func (l leveled) Stream(string, string) (*music.Stream, error) {
+	return &music.Stream{URL: l.url, Type: "m4a", Gain: l.gain, Peak: l.peak}, nil
+}
+
+// A song's gain sets the volume it plays at, with Sound Check on, and
+// stops doing so as it's turned off.
+func TestSoundCheckSetsTheVolume(t *testing.T) {
+	b, err := os.ReadFile("testdata/seek-aac-frag.m4a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(b) }))
+	defer srv.Close()
+	// Unheard: the output's own volume, under every player's.
+	defer audio.SetVolume(audio.Volume())
+	audio.SetVolume(0)
+	for _, c := range []struct {
+		gain, peak, want float64
+	}{
+		{-6, 1, math.Pow(10, -6.0/20)}, // loud, turned down
+		{6, 0.8, 1.25},                 // quiet, turned up to its peak
+	} {
+		ch := make(chan func(), 64)
+		p := New(func(fn func()) { ch <- fn })
+		on := true
+		p.Normalize = func() bool { return on }
+		p.Source = leveled{url: srv.URL, gain: c.gain, peak: c.peak}
+		p.SetVolume(0.5)
+		p.PlayQueue([]music.Track{{ID: "1", Duration: 5000}}, 0, music.Origin{})
+		for p.out == nil {
+			next(t, ch)
+		}
+		if v := p.out.Volume(); math.Abs(v-0.25*c.want) > 1e-9 {
+			t.Errorf("gain %v dB: volume %v, want %v", c.gain, v, 0.25*c.want)
+		}
+		on = false
+		p.SetVolume(0.5)
+		if v := p.out.Volume(); math.Abs(v-0.25) > 1e-9 {
+			t.Errorf("gain %v dB, Sound Check off: volume %v, want 0.25", c.gain, v)
+		}
+		p.stop()
 	}
 }
 

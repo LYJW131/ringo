@@ -291,6 +291,7 @@ type timings struct {
 	M3U8   int64  `json:"m3u8,omitempty"`   // the wrapper's device playlist
 	Master int64  `json:"master,omitempty"` // the master playlist, from Apple
 	Media  int64  `json:"media,omitempty"`  // the variant's media playlist
+	Head   int64  `json:"head,omitempty"`   // its file's header, for its loudness
 	Keys   int64  `json:"keys,omitempty"`   // the key templates, at once
 	Source string `json:"source,omitempty"` // where the master came from: wrapper, catalog or cache
 }
@@ -435,8 +436,8 @@ func (s *server) prepare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tm.Keys = time.Since(start).Milliseconds()
-	log.Printf("amhelper: prepare %s%s: %s from the %s's playlist; m3u8 %dms, master %dms, media %dms, keys %dms",
-		req.id, map[bool]string{true: " (ahead)"}[req.ahead], t.describe(), tm.Source, tm.M3U8, tm.Master, tm.Media, tm.Keys)
+	log.Printf("amhelper: prepare %s%s: %s from the %s's playlist; m3u8 %dms, master %dms, media %dms, header %dms, keys %dms",
+		req.id, map[bool]string{true: " (ahead)"}[req.ahead], t.describe(), tm.Source, tm.M3U8, tm.Master, tm.Media, tm.Head, tm.Keys)
 	reply(w, http.StatusOK, struct {
 		track
 		Timings timings `json:"timings"`

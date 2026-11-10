@@ -51,8 +51,10 @@ func TestStoreKeepsTracks(t *testing.T) {
 	s := &store{dir: t.TempDir()}
 	now := time.Now()
 	all := map[string]cachedTrack{
-		"1/0/0/false": {track{MediaURL: "https://a.apple.com/x.mp4", Keys: []string{prefetchKey, "skd://c23"}, SampleRate: 48000, BitDepth: 24, Bandwidth: 1}, now},
-		"2/0/0/false": {track{MediaURL: "https://a.apple.com/y.mp4", Keys: []string{prefetchKey}}, now.Add(-trackTTL - time.Minute)},
+		"1/0/0/false": {track{MediaURL: "https://a.apple.com/x.mp4", Keys: []string{prefetchKey, "skd://c23"}, SampleRate: 48000, BitDepth: 24, Bandwidth: 1, Loudness: &Loudness{LKFS: -9, Peak: 0.9}}, now},
+		"2/0/0/false": {track{MediaURL: "https://a.apple.com/y.mp4", Keys: []string{prefetchKey}, Loudness: &Loudness{}}, now.Add(-trackTTL - time.Minute)},
+		// Kept from before loudness was read, so worked out again.
+		"3/0/0/false": {track{MediaURL: "https://a.apple.com/z.mp4", Keys: []string{prefetchKey}}, now},
 	}
 	s.saveTracks(func() map[string]cachedTrack { return all })
 	deadline := time.Now().Add(5 * time.Second)
@@ -64,10 +66,10 @@ func TestStoreKeepsTracks(t *testing.T) {
 	}
 	got := s.tracks()
 	if len(got) != 1 {
-		t.Fatalf("%d tracks read back, want the one not too old", len(got))
+		t.Fatalf("%d tracks read back, want the one not too old and with its loudness", len(got))
 	}
 	c := got["1/0/0/false"]
-	if c.t.MediaURL != "https://a.apple.com/x.mp4" || len(c.t.Keys) != 2 || c.t.SampleRate != 48000 || !c.at.Equal(now.Truncate(0)) && c.at.Sub(now).Abs() > time.Millisecond {
+	if c.t.MediaURL != "https://a.apple.com/x.mp4" || len(c.t.Keys) != 2 || c.t.SampleRate != 48000 || c.t.Loudness == nil || c.t.Loudness.LKFS != -9 || !c.at.Equal(now.Truncate(0)) && c.at.Sub(now).Abs() > time.Millisecond {
 		t.Errorf("read back %+v", c)
 	}
 }

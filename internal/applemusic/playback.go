@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"ringo/internal/applemusic/amhelper"
 	"ringo/internal/applemusic/widevine"
 	"ringo/internal/i18n"
 	"ringo/internal/music"
@@ -437,10 +438,12 @@ type helperFailed struct {
 
 func (e *helperFailed) Error() string { return "amhelper: " + e.message }
 
-func (s *Source) viaHelper(base, id string, song *resolved) (string, error) {
+// viaHelper hands the song over to amhelper, and returns its address there
+// and the loudness its file says.
+func (s *Source) viaHelper(base, id string, song *resolved) (string, *amhelper.Loudness, error) {
 	res, err := s.helperDo("POST", base+"/aac/"+id, map[string]any{"media": song.media, "key": song.key, "seconds": song.seconds})
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if !res.ok() {
 		e := res.err()
@@ -448,9 +451,13 @@ func (s *Source) viaHelper(base, id string, song *resolved) (string, error) {
 		if why == "" {
 			why = strconv.Itoa(res.status)
 		}
-		return "", &helperFailed{why, e.Code == "media"}
+		return "", nil, &helperFailed{why, e.Code == "media"}
 	}
-	return base + "/aac/" + id + ".m4a", nil
+	var b struct {
+		Loudness *amhelper.Loudness `json:"loudness"`
+	}
+	json.Unmarshal(res.body, &b)
+	return base + "/aac/" + id + ".m4a", b.Loudness, nil
 }
 
 // wantedQuality is what the app asked for last (music.Ask), kept: what the
@@ -533,9 +540,11 @@ func (s *Source) play(id string, song *resolved) (*music.Stream, error) {
 	if err != nil {
 		return nil, err
 	}
-	u, err := s.viaHelper(base, id, song)
+	u, loudness, err := s.viaHelper(base, id, song)
 	if err != nil {
 		return nil, err
 	}
-	return &music.Stream{URL: u, Type: "m4a", Quality: "high", BitRate: 256000}, nil
+	st := &music.Stream{URL: u, Type: "m4a", Quality: "high", BitRate: 256000}
+	soundCheck(st, loudness)
+	return st, nil
 }

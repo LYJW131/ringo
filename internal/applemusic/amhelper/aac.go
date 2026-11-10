@@ -8,6 +8,7 @@ package amhelper
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
@@ -15,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -87,7 +89,7 @@ func (k cencKey) DecryptSample(sample []byte, enc sampleEncryption) error {
 // aacRegister takes {media, key, seconds} for a song, to be asked for as
 // aac/<id>.m4a: the key goes in a body, not the address the app is given. It
 // opens the file at Apple, and answers {code: "media"} when Apple has it no
-// longer, so that the caller asks for the song afresh.
+// longer, so that the caller asks for the song afresh, and else {ok, loudness}.
 func (s *server) aacRegister(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var body struct {
@@ -126,6 +128,21 @@ func (s *server) aacRegister(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	// Its header comes first, and says how loud it is, which the caller
+	// is told: then it's read again, by the player's request, as if it
+	// hadn't been.
+	head, err := readHead(res.Body)
+	if err != nil {
+		res.Body.Close()
+		cancel()
+		fail(w, fmt.Errorf("media header: %w", err))
+		return
+	}
+	loudness, _ := readLoudness(head)
+	res.Body = struct {
+		io.Reader
+		io.Closer
+	}{io.MultiReader(bytes.NewReader(head), res.Body), res.Body}
 	opened := &openedMedia{res: res, cancel: cancel}
 	s.mu.Lock()
 	s.aac.put(id, aacSong{media: body.Media, key: key, seconds: body.Seconds})
@@ -135,7 +152,10 @@ func (s *server) aacRegister(w http.ResponseWriter, r *http.Request) {
 	s.aacOpened[id] = opened
 	opened.timer = time.AfterFunc(openedFor, func() { s.expireOpened(id, opened) })
 	s.mu.Unlock()
-	reply(w, http.StatusOK, map[string]bool{"ok": true})
+	reply(w, http.StatusOK, struct {
+		OK       bool     `json:"ok"`
+		Loudness Loudness `json:"loudness"`
+	}{true, loudness})
 }
 
 // expireOpened closes a file opened for a song the app didn't ask for in

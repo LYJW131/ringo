@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"ringo/internal/applemusic/amhelper"
 	"ringo/internal/music"
 )
 
@@ -180,6 +181,9 @@ type knownQ struct {
 	// BitRate is what Apple calls an AAC kind, as 256000; 0 of ALAC.
 	BitRate int    `json:"bitRate,omitempty"`
 	Query   string `json:"query"`
+	// Loudness is what its file says, for Sound Check: nil where amhelper
+	// didn't read it, as of one known from before it did.
+	Loudness *amhelper.Loudness `json:"loudness,omitempty"`
 }
 
 // knownKey is what's known of a song to play as quality is kept under: the
@@ -220,7 +224,8 @@ func (s *Source) loadKnown() {
 	now := s.now()
 	for _, id := range stored.keys() {
 		k, _ := stored.get(id)
-		if now-k.At < knownFor.Milliseconds() {
+		// Known without its loudness, it's asked about again, to have it.
+		if now-k.At < knownFor.Milliseconds() && (k.Q == nil || k.Q.Loudness != nil) {
 			s.keptLL.set(id, k)
 			s.known.set(id, k.Q)
 		}
@@ -380,7 +385,7 @@ func (s *Source) prepareNow(id, quality string, ahead bool) (*knownQ, error) {
 		}
 		return nil, errors.New("amhelper: " + why)
 	}
-	found := &knownQ{Level: quality, SampleRate: b.SampleRate, BitDepth: b.BitDepth, Bandwidth: b.Bandwidth, BitRate: b.BitRate, Query: q}
+	found := &knownQ{Level: quality, SampleRate: b.SampleRate, BitDepth: b.BitDepth, Bandwidth: b.Bandwidth, BitRate: b.BitRate, Query: q, Loudness: b.Loudness}
 	s.rememberKnown(id, quality, found)
 	return found, nil
 }
@@ -496,6 +501,7 @@ func (s *Source) wrapperStream(id, ask string, a *audioInfo) (*music.Stream, err
 		if q.BitRate > 0 {
 			st.BitRate = q.BitRate
 		}
+		soundCheck(st, q.Loudness)
 		return st, nil
 	}
 	return nil, nil

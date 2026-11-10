@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"ringo/internal/applemusic/amhelper"
 	"ringo/internal/music"
 )
 
@@ -116,7 +117,7 @@ func TestPrefetchLossless(t *testing.T) {
 	album := idRange(1000, 20)
 	known := map[string]keptLossless{}
 	for _, id := range album {
-		known[id] = keptLossless{&knownQ{Level: "lossless", SampleRate: 44100, BitDepth: 16, Bandwidth: 1000000}, ts.now()}
+		known[id] = keptLossless{&knownQ{Level: "lossless", SampleRate: 44100, BitDepth: 16, Bandwidth: 1000000, Loudness: &amhelper.Loudness{LKFS: -9}}, ts.now()}
 		ts.noteAudio(id, lossless)
 	}
 	ts.storage.set(losslessKey, known)

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -33,6 +34,9 @@ type track struct {
 	BitRate int `json:"bitRate,omitempty"`
 	// Seconds is how long it plays, from its media playlist; 0 unknown.
 	Seconds float64 `json:"-"`
+	// Loudness is what its file's header says of it: nil where it wasn't
+	// read, as of a track kept from before it was.
+	Loudness *Loudness `json:"loudness,omitempty"`
 }
 
 // describe says what the track is, for the log: 24-bit/96 kHz ALAC, or
@@ -131,17 +135,24 @@ func resolveTrack(ctx context.Context, client *http.Client, masterURL, kind stri
 	if kind == kindALAC {
 		codec = "alac"
 	}
-	mediaURL, keys, seconds, err := parseMedia(media, best.uri, codec)
+	m, err := parseMedia(media, best.uri, codec)
 	if err != nil {
 		return track{}, err
 	}
-	t := track{MediaURL: mediaURL, Keys: keys, Codec: codec, Bandwidth: best.bandwidth, Seconds: seconds}
+	t := track{MediaURL: m.url, Keys: m.keys, Codec: codec, Bandwidth: best.bandwidth, Seconds: m.seconds}
 	if codec == "alac" {
 		t.SampleRate, t.BitDepth = best.sampleRate, best.bitDepth
 	} else if m := groupRate.FindStringSubmatch(best.audio); m != nil {
 		t.BitRate = atoi(m[1]) * 1000
 	}
-	return t, nil
+	// The song plays without its loudness, unevened, rather than not at all.
+	start = time.Now()
+	t.Loudness, err = fetchLoudness(ctx, client, m.url, m.headLen)
+	tm.Head = time.Since(start).Milliseconds()
+	if err != nil && ctx.Err() == nil {
+		log.Printf("amhelper: the loudness of %s: %v", best.audio, err)
+	}
+	return t, ctx.Err()
 }
 
 func getText(ctx context.Context, client *http.Client, u string) (string, error) {
@@ -197,13 +208,24 @@ func parseMaster(body, base string) []variant {
 // and the one they share (c6), which is what Apple's playlists name today.
 var keySuffixes = map[string][]string{"alac": {"c23", "c6"}, "aac": {"c22", "c24", "c6"}}
 
-// parseMedia returns the media file, its keys (the prefetch key, which
-// opens every track, then the codec's) and how long it plays: its
-// segments' lengths add up to within a frame of it.
-func parseMedia(body, base, codec string) (string, []string, float64, error) {
+// mediaPlaylist is what a variant's media playlist says.
+type mediaPlaylist struct {
+	url string
+	// keys are the prefetch key, which opens every track, then the codec's.
+	keys []string
+	// seconds is how long it plays: its segments' lengths add up to within
+	// a frame of it.
+	seconds float64
+	// headLen is how long the file's header is, its ftyp and moov, from
+	// EXT-X-MAP's BYTERANGE; 0 where it doesn't say.
+	headLen int
+}
+
+func parseMedia(body, base, codec string) (mediaPlaylist, error) {
 	keys := []string{prefetchKey}
 	mediaURL := ""
 	seconds := 0.0
+	headLen := 0
 	sc := bufio.NewScanner(strings.NewReader(body))
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
@@ -220,15 +242,20 @@ func parseMedia(body, base, codec string) (string, []string, float64, error) {
 			}
 		}
 		if strings.HasPrefix(line, "#EXT-X-MAP:") {
-			if u := parseAttrs(strings.TrimPrefix(line, "#EXT-X-MAP:"))["URI"]; u != "" {
+			attrs := parseAttrs(strings.TrimPrefix(line, "#EXT-X-MAP:"))
+			if u := attrs["URI"]; u != "" {
 				mediaURL = absURL(base, u)
+			}
+			// "1023@0": its length, then where it starts, which is the file's start.
+			if n, at, ok := strings.Cut(attrs["BYTERANGE"], "@"); !ok || at == "0" {
+				headLen = atoi(n)
 			}
 		}
 	}
 	if mediaURL == "" {
-		return "", nil, 0, errors.New("the playlist names no media file")
+		return mediaPlaylist{}, errors.New("the playlist names no media file")
 	}
-	return mediaURL, keys, seconds, sc.Err()
+	return mediaPlaylist{mediaURL, keys, seconds, headLen}, sc.Err()
 }
 
 func parseAttrs(v string) map[string]string {

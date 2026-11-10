@@ -370,11 +370,15 @@ type Stream struct {
 	BitRate int  `json:"bitRate,omitempty"`
 	// SampleRate, in Hz, and BitDepth are the lossless audio's, where the
 	// source knows them: 0 where it doesn't, as of AAC.
-	SampleRate int     `json:"sampleRate,omitempty"`
-	BitDepth   int     `json:"bitDepth,omitempty"`
-	Size       int64   `json:"size,omitempty"`
-	Peak       float64 `json:"peak,omitempty"`
-	Gain       float64 `json:"gain,omitempty"`
+	SampleRate int   `json:"sampleRate,omitempty"`
+	BitDepth   int   `json:"bitDepth,omitempty"`
+	Size       int64 `json:"size,omitempty"`
+	// Gain, in dB, brings the track to the loudness Sound Check plays all
+	// tracks at, as the source measured it, and Peak is its loudest, linear
+	// (1 is full scale), which the gain doesn't lift past. Both are 0 where
+	// the source doesn't know them.
+	Peak float64 `json:"peak,omitempty"`
+	Gain float64 `json:"gain,omitempty"`
 }
 
 // Lyrics are a track's words, as timed Lines, which can time each word.

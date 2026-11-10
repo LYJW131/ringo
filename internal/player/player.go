@@ -661,19 +661,18 @@ func (p *Player) applyGain() {
 	p.fade.setGain(g)
 }
 
-// normPreamp lifts normalized tracks, which their gains bring to the quiet
-// loudness of ReplayGain, nearer to how loud music plays elsewhere.
-const normPreamp = 4
-
 // normGain is the gain that brings a track as loud as others, as its source
-// measured it, but never so loud that its peaks would clip.
+// measured it (music.Stream.Gain), but never so loud that its peaks would
+// clip.
 func normGain(st *music.Stream) float64 {
 	if st == nil || st.Gain == 0 && st.Peak == 0 {
 		return 1
 	}
-	g := math.Pow(10, (st.Gain+normPreamp)/20)
+	g := math.Pow(10, st.Gain/20)
+	// The peak holds back a lift only: a true peak past full scale, as a
+	// loud master's can be, doesn't turn a track down below its gain.
 	if st.Peak > 0 {
-		g = min(g, 1/st.Peak)
+		g = min(g, max(1, 1/st.Peak))
 	}
 	return g
 }
