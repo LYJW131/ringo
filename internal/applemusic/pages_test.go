@@ -370,7 +370,7 @@ func TestArtistPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := &music.Browse{Sections: page.Sections}
-	want := []string{"featured", "tracks", "square", "square", "square", "brick", "square", "square", "square", "square", "square", "circle", "text"}
+	want := []string{"featured", "tracks", "square", "square", "square", "brick", "square", "square", "square", "square", "square", "circle"}
 	if got := styles(b); !slices.Equal(got, want) {
 		t.Errorf("styles %q", got)
 	}

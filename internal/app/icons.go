@@ -46,6 +46,7 @@ var (
 	iconRadio = strokeIcon(`<circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49"/><path d="M7.76 16.24a6 6 0 0 1 0-8.49"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 19.07a10 10 0 0 1 0-14.14"/>`)
 	iconPlus  = strokeIcon(`<path d="M12 5v14"/><path d="M5 12h14"/>`)
 	iconCheck = strokeIcon(`<path d="m5 12 4 4L19 6"/>`)
+	iconInfo  = fillIcon(`<circle cx="12" cy="5.4" r="1.75"/><path d="M9.3 9.3h4.1v8.6h1.9v1.8H8.7v-1.8h1.9v-6.8H9.3z"/>`)
 	iconX     = strokeIcon(`<path d="M18 6 6 18"/><path d="m6 6 12 12"/>`)
 	iconMore  = fillIcon(`<circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/>`)
 )

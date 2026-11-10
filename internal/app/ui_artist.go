@@ -66,8 +66,7 @@ type artistData struct {
 	loading bool
 	err     string
 	tab     int // what a page without sections lists: artistSongs or artistAlbums
-	// secs are the page's sections, with their biography as one where the
-	// source gave it apart (Artist.Bio).
+	// secs are the page's sections, their biography not among them.
 	secs []music.Section
 }
 
@@ -101,15 +100,11 @@ func (a *app) loadArtist(id string) {
 	}()
 }
 
-// artistSections are the sections of an artist's page: as the source gave
-// them, and their biography after them if none of them is it.
+// artistSections are the sections of an artist's page, as the source gave
+// them: their biography is behind the button by their name, as in Music on
+// the Mac, not at the page's foot.
 func artistSections(page *music.ArtistPage) []music.Section {
-	secs := page.Sections
-	if len(secs) == 0 || strings.TrimSpace(page.Artist.Bio) == "" ||
-		slices.ContainsFunc(secs, func(s music.Section) bool { return s.Style == music.ShelfText }) {
-		return secs
-	}
-	return append(slices.Clip(secs), music.Section{Title: T("About"), Style: music.ShelfText, Subtitle: page.Artist.Bio})
+	return slices.DeleteFunc(slices.Clone(page.Sections), func(s music.Section) bool { return s.Style == music.ShelfText })
 }
 
 // artistPage shows an artist as Apple Music does: their picture and name
@@ -156,8 +151,6 @@ func (a *app) artistPage(c *ui.Context) {
 		switch {
 		case r.pair:
 			a.latestAndTop(c, secs)
-		case r.kind == rowText:
-			a.artistBio(c, &d.page.Artist, &secs[r.section])
 		default:
 			a.shelfRow(c, secs, r.browseRow)
 		}
@@ -258,7 +251,8 @@ const (
 
 // artistHeader heads an artist's page: their picture moving across it with
 // their name over its foot, or their round photo over their name; and under
-// the name, the buttons that play their top songs and make them a favorite.
+// the name, the buttons that show their biography, play their top songs and
+// make them a favorite.
 func (a *app) artistHeader(c *ui.Context, d *artistData) {
 	p := a.pal
 	ar := &d.page.Artist
@@ -306,8 +300,8 @@ func (a *app) artistHeader(c *ui.Context, d *artistData) {
 	})
 }
 
-// artistButtons play an artist's top songs and make them a favorite, round
-// and in the middle: the one that plays large and white, the others in a
+// artistButtons show an artist's biography, play their top songs and make
+// them a favorite, round and in the middle: the one that plays large and white, the others in a
 // shade. Over their picture moving, they're in its colors whatever the
 // appearance.
 func (a *app) artistButtons(c *ui.Context, d *artistData, over bool) {
@@ -317,6 +311,15 @@ func (a *app) artistButtons(c *ui.Context, d *artistData, over bool) {
 	playFill, playInk := p.text, p.bg
 	if over || p.dark {
 		fill, ink, playFill, playInk = ui.RGBA(255, 255, 255, 0.14), white, white, ui.RGB(0, 0, 0)
+	}
+	// Their biography, born or formed, and genre, over the window; greyed
+	// out for an artist Apple wrote nothing of.
+	about := a.artistRound(c.Key("about"), T("About"), fill)
+	about.Tooltip(T("About")).Children(func() { ui.Icon(c, iconInfo).Size(20, 20).TextColor(ink) })
+	if strings.TrimSpace(ar.Bio) == "" {
+		about.Disabled(true).Opacity(0.4)
+	} else if about.Clicked() {
+		a.bioOpen = true
 	}
 	if songs := d.page.Tracks; len(songs) > 0 {
 		b := ui.ButtonBase(c.Key("play")).Size(artistPlaySize, artistPlaySize).Radius(999).Center().Background(playFill).TextColor(playInk).
@@ -352,76 +355,6 @@ func (a *app) artistRound(c *ui.Context, label string, fill ui.Color) ui.Element
 		fill = fill.Mix(ui.RGB(255, 255, 255), 0.12)
 	}
 	return b.Background(fill)
-}
-
-// bioLines is how many lines of an artist's biography show, until More
-// shows it all.
-const bioLines = 4
-
-// artistBio is an artist's biography, its first lines until More shows it
-// all, over when they were born or formed, where they're from and their
-// genre.
-func (a *app) artistBio(c *ui.Context, ar *music.Artist, sec *music.Section) {
-	p := a.pal
-	open := a.notesOpen == a.route
-	text := strings.TrimSpace(sec.Subtitle)
-	width := min(760, a.shelfMetrics(c).inner)
-	const size = 13.5
-	_, h := c.MeasureText(width, ui.Span{Text: text, Size: size})
-	_, line := c.MeasureText(0, ui.Span{Text: "M", Size: size})
-	more := line > 0 && h/line > bioLines+0.5
-	ui.Column(c.Key("bio")).Margin(0, 12, 0, 12).Gap(10).MaxWidth(760).Children(func() {
-		if open || !more {
-			i := 0
-			for para := range strings.SplitSeq(text, "\n") {
-				if para = strings.TrimSpace(para); para != "" {
-					ui.Text(c.Key(i), para).FontSize(size).LineHeight(1.5).TextColor(p.muted)
-					i++
-				}
-			}
-		} else {
-			ui.Text(c, strings.Join(strings.Fields(text), " ")).FontSize(size).LineHeight(1.5).TextColor(p.muted).MaxLines(bioLines)
-		}
-		if more {
-			label := T("More")
-			if open {
-				label = T("Less")
-			}
-			b := ui.ButtonBase(c.Key("more")).AlignSelf(ui.Start).FocusRing(false).Label(label)
-			color := p.text
-			if b.Hovered() {
-				color = p.accent
-			}
-			b.Children(func() { ui.Text(c, label).FontSize(12).FontWeight(700).TextColor(color) })
-			if b.Clicked() {
-				if open {
-					a.notesOpen = route{}
-				} else {
-					a.notesOpen = a.route
-				}
-			}
-		}
-		born := T("Born")
-		if ar.Group {
-			born = T("Formed")
-		}
-		facts := []struct{ label, value string }{
-			{born, ar.Born},
-			{T("From"), ar.Origin},
-			{T("Genre"), ar.Genre},
-		}
-		ui.Row(c).Gap(40).Margin(6, 0, 0, 0).Children(func() {
-			for i, f := range facts {
-				if f.value == "" {
-					continue
-				}
-				ui.Column(c.Key(i)).Gap(2).Children(func() {
-					ui.Text(c, f.label).FontSize(11).FontWeight(600).TextColor(p.faint)
-					ui.Text(c, f.value).FontSize(13).TextColor(p.text)
-				})
-			}
-		})
-	})
 }
 
 // artistLists is the page of an artist without sections: who they are over
@@ -518,5 +451,90 @@ func (a *app) artistHeaderSkeleton(c *ui.Context, s shimmer) {
 		s.bone(c, artistPhotoSize/2).Size(artistPhotoSize, artistPhotoSize)
 		s.text(c, 34, 1.2).Width(220)
 		s.bone(c, 22).Size(44, 44)
+	})
+}
+
+// The panel of an artist's biography, at most as Music on the Mac has it.
+const (
+	bioWidth  = 704
+	bioHeight = 802
+	// bioArt is how many pixels wide their photo is fetched for it.
+	bioArt = 1200
+)
+
+// artistBioDialog is an artist's biography over the window, as the button
+// by their name opens it in Music on the Mac: their photo across its top,
+// fading into its color, their name over its foot; when they were born or
+// formed, where they're from and their genre, those Apple has; and what
+// Apple wrote of them, all of it, scrolling in the panel.
+func (a *app) artistBioDialog(c *ui.Context) {
+	var ar *music.Artist
+	if d := a.artists[a.route.id]; a.route.page == pageArtist && d != nil && d.page != nil {
+		ar = &d.page.Artist
+	}
+	if ar == nil || strings.TrimSpace(ar.Bio) == "" {
+		a.bioOpen = false
+	}
+	p := a.pal
+	ui.DialogBase(c.Key("artist-bio"), &a.bioOpen, func(backdrop, panel ui.Element) {
+		if ar == nil {
+			return
+		}
+		w, h := c.Size()
+		pw, ph := min(bioWidth, w-80), min(bioHeight, h-80)
+		ground := hexColor(ar.Colors.BG, p.bg)
+		ink, muted := hexColor(ar.Colors.Text1, p.text), hexColor(ar.Colors.Text2, p.muted)
+		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
+		panel.Size(pw, ph).Radius(18).Clip().Background(ground).Border(1, p.hairline).
+			Shadow(0, 24, 60, -12, ui.RGBA(0, 0, 0, 0.45)).Label(T("About"))
+		dialogIn(c, backdrop, panel)
+		ui.Scroll(c.Key("scroll")).Grow(1).Children(func() {
+			ui.Box(c).Size(pw, pw).Shrink(0).Children(func() {
+				a.coverFillWith(c, ar.ImageURL, bioArt, 0, iconUser)
+				ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(pw * 0.45).
+					LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
+						{Color: ground.Alpha(0), At: 0},
+						{Color: ground, At: 1},
+					}})
+				ui.Text(c, ar.Name).Absolute().Left(26).Right(26).Bottom(8).FontSize(28).FontWeight(800).
+					LetterSpacing(-0.5).TextColor(ink).MaxLines(2)
+			})
+			ui.Column(c).Padding(14, 26, 30, 26).Gap(14).Children(func() {
+				born := T("Born")
+				if ar.Group {
+					born = T("Formed")
+				}
+				for i, f := range []struct{ label, value string }{
+					{born, ar.Born},
+					{T("From"), ar.Origin},
+					{T("Genre"), ar.Genre},
+				} {
+					if f.value == "" {
+						continue
+					}
+					ui.Column(c.Key(i)).Gap(3).Children(func() {
+						ui.Text(c, f.label).FontSize(11).FontWeight(600).TextColor(muted)
+						ui.Text(c, f.value).FontSize(13.5).FontWeight(600).TextColor(ink)
+					})
+				}
+				ui.Text(c, T("About")).FontSize(17).FontWeight(700).TextColor(ink).Margin(12, 0, 0, 0)
+				i := 0
+				for para := range strings.SplitSeq(strings.TrimSpace(ar.Bio), "\n") {
+					if para = strings.TrimSpace(para); para != "" {
+						ui.Text(c.Key(100+i), para).FontSize(13.5).LineHeight(1.55).TextColor(ink.Alpha(0.9))
+						i++
+					}
+				}
+			})
+		})
+		closer := ui.ButtonBase(c.Key("close")).Absolute().Top(16).Left(16).Size(30, 30).Radius(999).Center().
+			Label(T("Close")).FocusRing(false).Background(ui.RGBA(0, 0, 0, 0.3))
+		if closer.Hovered() {
+			closer.Background(ui.RGBA(0, 0, 0, 0.45))
+		}
+		closer.Children(func() { ui.Icon(c, iconX).Size(15, 15).TextColor(white) })
+		if closer.Clicked() {
+			a.bioOpen = false
+		}
 	})
 }

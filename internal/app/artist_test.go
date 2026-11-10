@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -92,15 +93,33 @@ func TestArtistAlbums(t *testing.T) {
 	}
 }
 
-// A band's date is when it formed, not when it was born.
-func TestGroupFormed(t *testing.T) {
+// The button by an artist's name opens their biography over the page, as
+// Music on the Mac has it, where it was at the page's foot; and a band's
+// date there is when it formed, not when it was born.
+func TestArtistBiography(t *testing.T) {
 	for _, group := range []bool{false, true} {
 		a := artistApp(false)
 		a.artists["159260351"].page.Artist.Group = group
-		tt := ui.NewTester(a.view, 1180, 1700)
+		tt := ui.NewTester(a.view, 1180, 900)
 		settled(tt)
+		if _, ok := tt.Find("She began in country music, in Nashville, at fourteen."); ok {
+			t.Fatal("the biography shows on the page")
+		}
+		tt.Click("About")
+		settled(tt)
+		if !a.bioOpen {
+			t.Fatal("About didn't open the biography")
+		}
+		if _, ok := tt.Find("She began in country music, in Nashville, at fourteen."); !ok {
+			t.Fatalf("no biography: %q", tt.Texts())
+		}
 		if _, ok := tt.Find("Formed"); ok != group {
-			t.Errorf("a group %v reads Formed %v: %q", group, ok, tt.Texts())
+			t.Errorf("a group %v reads Formed %v", group, ok)
+		}
+		tt.Click("Close")
+		settled(tt)
+		if a.bioOpen {
+			t.Error("Close left the biography open")
 		}
 	}
 }
@@ -121,6 +140,24 @@ func TestArtistFrames(t *testing.T) {
 		}},
 		{"photo", func(ar *music.Artist) { ar.Colors = music.Colors{BG: "6a4a35", Text1: "ffffff"} }},
 		{"bare", func(ar *music.Artist) { ar.ImageURL, ar.Bio = "", "" }},
+	}
+	// And their biography over the page, in both appearances.
+	for _, dark := range []bool{false, true} {
+		a := artistApp(false)
+		ar := &a.artists["159260351"].page.Artist
+		ar.Colors = music.Colors{BG: "6a4a35", Text1: "ffffff", Text2: "e6d6c8"}
+		ar.Bio = strings.Repeat(ar.Bio+"\n", 4)
+		shelfArt(a)
+		tt := ui.NewTester(a.view, 1180, 900)
+		tt.SetDark(dark)
+		settled(tt)
+		a.bioOpen = true
+		settled(tt)
+		name := "artist-bio"
+		if dark {
+			name += "-dark"
+		}
+		saveFrame(t, dir, name+".png", tt.Image())
 	}
 	for _, head := range heads {
 		for _, w := range []int{1180, 860} {

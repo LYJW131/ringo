@@ -85,6 +85,8 @@ type app struct {
 	// notesOpen is the page whose editors' notes or biography show whole,
 	// past their first lines.
 	notesOpen route
+	// bioOpen shows the biography of the artist whose page this is.
+	bioOpen bool
 	// shelves are where the shelves of the page that scroll sideways are
 	// scrolled, by their section: kept here, as a shelf scrolled out of the
 	// list is not built.

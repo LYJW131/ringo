@@ -424,8 +424,11 @@ const dialogFade = 200 * time.Millisecond
 // MyGo plays the Enter and Exit of the backdrop, the overlay's own child, but
 // not of the panel, which is new in a parent new in the same frame: the
 // panel is posed smaller in its first frame and springs to its size from
-// the next.
+// the next. With less motion, it comes and goes at once.
 func dialogIn(c *ui.Context, backdrop, panel ui.Element) {
+	if c.Preferences().ReduceMotion {
+		return
+	}
 	backdrop.Transition(ui.ElementTransition{Duration: dialogFade, Enter: &ui.Motion{Opacity: 0}, Exit: &ui.Motion{Opacity: 0}})
 	entered := ui.Local(panel, "entered", func() bool { return false })
 	pose := ui.Pose{}
