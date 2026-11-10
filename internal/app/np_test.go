@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -484,5 +485,57 @@ func TestLyricsWithoutTimesStayAtTheTop(t *testing.T) {
 		if a.lyricScroll.Y != 0 {
 			t.Errorf("pane %d: scrolled to %v", pane, a.lyricScroll.Y)
 		}
+	}
+}
+
+// Choosing "Remove from Up Next" on a song of the queue still to play takes it
+// out, the song playing playing on; the song playing and a song of a
+// playlist's page offer no such thing.
+func TestQueueRemovesASong(t *testing.T) {
+	a := newTestApp()
+	var tracks []music.Track
+	for i := range 6 {
+		tracks = append(tracks, song(fmt.Sprint(i+1), fmt.Sprintf("歌%02d", i)))
+	}
+	a.pl.Cue(tracks)
+	a.nowPlaying, a.npPane = true, paneQueue
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	tt.Frame()
+
+	if err := tt.RightClick("歌00"); err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(tt.Menu(), "Remove from Up Next") {
+		t.Errorf("the song playing offers to leave the queue: %q", tt.Menu())
+	}
+	tt.CloseMenu()
+
+	if err := tt.RightClick("歌02"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Remove from Up Next"); err != nil {
+		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+	}
+	tt.Frame()
+	tt.Frame()
+	if q := a.pl.Queue(); len(q) != 5 || a.pl.Current().Name != "歌00" {
+		t.Errorf("queue of %d, playing %q", len(q), a.pl.Current().Name)
+	}
+	if tt.HasText("歌02") || !tt.HasText("歌03") {
+		t.Errorf("the queue shows %q", tt.Texts())
+	}
+
+	a = newTestApp()
+	a.pl.Cue(tracks)
+	a.playlists["42"] = &music.Playlist{ID: "42", Name: "飙升榜", Tracks: []music.Track{song("p1", "一张相片", "林宥嘉")}}
+	a.route = route{page: pagePlaylist, id: "42"}
+	tt = ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if err := tt.RightClick("一张相片"); err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(tt.Menu(), "Remove from Up Next") {
+		t.Errorf("a playlist's song offers to leave the queue: %q", tt.Menu())
 	}
 }

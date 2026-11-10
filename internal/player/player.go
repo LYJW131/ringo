@@ -434,6 +434,58 @@ func (p *Player) insert(tracks []music.Track, next bool, from music.Origin) {
 	p.sync()
 }
 
+// Remove takes the queue's track i out of it, if it hasn't played: one that is
+// after the track playing, in the order it plays. It reports whether it did.
+// What plays isn't touched; what was asked for ahead goes if it was this one,
+// and the one after takes its place.
+func (p *Player) Remove(i int) bool {
+	k := p.orderAt(i)
+	if k < 0 || k <= p.at {
+		return false
+	}
+	// New slices, not the old ones changed: Session may hold them.
+	queue := slices.Delete(slices.Clone(p.queue), i, i+1)
+	order := make([]int, 0, len(p.order)-1)
+	for _, v := range p.order {
+		switch {
+		case v < i:
+			order = append(order, v)
+		case v > i:
+			order = append(order, v-1)
+		}
+	}
+	p.queue, p.order = queue, order
+	p.afterReorder()
+	return true
+}
+
+// orderAt returns where the queue's track i is in the order, or -1.
+func (p *Player) orderAt(i int) int {
+	for k, v := range p.order {
+		if v == i {
+			return k
+		}
+	}
+	return -1
+}
+
+// afterReorder follows a change to what comes after the track playing: the
+// next may be another now, so what was asked for ahead is asked again, and
+// the end of the queue may be near enough for a radio or AutoPlay to give more.
+func (p *Player) afterReorder() {
+	if p.out != nil {
+		p.getAhead(p.quality)
+	} else if a := p.ahead; a != nil {
+		// Still loading: it's asked for once the track has loaded, but what
+		// isn't next any more needn't wait there until then.
+		if t, ok := p.upNext(); !ok || !a.is(t, p.quality) {
+			p.dropAhead()
+		}
+	}
+	p.refill()
+	p.sync()
+}
+
 // shuffleOrder puts the order in a random one with first at its head, or
 // with any at its head when first is below 0.
 func (p *Player) shuffleOrder(first int) {

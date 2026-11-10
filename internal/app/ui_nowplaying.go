@@ -656,12 +656,33 @@ func (a *app) paneTab(c *ui.Context, i int, label string) {
 	}
 }
 
+// queueItems is songItems for a row of the queue, with what takes it out of
+// the queue first if it is still to play, as Apple Music's Up Next has.
+func (a *app) queueItems(tr *music.Track, i int, toPlay bool) func(m *ui.Menu) {
+	rest := a.songItems(tr, "")
+	if !toPlay {
+		return rest
+	}
+	return func(m *ui.Menu) {
+		// The queue may have changed while the menu was open: only the
+		// song the menu was opened on goes.
+		if q := a.pl.Queue(); m.Item(T("Remove from Up Next")).Chosen() && i < len(q) && q[i].ID == tr.ID {
+			a.pl.Remove(i)
+		}
+		m.Separator()
+		rest(m)
+	}
+}
+
 // queuePane lists the whole queue in play order, the track playing marked
 // among the others: a click plays one there, and the list stays as it is.
 // AutoPlay's switch ends it.
 func (a *app) queuePane(c *ui.Context) {
 	pl := a.pl
 	order, at := pl.PlayOrder()
+	// Both as they are now: a song removed as the rows are built (Remove)
+	// leaves these as they were, and the rows too.
+	tracks := pl.Queue()
 	// Opened, it shows the track playing at its top; after, it follows it
 	// as little as keeps it in view.
 	if at >= 0 && at != a.queueAt {
@@ -684,10 +705,10 @@ func (a *app) queuePane(c *ui.Context) {
 			return
 		}
 		i := order[r]
-		tr := &pl.Queue()[i]
+		tr := &tracks[i]
 		playing := r == at
 		row := ui.ButtonBase(c.Key(i)).Height(58).PaddingX(10).Gap(14).Radius(12).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
-			ContextMenu(a.songItems(tr, ""))
+			ContextMenu(a.queueItems(tr, i, r > at))
 		switch {
 		case playing:
 			row.Background(white.Alpha(0.12))
