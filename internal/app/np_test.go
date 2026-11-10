@@ -441,3 +441,37 @@ func TestPlayerBarKeepsTheTitleWhenNarrow(t *testing.T) {
 		}
 	}
 }
+
+// stillWords are lyrics as Apple Music has of some songs: words without
+// times, every line at the song's start.
+func stillWords(n int) []lyrics.Line {
+	var lines []music.LyricLine
+	for i := range n {
+		lines = append(lines, music.LyricLine{Text: fmt.Sprintf("Line %d of the words", i+1)})
+	}
+	return lyrics.FromSource(&music.Lyrics{Lines: lines})
+}
+
+// Lyrics without times show from their first line, to read and scroll, well
+// into the song as at its start: followed as timed lyrics are, they stood at
+// their last line from the first second, every line having begun at 0.
+func TestLyricsWithoutTimesStayAtTheTop(t *testing.T) {
+	for _, pane := range []int{paneLyrics, paneStage} {
+		a := newTestApp()
+		a.pl.Cue([]music.Track{song("1", "一")})
+		a.pl.SetLyrics(stillWords(40))
+		a.pl.Hold(90 * time.Second)
+		a.nowPlaying, a.npPane = true, pane
+		a.settings.LyricsStage = pane == paneStage
+		tt := ui.NewTester(a.view, 1180, 780)
+		tt.Frame()
+		tt.Advance(2 * time.Second)
+		tt.Frame()
+		if first, ok := tt.Find("Line 1 of the words"); !ok || first.Y < 0 || first.Y > 390 {
+			t.Errorf("pane %d: the first line is at %v, found %v", pane, first.Y, ok)
+		}
+		if a.lyricScroll.Y != 0 {
+			t.Errorf("pane %d: scrolled to %v", pane, a.lyricScroll.Y)
+		}
+	}
+}

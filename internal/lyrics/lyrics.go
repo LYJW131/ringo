@@ -211,6 +211,13 @@ func Lang(lines []Line) string {
 	return ""
 }
 
+// Still reports whether lines have no times: lyrics a source has as words
+// alone, every line at the song's start. There is no line of them being
+// sung, and none to follow.
+func Still(lines []Line) bool {
+	return len(lines) > 1 && lines[len(lines)-1].At == 0
+}
+
 // Index returns the line sung at pos, or -1 before the first.
 func Index(lines []Line, pos time.Duration) int {
 	i := sort.Search(len(lines), func(i int) bool { return lines[i].At > pos })

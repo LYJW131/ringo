@@ -165,7 +165,8 @@ func (a *app) wallSong(c *ui.Context, tr *music.Track, art *artwork, top, h floa
 			})
 			a.artistLinks(c, tr, white.Alpha(0.6), white, true).FontSize(14).SingleLine()
 			lines, _ := pl.Lyrics()
-			if len(lines) == 0 {
+			// Lyrics without times have no line being sung to show.
+			if len(lines) == 0 || lyrics.Still(lines) {
 				return
 			}
 			pos := pl.Position()

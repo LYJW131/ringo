@@ -658,20 +658,43 @@ func (a *app) lyricsPane(c *ui.Context, tr *music.Track, h float32) {
 		})
 		return
 	}
+	if key := tr.Source + "\x00" + tr.ID; a.lyricTrack != key {
+		a.lyricTrack, a.lyricAt = key, -2
+		a.lyricScroll, a.lyricGlide = ui.ScrollState{}, lyricGlide{}
+	}
+	if lyrics.Still(lines) {
+		a.stillLines(c, lines, linesStyle{size: 24, weight: 700, lineHeight: 1.35}, 96)
+		return
+	}
 	pos := pl.Position()
 	cur := lyrics.Index(lines, pos)
 	// Redraw as the next line begins.
 	if pl.Playing() && cur+1 < len(lines) {
 		c.After(lines[cur+1].At - pos + 20*time.Millisecond)
 	}
-	if key := tr.Source + "\x00" + tr.ID; a.lyricTrack != key {
-		a.lyricTrack, a.lyricAt = key, -2
-		a.lyricScroll, a.lyricGlide = ui.ScrollState{}, lyricGlide{}
-	}
 	lag := a.lyricGlide.step(c, &a.lyricScroll)
 
 	scroll := ui.Scroll(c.Key("lyrics")).Grow(1).TrackScroll(&a.lyricScroll).Padding(0, 8, h*0.5, 0)
 	a.timedLines(c, scroll, lines, pos, cur, lag, linesStyle{size: 30, weight: 800, lineHeight: 1.25}, nil)
+}
+
+// stillLines shows lyrics that have no times, as Apple Music has of some
+// songs: all of them to read, scrolled by the listener from the top, none
+// lit and none to seek to. Followed as timed lines are, they stood at their
+// last line from the song's first second, every line having begun at 0.
+// foot is the room left under the last line.
+func (a *app) stillLines(c *ui.Context, lines []lyrics.Line, st linesStyle, foot float32) {
+	lang := lyrics.Lang(lines)
+	ui.Scroll(c.Key("still-lyrics")).Grow(1).TrackScroll(&a.lyricScroll).Padding(0, 8, foot, 0).Children(func() {
+		for i, l := range lines {
+			ui.Column(c.Key(i)).AlignItems(ui.Start).Padding(7, 12).Gap(4).Children(func() {
+				ui.Text(c, l.Text).Lang(lang).FontSize(st.size).FontWeight(st.weight).LineHeight(st.lineHeight).LetterSpacing(-0.3).TextColor(white.Alpha(0.86))
+				if l.Translation != "" {
+					ui.Text(c, l.Translation).FontSize(st.size * 0.62).FontWeight(600).TextColor(white.Alpha(0.6))
+				}
+			})
+		}
+	})
 }
 
 // linesStyle is how timedLines sets its lines: the size, weight and

@@ -283,6 +283,29 @@ func stacked(shots []image.Image) image.Image {
 	return out
 }
 
+// With MM_FRAMES set, saves Now Playing with lyrics that have no times, in
+// the lyrics pane and on the stage, a minute and a half into the song.
+func TestStillLyricsFrames(t *testing.T) {
+	dir := framesDir(t)
+	for _, pane := range []struct {
+		pane int
+		name string
+	}{{paneLyrics, "lyrics"}, {paneStage, "stage"}} {
+		a := newTestApp()
+		a.account = &music.Account{ID: "1", Name: "Alex"}
+		a.pl.Cue(framesTracks(a))
+		a.pl.SetLyrics(stillWords(40))
+		a.pl.Hold(90 * time.Second)
+		a.nowPlaying, a.npPane = true, pane.pane
+		a.settings.LyricsStage = pane.pane == paneStage
+		tt := ui.NewTester(a.view, 1180, 780)
+		tt.SetDark(true)
+		tt.Advance(2 * time.Second)
+		tt.Frame()
+		saveFrame(t, dir, "still-lyrics-"+pane.name+".png", tt.Image())
+	}
+}
+
 // With MM_FRAMES set, saves the badge of a Hi-Res stream in Now Playing, and
 // of a lossless one in the player bar, light and dark.
 func TestQualityBadgeFrames(t *testing.T) {
