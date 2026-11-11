@@ -7,6 +7,7 @@ Ringo is a desktop client for Apple Music: one Go program, its windows drawn by 
 - `internal/music`: what the views and the player know of music. `page.go` is how Apple Music's pages reach the views: sections with a `Style`, of `Item`s.
 - `internal/applemusic`: the one source. It asks what the web player at music.apple.com asks. `amhelper` decrypts audio and serves it on 127.0.0.1 for the player; `widevine` and `fairplay` get it its keys.
 - `internal/app`: the windows. `ui_sidebar.go`, `ui_shelf.go` and `ui_detail.go` are where Apple Music's layout lives.
+- `internal/audio`: the mixer and the system's audio output, MyGo's package `audio` kept here so that the output runs at the music's own sample rate. On macOS it sets the output device's rate too, and puts it back.
 - `internal/video`, `internal/heaac`: the covers that move, and High Efficiency audio. Each has an `AGENTS.md` of its own: read it before changing that directory.
 - `icon/`, `brand/`: the icons and the mark, drawn by `go run ./icon` and `go run ./icon/tray` (`brand/README.md`). `brand` is a Go package too, which embeds the mark for the app to show.
 
