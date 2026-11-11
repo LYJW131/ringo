@@ -6,8 +6,9 @@ import "slices"
 // rate where it can, as Apple Music does: an Audio Queue at 96 kHz on a
 // device at 48 kHz is converted to 48 kHz on its way out. The device is
 // put back at the rate it had once the output closes for being idle, or the
-// app quits (RestoreDevice), unless the listener set it to another
-// meanwhile.
+// app quits (RestoreDevice): at the rate the listener set it to, if they
+// changed it while the music played, and not at all if they changed it
+// after the output last did.
 
 // commonRates are the rates a device that takes a range of them is tried at,
 // besides want itself.

@@ -271,12 +271,15 @@ func setDeviceRate(rate int) {
 	}
 	ratesMu.Lock()
 	defer ratesMu.Unlock()
-	if _, ok := hadRate[dev]; !ok {
+	// The rate to put back is the one the device had before the output
+	// first set it, or the one the listener set it to since.
+	if gave, ok := gaveRate[dev]; !ok || now != gave {
 		hadRate[dev] = now
 	}
-	if setNominalRate(dev, want) {
-		gaveRate[dev] = want
-	}
+	// Noted before the device runs at it: one that takes longer than is
+	// waited for is still put back.
+	gaveRate[dev] = want
+	setNominalRate(dev, want)
 }
 
 // outputDevice returns the system's output device, which the Audio Queue
