@@ -134,6 +134,8 @@ type motionArt struct {
 	sweeping bool
 	// players is how many decode at once, if not motionMost: for tests.
 	players int
+	// sighted is when each cover last said it shows, by its clip's key.
+	sighted map[string]time.Time
 }
 
 func newMotionArt(post func(func())) *motionArt {
@@ -196,7 +198,12 @@ func (a *app) motionOver(c *ui.Context, el ui.Element, mv moving, w, h float32, 
 	if a.motionOn(c) {
 		if url := a.movingURL(mv); url != "" {
 			// Sharp on a Retina display: twice the place, as far as size goes.
-			p = a.motionArt().player(c.Now(), url, int(w*2), int(h*2), size, el.InView())
+			var again bool
+			p, again = a.motionArt().player(c.Now(), url, int(w*2), int(h*2), size, el.InView())
+			if again {
+				// Seen once: the next frame says whether it shows on.
+				c.Invalidate()
+			}
 		}
 	}
 	if p == nil {
@@ -217,12 +224,24 @@ func (a *app) motionOver(c *ui.Context, el ui.Element, mv moving, w, h float32, 
 }
 
 // player is the player of the video at url for a place of w×h pixels, nil
-// until it has a frame. A cover asked for the first time starts loading
-// whether it shows or not, as what shows isn't known until it has been
-// laid out once; after that, only one that shows is played, or takes a
-// player of those that stopped showing.
-func (m *motionArt) player(now time.Time, url string, w, h int, size motionSize, shows bool) *ui.VideoPlayer {
+// until it has a frame. Only a cover that shows is played, or takes a
+// player of those that stopped showing; and one shows only when two
+// frames running say so (motionStale apart at most): a list lays out a
+// few rows past its edge now and then, which say they show for a frame,
+// and took players and decoded there, out of sight. again says a frame
+// should follow soon, to see whether a cover seen once shows on.
+func (m *motionArt) player(now time.Time, url string, w, h int, size motionSize, shows bool) (p *ui.VideoPlayer, again bool) {
 	key := fmt.Sprintf("%s|%dx%d", url, size.w, size.h)
+	if shows {
+		last, seen := m.sighted[key]
+		if m.sighted == nil {
+			m.sighted = map[string]time.Time{}
+		}
+		m.sighted[key] = now
+		if !seen || now.Sub(last) > motionStale {
+			shows, again = false, true
+		}
+	}
 	cl := m.clips[key]
 	if cl != nil && cl.failed && now.Sub(cl.seen) >= motionRetry {
 		delete(m.clips, key)
@@ -230,12 +249,12 @@ func (m *motionArt) player(now time.Time, url string, w, h int, size motionSize,
 	}
 	switch {
 	case cl != nil && cl.failed:
-		return nil
-	case cl != nil && !shows:
-		return nil
+		return nil, false
+	case !shows:
+		return nil, again
 	case cl == nil:
 		if !m.room(now, size.prime) {
-			return nil
+			return nil, false
 		}
 		cl = &motionClip{loading: true, prime: size.prime}
 		m.clips[key] = cl
@@ -265,7 +284,7 @@ func (m *motionArt) player(now time.Time, url string, w, h int, size motionSize,
 	}
 	cl.seen = now
 	m.sweepLater()
-	return cl.player
+	return cl.player, false
 }
 
 // room makes room for another player, letting go of the one that showed
@@ -325,6 +344,11 @@ func (m *motionArt) sweep(now time.Time) {
 	for key, cl := range m.clips {
 		if !cl.failed && !cl.loading && now.Sub(cl.seen) >= motionKeep {
 			m.drop(key)
+		}
+	}
+	for key, at := range m.sighted {
+		if now.Sub(at) >= motionKeep {
+			delete(m.sighted, key)
 		}
 	}
 }

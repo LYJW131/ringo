@@ -75,6 +75,9 @@ func TestMotionStillWhenAsked(t *testing.T) {
 	ch := posts(a)
 	tt, shown, loads := motionView(a)
 	*shown = true
+	// Shown two frames running, it shows on.
+	tt.Frame()
+	tt.Advance(time.Second / 60)
 	tt.Frame()
 	runPost(t, ch)
 	tt.Frame()
@@ -95,7 +98,7 @@ func TestMotionPlayers(t *testing.T) {
 	m := &motionArt{clips: map[string]*motionClip{}, load: openClip(&loads), post: func(fn func()) { ch <- fn }, players: motionPlayers}
 	now := time.Now()
 	for i := range motionPlayers + 1 {
-		m.player(now, fmt.Sprint("https://example.test/", i), 400, 400, motionCard, true)
+		glance(m, now, fmt.Sprint("https://example.test/", i), 400, 400, motionCard, true)
 	}
 	if busy := len(m.clips); busy != motionPlayers {
 		t.Fatalf("%d covers loading at once", busy)
@@ -107,9 +110,9 @@ func TestMotionPlayers(t *testing.T) {
 	// place.
 	later := now.Add(time.Second)
 	for i := 1; i < motionPlayers; i++ {
-		m.player(later, fmt.Sprint("https://example.test/", i), 400, 400, motionCard, true)
+		glance(m, later, fmt.Sprint("https://example.test/", i), 400, 400, motionCard, true)
 	}
-	m.player(later, fmt.Sprint("https://example.test/", motionPlayers), 400, 400, motionCard, true)
+	glance(m, later, fmt.Sprint("https://example.test/", motionPlayers), 400, 400, motionCard, true)
 	runPost(t, ch)
 	if _, ok := m.clips["https://example.test/0|436x582"]; ok || len(m.clips) != motionPlayers {
 		t.Errorf("clips %v", m.clips)
@@ -133,20 +136,20 @@ func TestMotionPrimeTakesAPlayer(t *testing.T) {
 	m := &motionArt{clips: map[string]*motionClip{}, load: openClip(&loads), post: func(fn func()) { ch <- fn }, players: 2}
 	now := time.Now()
 	for i := range 2 {
-		m.player(now, fmt.Sprint("https://example.test/row", i), 80, 80, motionSquare, true)
+		glance(m, now, fmt.Sprint("https://example.test/row", i), 80, 80, motionSquare, true)
 	}
 	runPost(t, ch)
 	runPost(t, ch)
 	// The rows show on, and another row finds no player free.
 	later := now.Add(100 * time.Millisecond)
 	for i := range 2 {
-		m.player(later, fmt.Sprint("https://example.test/row", i), 80, 80, motionSquare, true)
+		glance(m, later, fmt.Sprint("https://example.test/row", i), 80, 80, motionSquare, true)
 	}
-	m.player(later, "https://example.test/row2", 80, 80, motionSquare, true)
+	glance(m, later, "https://example.test/row2", 80, 80, motionSquare, true)
 	if len(m.clips) != 2 {
 		t.Fatalf("a third row took a player: %v", m.clips)
 	}
-	m.player(later, "https://example.test/stage", 900, 900, motionStageMac, true)
+	glance(m, later, "https://example.test/stage", 900, 900, motionStageMac, true)
 	if _, ok := m.clips["https://example.test/stage|960x960"]; !ok || len(m.clips) != 2 {
 		t.Errorf("Now Playing's cover found no player: %v", m.clips)
 	}
@@ -257,7 +260,11 @@ func TestMotionOnlyLarge(t *testing.T) {
 		t.Fatalf("the bar or the notch fetched %d videos", loads.Load())
 	}
 	a.nowPlaying = true
-	main.Frame()
+	// It opens over a moment, its cover showing on as it does.
+	for range 30 {
+		main.Advance(time.Second / 60)
+		main.Frame()
+	}
 	runPost(t, ch)
 	main.Frame()
 	key := fmt.Sprintf("%s|%dx%d", tr.Album.VideoURL, stageMotion().w, stageMotion().h)
@@ -265,6 +272,45 @@ func TestMotionOnlyLarge(t *testing.T) {
 		t.Errorf("Now Playing's cover: clips %v", a.motion.clips)
 	}
 	a.motion.stop()
+}
+
+// A cover that says it shows for a frame now and then, as a row a list
+// lays out past its edge does, never takes a player: those rows took
+// them, and decoded out of sight, a frame or two a second.
+func TestMotionNotForAGlimpse(t *testing.T) {
+	var loads atomic.Int32
+	ch := make(chan func(), 16)
+	m := &motionArt{clips: map[string]*motionClip{}, load: openClip(&loads), post: func(fn func()) { ch <- fn }, players: 4}
+	now := time.Now()
+	for i := range 90 {
+		at := now.Add(time.Duration(i) * time.Second / 30)
+		// Off the list's edge, laid out once a second.
+		if i%30 == 0 {
+			if _, again := m.player(at, "https://example.test/past-the-edge", 400, 400, motionSquare, true); !again {
+				t.Fatal("a cover seen once asks for no frame after")
+			}
+		}
+		// In view, every frame.
+		m.player(at, "https://example.test/in-view", 400, 400, motionSquare, true)
+	}
+	if _, ok := m.clips["https://example.test/past-the-edge|456x456"]; ok {
+		t.Error("a cover past the list's edge took a player")
+	}
+	if _, ok := m.clips["https://example.test/in-view|456x456"]; !ok {
+		t.Error("a cover in view took none")
+	}
+	if len(ch) > 0 {
+		(<-ch)()
+	}
+	m.stop()
+}
+
+// glance is m's player of a cover that showed a frame before now, as one
+// does that shows on.
+func glance(m *motionArt, now time.Time, url string, w, h int, size motionSize, shows bool) *ui.VideoPlayer {
+	m.player(now.Add(-time.Second/60), url, w, h, size, shows)
+	p, _ := m.player(now, url, w, h, size, shows)
+	return p
 }
 
 // loading reports whether a cover's video is on its way.
