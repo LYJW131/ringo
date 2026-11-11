@@ -671,7 +671,8 @@ func vinylSpan(text string, size float32, lang string, c ui.Color) ui.Span {
 	return ui.Span{Text: text, Size: size, Weight: 500, Font: "monospace", Lang: lang, Color: c}
 }
 
-// vinylStage shows lines on the wheel, in box, the stage, around the deck.
+// vinylStage shows lines on the wheel, in box, the stage, around the deck:
+// with none, as while a song's lyrics are on their way, the deck alone.
 func (a *app) vinylStage(c *ui.Context, box ui.Element, tr *music.Track, lines []lyrics.Line, accent ui.Color) {
 	pl := a.pl
 	w, h := box.LayoutBounds().W, box.LayoutBounds().H
@@ -686,7 +687,7 @@ func (a *app) vinylStage(c *ui.Context, box ui.Element, tr *music.Track, lines [
 	lang, locale := lyrics.Lang(lines), c.Locale()
 	avail := w - (vinylWheel+34)*unit
 	set := a.vinyl
-	if set == nil || set.n != len(lines) || set.first != &lines[0] || set.size != size || set.avail != avail {
+	if set == nil || set.n != len(lines) || len(lines) > 0 && set.first != &lines[0] || set.size != size || set.avail != avail {
 		set = setVinyl(lines, size, avail, func(text string, size float32) float32 {
 			tw, _ := c.MeasureText(0, vinylSpan(text, size, lang, white))
 			return tw

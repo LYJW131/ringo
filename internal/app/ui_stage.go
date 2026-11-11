@@ -98,6 +98,13 @@ func (a *app) stage(c *ui.Context, tr *music.Track, accent ui.Color) {
 	f := min(64, max(36, w*0.045))
 	box := ui.Box(c.Key("stage")).Grow(1)
 	a.npRise(box, 1)
+	if len(lines) == 0 && !loaded && a.settings.StageStyle == "vinyl" {
+		// Vinyl's record goes on turning while a song's lyrics are on
+		// their way, with no lines yet: what the stage shows for a song is
+		// decided once they have come.
+		a.vinylStage(c, box, tr, nil, accent)
+		return
+	}
 	if len(lines) == 0 {
 		box.Children(func() {
 			ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Center().Children(func() {

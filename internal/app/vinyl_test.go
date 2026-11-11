@@ -11,6 +11,7 @@ import (
 
 	"ringo/internal/lyrics"
 	"ringo/internal/music"
+	"ringo/internal/player"
 )
 
 // vinylSong is a song of verses and a chorus sung twice, a line every four
@@ -157,6 +158,37 @@ func TestVinylBuildBudget(t *testing.T) {
 	}
 	if !tt.FramePending() {
 		t.Error("the record asks for no frames to turn in")
+	}
+}
+
+// Vinyl's record stays while a song's lyrics are on their way, and the
+// lines come onto the wheel as they arrive. The stage showed its skeleton
+// until they came, without the deck: going to the next song, the record
+// went and came back.
+func TestVinylKeepsItsRecordAsLyricsLoad(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	a.pl = player.New(a.post)
+	a.pl.Source = a.src
+	a.pl.More = a.autoplay
+	fake(a).lyrics = func(string) (*music.Lyrics, error) {
+		return &music.Lyrics{Lines: []music.LyricLine{{Start: 1000, End: 3000, Text: "hello world"}, {Start: 4000, End: 6000, Text: "the next line"}}}, nil
+	}
+	a.pl.PlayQueue([]music.Track{song("7", "宝船")}, 0, music.Origin{})
+	if _, loaded := a.pl.Lyrics(); loaded {
+		t.Fatal("the lyrics came at once")
+	}
+	a.nowPlaying, a.npPane = true, paneStage
+	a.settings.StageStyle = "vinyl"
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if a.deck.clock.at.IsZero() {
+		t.Error("no deck is painted while the lyrics are on their way")
+	}
+	until(t, ch, func() bool { _, loaded := a.pl.Lyrics(); return loaded })
+	tt.Frame()
+	if a.vinyl == nil || len(a.vinyl.lines) != 2 {
+		t.Errorf("the lyrics came, and the wheel has %+v", a.vinyl)
 	}
 }
 
