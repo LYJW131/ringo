@@ -209,15 +209,23 @@ func (a *app) coverPlayButton(c *ui.Context, shown bool, cp *coverPlay) {
 	b := ui.ButtonBase(c.Key("play")).Absolute().Bottom(10).Right(10).Size(38, 38).Radius(999).Center().
 		Background(a.pal.accent).TextColor(white).Label(T("Play")).FocusRing(false).
 		Shadow(0, 4, 12, 0, ui.RGBA(0, 0, 0, 0.3))
+	// Played, it stays and spins until the song starts, the pointer gone or not.
+	waits := cp.waits != nil && cp.waits()
 	pose := ui.Pose{Fade: 1, Scale: 0.8, Y: 6}
-	if shown || b.Hovered() {
+	if shown || b.Hovered() || waits {
 		pose = ui.Pose{Scale: 1}
 		if b.Hovered() {
 			pose.Scale = 1.05
 		}
 	}
 	b.AnimatePose(pose, ui.Snappy)
-	b.Children(func() { ui.Icon(c, iconPlay).Size(15, 15).Margin(0, 0, 0, 2) })
+	b.Children(func() {
+		if waits {
+			ui.Spinner(c).FontSize(16).TextColor(white)
+		} else {
+			ui.Icon(c, iconPlay).Size(15, 15).Margin(0, 0, 0, 2)
+		}
+	})
 	if cp.ahead != nil {
 		aheadOnHover(c, b, shown || b.Hovered(), cp.ahead)
 	}

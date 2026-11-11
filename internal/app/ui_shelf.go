@@ -506,11 +506,13 @@ func itemStation(it *music.Item) *music.Station {
 	return &music.Station{ID: it.ID, Name: it.Title, ImageURL: it.ImageURL}
 }
 
-// coverPlay is what a cover's play button does: play plays it, and ahead,
-// if there's one, gets it ready while the pointer rests on the cover.
+// coverPlay is what a cover's play button does: play plays it; ahead, if
+// there's one, gets it ready while the pointer rests on the cover; and
+// waits says it was played and hasn't started yet, while the button spins.
 type coverPlay struct {
 	play  func()
 	ahead func()
+	waits func() bool
 }
 
 // playItem plays an item from its card without opening it, for what its
@@ -533,6 +535,7 @@ func (a *app) albumPlay(id string) *coverPlay {
 	return &coverPlay{
 		play:  func() { a.playAlbum(id) },
 		ahead: func() { a.fetchAlbum(id, true) },
+		waits: func() bool { return a.waitsFor(albumOrigin(id)) },
 	}
 }
 
@@ -540,11 +543,34 @@ func (a *app) playlistPlay(id string) *coverPlay {
 	return &coverPlay{
 		play:  func() { a.loadPlaylist(id, true) },
 		ahead: func() { a.playlistAhead(id) },
+		waits: func() bool { return a.waitsFor(music.Origin{Kind: music.FromPlaylist, ID: id}) },
 	}
 }
 
 func (a *app) stationPlay(st *music.Station) *coverPlay {
-	return &coverPlay{play: func() { a.playStation(st) }}
+	return &coverPlay{
+		play: func() { a.playStation(st) },
+		waits: func() bool {
+			name := radioName(st)
+			return a.radioStarting == name || a.pl.Radio() == name && a.songWaits()
+		},
+	}
+}
+
+// waitsFor reports whether what plays from o was played and hasn't started:
+// it's loading to play (toPlay), or its song is on its way.
+func (a *app) waitsFor(o music.Origin) bool {
+	if a.library.toPlay == o {
+		return true
+	}
+	tr := a.pl.Current()
+	return tr != nil && tr.Origin.Kind == o.Kind && (tr.Origin.ID == o.ID || tr.Origin.CatalogID == o.ID) && a.songWaits()
+}
+
+// songWaits reports whether the song playing is waiting for its audio, with
+// nothing gone wrong: what the play buttons spin for.
+func (a *app) songWaits() bool {
+	return a.pl.Current() != nil && a.pl.Playing() && a.pl.Loading() && a.pl.Err() == ""
 }
 
 // playAlbum plays an album from its first song, loading it first if it

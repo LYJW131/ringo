@@ -58,6 +58,9 @@ func TestCoverLoadsAheadOfItsPlayButton(t *testing.T) {
 	if a.pl.Current() != nil {
 		t.Fatal("played before the album came")
 	}
+	if !a.waitsFor(albumOrigin("a2")) {
+		t.Error("the play button doesn't wait for the album")
+	}
 	let <- struct{}{}
 	until(t, ch, func() bool { return a.pl.Current() != nil })
 	if tr := a.pl.Current(); tr.ID != "a2.1" || tr.Origin != albumOrigin("a2") {
