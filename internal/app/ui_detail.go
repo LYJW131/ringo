@@ -61,7 +61,9 @@ func (a *app) detailList(c *ui.Context, n int, tint music.Colors, row func(i int
 
 // pageTint is the color a page is tinted with from the color hex of its
 // picture: as dark as keeps the light text of the dark appearance easy to
-// read on it, or as light as keeps the dark text of the light one.
+// read on it, or as light as keeps the dark text of the light one, and
+// there no stronger than a pastel: a cover that is light already, a yellow
+// one, would else tint the page with itself as it is.
 func pageTint(hex string, p palette) (ui.Color, bool) {
 	c := hexColor(hex, ui.Transparent)
 	if c == ui.Transparent {
@@ -72,9 +74,9 @@ func pageTint(hex string, p palette) (ui.Color, bool) {
 		toward, limit = ui.RGB(0, 0, 0), 0.045
 	}
 	// Mixed in steps, as luminance is far from linear in the mix.
-	for range 20 {
+	for range 24 {
 		l := luminance(c)
-		if p.dark && l <= limit || !p.dark && l >= limit {
+		if p.dark && l <= limit || !p.dark && l >= limit && chroma(c) <= lightTintChroma {
 			break
 		}
 		c = c.Mix(toward, 0.12)
@@ -82,16 +84,34 @@ func pageTint(hex string, p palette) (ui.Color, bool) {
 	return c, true
 }
 
+// lightTintChroma is how colorful a page's tint may be in the light
+// appearance, as chroma reckons it: about what the tints of covers of
+// middling colors come to by themselves.
+const lightTintChroma = 0.07
+
+// linear is the light a channel of a color gives, of all it can: v with
+// sRGB's curve undone.
+func linear(v uint8) float64 {
+	s := float64(v) / 255
+	if s <= 0.04045 {
+		return s / 12.92
+	}
+	return math.Pow((s+0.055)/1.055, 2.4)
+}
+
 // luminance is the relative luminance of c, as WCAG reckons contrast.
 func luminance(c ui.Color) float64 {
-	lin := func(v uint8) float64 {
-		s := float64(v) / 255
-		if s <= 0.04045 {
-			return s / 12.92
-		}
-		return math.Pow((s+0.055)/1.055, 2.4)
-	}
-	return 0.2126*lin(c.R) + 0.7152*lin(c.G) + 0.0722*lin(c.B)
+	return 0.2126*linear(c.R) + 0.7152*linear(c.G) + 0.0722*linear(c.B)
+}
+
+// chroma is how colorful c is, as Oklab reckons it: 0 for a gray, and
+// about 0.3 for the strongest colors a screen shows.
+func chroma(c ui.Color) float64 {
+	r, g, b := linear(c.R), linear(c.G), linear(c.B)
+	l := math.Cbrt(0.4122214708*r + 0.5363325363*g + 0.0514459929*b)
+	m := math.Cbrt(0.2119034982*r + 0.6806995451*g + 0.1073969566*b)
+	s := math.Cbrt(0.0883024619*r + 0.2817188376*g + 0.6299787005*b)
+	return math.Hypot(1.9779984951*l-2.4285922050*m+0.4505937099*s, 0.0259040371*l+0.7827717662*m-0.8086757660*s)
 }
 
 // detailHeader heads an album's or a playlist's page: its cover, moving

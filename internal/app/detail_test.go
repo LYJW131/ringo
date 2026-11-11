@@ -637,3 +637,15 @@ func TestDetailFrames(t *testing.T) {
 		}
 	}
 }
+
+// A cover that is light already tints the light page no stronger than a
+// pastel, and as light as its dark text needs: a yellow one tinted it yellow
+// as it was.
+func TestLightTintIsAPastel(t *testing.T) {
+	for _, hex := range []string{"f5e94a", "ff8a00", "00ff00", "c0283a"} {
+		c, ok := pageTint(hex, palette{})
+		if !ok || chroma(c) > lightTintChroma || luminance(c) < 0.72 {
+			t.Errorf("%s tints the page #%02x%02x%02x: chroma %.3f, luminance %.2f", hex, c.R, c.G, c.B, chroma(c), luminance(c))
+		}
+	}
+}
