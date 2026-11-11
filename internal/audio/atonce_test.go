@@ -45,6 +45,11 @@ type trackedFlusher struct{ tracked }
 
 func (d trackedFlusher) flush() error { return d.device.(flusher).flush() }
 
+// A trackedHolder is a tracked device that says what it holds.
+type trackedHolder struct{ tracked }
+
+func (d trackedHolder) holds() (int64, bool) { return d.device.(holder).holds() }
+
 // outputTo opens the output on the devices open returns, until the test
 // ends: then the output is let go of whatever it waits for, and the test
 // waits for it to close them, so that the next test's opens its own.
@@ -57,6 +62,9 @@ func outputTo(t *testing.T, open func(rate int) device) {
 		d := tracked{open(rate), &closes}
 		if _, ok := d.device.(flusher); ok {
 			return trackedFlusher{d}, nullFrames(rate), nil
+		}
+		if _, ok := d.device.(holder); ok {
+			return trackedHolder{d}, nullFrames(rate), nil
 		}
 		return d, nullFrames(rate), nil
 	}

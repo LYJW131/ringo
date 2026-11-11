@@ -24,6 +24,20 @@ type flusher interface {
 	flush() error
 }
 
+// A holder is a device that knows how many frames it holds, written and
+// not yet heard, just after it took a write, and whether it is sure of
+// them: one that measures them is only after a while. A device without it
+// is taken to hold what it was opened to, which the Audio Queue holds more
+// than: a player's position ran some 20 ms ahead of what was heard.
+type holder interface {
+	holds() (frames int64, sure bool)
+}
+
+// heldBy returns the frames a device holds ahead of what is heard, on
+// average, which holds frames after a write of n: the output mixes the
+// next n at once, and the device plays as many while that write waits.
+func heldBy(holds int64, n int) int64 { return holds + int64(n)/2 }
+
 // idleClose is how long the output stays open with nothing playing.
 const idleClose = 5 * time.Second
 
@@ -165,9 +179,19 @@ func run() {
 			dev, n = newNullDevice(err != errUnsupported, opened), nullFrames(opened)
 			// It holds nothing: what it takes is heard as it takes it.
 			setHeld(0)
-		} else {
+		}
+		// What the device holds, as it says, or else as it was asked to;
+		// one not sure yet is asked again as it plays.
+		held, sure := int64(lat.ahead())*int64(opened)/int64(time.Second), true
+		h, _ := dev.(holder)
+		if err == nil {
 			setErr(nil)
-			setHeld(int64(lat.ahead()) * int64(opened) / int64(time.Second))
+			if h != nil {
+				var frames int64
+				frames, sure = h.holds()
+				held = heldBy(frames, n)
+			}
+			setHeld(held)
 		}
 		buf := make([]float32, n*channels)
 		idle, idled, checked := time.Duration(0), false, time.Duration(0)
@@ -232,6 +256,13 @@ func run() {
 				break
 			}
 			empty = false
+			if !sure {
+				var frames int64
+				if frames, sure = h.holds(); heldBy(frames, n) != held {
+					held = heldBy(frames, n)
+					changeHeld(held)
+				}
+			}
 			if busy {
 				idle = 0
 			} else if idle += per; idle >= idleClose {

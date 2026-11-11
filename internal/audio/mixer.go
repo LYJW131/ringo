@@ -84,6 +84,21 @@ func setHeld(n int64) {
 	}
 }
 
+// changeHeld tells the mixer that the device open holds n frames ahead of
+// what is heard, not as many as it was said to, of what was mixed so far.
+func changeHeld(n int64) {
+	mu.Lock()
+	defer mu.Unlock()
+	if testMode {
+		return
+	}
+	if unheard >= held {
+		// It was full: it holds n.
+		unheard = n
+	}
+	held, unheard = n, min(unheard, n)
+}
+
 // heard returns the output's frame heard now: the frames mixed before it
 // are.
 func heard() int64 { return mixed - unheard }

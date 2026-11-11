@@ -2,6 +2,7 @@ package audio
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -52,6 +53,7 @@ var (
 	audioQueueStart          func(q uintptr, at uintptr) int32
 	audioQueueStop           func(q uintptr, immediate bool) int32
 	audioQueuePause          func(q uintptr) int32
+	audioQueueGetCurrentTime func(q uintptr, timeline uintptr, time *audioTimeStamp, discontinuity *bool) int32
 	audioQueueReset          func(q uintptr) int32
 	audioQueueSetParameter   func(q uintptr, param uint32, value float32) int32
 	audioQueueDispose        func(q uintptr, immediate bool) int32
@@ -75,6 +77,7 @@ func loadAudioToolbox() error {
 		purego.RegisterLibFunc(&audioQueueStart, lib, "AudioQueueStart")
 		purego.RegisterLibFunc(&audioQueueStop, lib, "AudioQueueStop")
 		purego.RegisterLibFunc(&audioQueuePause, lib, "AudioQueuePause")
+		purego.RegisterLibFunc(&audioQueueGetCurrentTime, lib, "AudioQueueGetCurrentTime")
 		purego.RegisterLibFunc(&audioQueueReset, lib, "AudioQueueReset")
 		purego.RegisterLibFunc(&audioQueueSetParameter, lib, "AudioQueueSetParameter")
 		purego.RegisterLibFunc(&audioQueueDispose, lib, "AudioQueueDispose")
@@ -97,6 +100,76 @@ type aqDevice struct {
 	buffers int
 	queued  int // buffers enqueued before the queue started
 	started bool
+
+	// What it holds after a write, measured on the queue's own timeline
+	// (holds): the frames written, the writes since it started, the
+	// measures taken, and what they came to, once sure.
+	rate     int
+	sent     int64
+	writes   int
+	measures []int64
+	measured int64
+	sure     bool
+}
+
+// audioTimeStamp is Core Audio's AudioTimeStamp, of which only the sample
+// time is read.
+type audioTimeStamp struct {
+	sampleTime float64
+	hostTime   uint64
+	rateScalar float64
+	wordClock  uint64
+	smpte      [24]byte
+	flags      uint32
+	reserved   uint32
+}
+
+// The queue plays what it is given some milliseconds after it gives the
+// buffer back, through its converter and the device's own buffer: how
+// long, as the last queue measured, for the next to start from. Only the
+// output's goroutine uses it.
+var aqPipeline float64 // seconds
+
+const (
+	aqSettle   = 8  // writes after the queue starts before it is measured
+	aqMeasures = 16 // measures taken, the middle one kept
+)
+
+// holds returns the frames the queue holds just after a write: its buffers
+// and what it holds past them, as it measured, or as the queue before did
+// until it has.
+func (d *aqDevice) holds() (int64, bool) {
+	if d.measured > 0 {
+		return d.measured, true
+	}
+	return int64(d.buffers*aqFrames) + int64(aqPipeline*float64(d.rate)), d.sure
+}
+
+// measure notes, after a write, how many frames the queue holds: those
+// written less the one it plays, by its timeline, which starts at 0 with
+// the first written. After enough of them it is sure, of the middle one.
+func (d *aqDevice) measure() {
+	if d.writes++; d.writes <= aqSettle {
+		return
+	}
+	var now audioTimeStamp
+	if audioQueueGetCurrentTime(d.q, 0, &now, nil) == 0 && now.sampleTime > 0 {
+		d.measures = append(d.measures, d.sent-int64(now.sampleTime))
+	}
+	if d.writes < aqSettle+aqMeasures {
+		return
+	}
+	d.sure = true
+	full := int64(d.buffers * aqFrames)
+	if len(d.measures) == 0 {
+		return
+	}
+	slices.Sort(d.measures)
+	// Within a tenth of a second of its buffers, or it measured nonsense.
+	if m := d.measures[len(d.measures)/2]; m >= full && m <= full+int64(d.rate)/10 {
+		d.measured = m
+		aqPipeline = float64(m-full) / float64(d.rate)
+	}
 }
 
 func openDevice(ahead time.Duration, rate int) (device, int, error) {
@@ -115,7 +188,7 @@ func openDevice(ahead time.Duration, rate int) (device, int, error) {
 		bitsPerChannel:   32,
 	}
 	n := max(2, int((int64(ahead)*int64(rate)/int64(time.Second)+aqFrames-1)/aqFrames))
-	d := &aqDevice{free: make(chan *audioQueueBuffer, n), buffers: n}
+	d := &aqDevice{free: make(chan *audioQueueBuffer, n), buffers: n, rate: rate}
 	if st := audioQueueNewOutput(&desc, aqCallback, 0, 0, 0, 0, &d.q); st != 0 {
 		return nil, 0, fmt.Errorf("audio: AudioQueueNewOutput failed (OSStatus %d)", st)
 	}
@@ -143,6 +216,10 @@ func (d *aqDevice) write(samples []float32) error {
 	b.audioDataByteSize = uint32(len(samples) * 4)
 	if st := audioQueueEnqueueBuffer(d.q, b, 0, 0); st != 0 {
 		return fmt.Errorf("audio: AudioQueueEnqueueBuffer failed (OSStatus %d)", st)
+	}
+	d.sent += int64(len(samples) / channels)
+	if d.started && !d.sure {
+		d.measure()
 	}
 	if !d.started {
 		// Start once every buffer holds something, not to begin with an
@@ -183,6 +260,9 @@ func (d *aqDevice) flush() error {
 	audioQueueSetParameter(d.q, kAudioQueueParamVolumeRampTime, 0)
 	audioQueueSetParameter(d.q, kAudioQueueParamVolume, 1)
 	d.started, d.queued = false, 0
+	// Its timeline no longer starts with what was written: it holds what
+	// it measured, or what the queue before did.
+	d.sure = true
 	return nil
 }
 
