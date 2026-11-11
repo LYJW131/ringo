@@ -16,16 +16,21 @@ var (
 	held    int64
 )
 
+// wanted is the rate the output was last to run at, under mu.
+var wanted = defaultRate
+
 // wantedRate returns the rate the output is to run at: the newest voice
-// playing's, within the rates it opens at, or, with none playing, the rate
-// it runs at, so that a pause doesn't open it again. Under mu.
+// playing's, within the rates it opens at, or, with none playing, the one
+// it was to run at before, so that a pause doesn't open it again. That is
+// not always the rate it runs at: a device may have refused it. Under mu.
 func wantedRate() int {
 	for i := len(voices) - 1; i >= 0; i-- {
 		if v := voices[i]; v.playing && !v.closed {
-			return min(max(int(math.Round(v.rate)), lowestRate), highestRate)
+			wanted = min(max(int(math.Round(v.rate)), lowestRate), highestRate)
+			break
 		}
 	}
-	return sampleRate
+	return wanted
 }
 
 // setRate tells the mixer the device open runs at rate.

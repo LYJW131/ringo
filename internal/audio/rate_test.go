@@ -306,17 +306,24 @@ func (closingDevice) write([]float32) error { return nil }
 func (d closingDevice) close()              { d.closed <- struct{}{} }
 
 // A device that won't run at the music's rate plays it resampled, at the
-// rate the output ran at before, rather than unheard, and isn't asked again
-// with each write.
+// rate the output ran at before, rather than unheard, and goes on as the
+// song pauses and plays again: the output opened again at each, as with
+// nothing playing it wanted the rate it ran at, not the song's.
 func TestFallsBackToTheRateBefore(t *testing.T) {
 	setup(t)
-	opened := make(chan int, 64)
+	type opened struct {
+		rate int
+		dev  *loggedDevice
+	}
+	opens := make(chan opened, 64)
 	openOutput = func(ahead time.Duration, rate int) (device, int, error) {
-		opened <- rate
 		if rate != defaultRate {
+			opens <- opened{rate, nil}
 			return nil, 0, errors.New("rate refused")
 		}
-		return newLoggedDevice(), nullFrames(rate), nil
+		d := newLoggedDevice()
+		opens <- opened{rate, d}
+		return d, nullFrames(rate), nil
 	}
 	defer func() { openOutput = openDevice }()
 	mu.Lock()
@@ -330,18 +337,24 @@ func TestFallsBackToTheRateBefore(t *testing.T) {
 	p := NewSound(96000, 1, make([]float32, 96000)).NewPlayer().SetLoop(true)
 	p.Play()
 	defer p.Close()
-	if got := waitFor(t, "the output to open", opened); got != 96000 {
-		t.Fatalf("asked for %d first, want 96000", got)
+	if got := waitFor(t, "the output to open", opens); got.rate != 96000 {
+		t.Fatalf("asked for %d first, want 96000", got.rate)
 	}
-	if got := waitFor(t, "the output to open at the rate before", opened); got != defaultRate {
-		t.Fatalf("asked for %d then, want %d", got, defaultRate)
+	got := waitFor(t, "the output to open at the rate before", opens)
+	if got.rate != defaultRate {
+		t.Fatalf("asked for %d then, want %d", got.rate, defaultRate)
 	}
-	for start := time.Now(); time.Since(start) < 50*time.Millisecond; time.Sleep(time.Millisecond) {
-		select {
-		case r := <-opened:
-			t.Fatalf("opened again at %d while it plays", r)
-		default:
-		}
+	// It goes on taking writes through a pause, which a device closed for
+	// another rate would not.
+	got.dev.waitWrites(t, got.dev.count()+3)
+	p.Pause()
+	got.dev.waitWrites(t, got.dev.count()+8)
+	p.Play()
+	got.dev.waitWrites(t, got.dev.count()+8)
+	select {
+	case o := <-opens:
+		t.Fatalf("opened again at %d as it paused and played", o.rate)
+	default:
 	}
 	if Err() != nil {
 		t.Errorf("Err = %v", Err())

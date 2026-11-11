@@ -22,7 +22,7 @@ func setup(t *testing.T) {
 	voices = nil
 	volume = 1
 	held, unheard = 0, 0
-	sampleRate, rampFrames = defaultRate, defaultRate/200
+	sampleRate, rampFrames, wanted = defaultRate, defaultRate/200, defaultRate
 	mu.Unlock()
 }
 
