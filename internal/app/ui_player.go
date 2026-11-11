@@ -277,6 +277,16 @@ func (a *app) scrollVolume(ev ui.InputEvent) bool {
 	return true
 }
 
+// volumeStep is how far Increase Volume and Decrease Volume turn the volume,
+// a sixteenth of the way.
+const volumeStep = 1.0 / 16
+
+// nudgeVolume turns the volume by d of its whole range, as far as it goes.
+func (a *app) nudgeVolume(d float64) {
+	a.volume = min(1, max(0, a.volume+d))
+	a.pl.SetVolume(a.volume)
+}
+
 // volumeIcon is the speaker for volume v: silent, or with one or two waves.
 func volumeIcon(v float64) *ui.SVG {
 	switch {
