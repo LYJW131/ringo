@@ -45,10 +45,6 @@ var vinylHues = []ui.Color{
 	ui.RGB(246, 197, 83), ui.RGB(253, 144, 204), ui.RGB(176, 124, 251),
 }
 
-// The parts of a song a line is marked as: what is sung more than once is
-// the hook, what follows the last of it the outro.
-var vinylVerse, vinylHook, vinylOutro = N("verse"), N("hook"), N("outro")
-
 // vinylToken is a word on the wheel, or a rest after a line's last: when
 // it is sung, and until when it stays lit; where it sits in its line.
 type vinylToken struct {
@@ -74,10 +70,8 @@ type vinylLine struct {
 	next       time.Duration // when the spoke after it starts
 	of         int           // the line of the lyrics it is of
 	cont       bool          // it goes on with a line the spoke before began
-	section    string
-	label      float32 // how wide its section's name is
-	key        string  // what it says, for telling a line sung again
-	chorus     bool    // its line is sung more than once
+	key        string        // what it says, for telling a line sung again
+	chorus     bool          // its line is sung more than once
 	toks       []vinylToken
 }
 
@@ -144,7 +138,7 @@ func grow(x float64) float64 {
 
 // setVinyl sets lines on the wheel, their words size high and avail wide
 // at most a spoke, measure giving a text's width at a size.
-func setVinyl(lines []lyrics.Line, size, avail float32, measure func(text string, size float32) float32, label func(section string) float32) *vinylSet {
+func setVinyl(lines []lyrics.Line, size, avail float32, measure func(text string, size float32) float32) *vinylSet {
 	set := &vinylSet{n: len(lines), size: size, avail: avail}
 	if len(lines) == 0 {
 		return set
@@ -156,13 +150,6 @@ func setVinyl(lines []lyrics.Line, size, avail float32, measure func(text string
 	for i := range lines {
 		counts[vinylKey(lines[i].Text)]++
 	}
-	lastHook := -1
-	for i := range lines {
-		if counts[vinylKey(lines[i].Text)] > 1 {
-			lastHook = i
-		}
-	}
-
 	for i := range lines {
 		l := &lines[i]
 		next := never
@@ -233,15 +220,7 @@ func setVinyl(lines []lyrics.Line, size, avail float32, measure func(text string
 			}
 		}
 
-		section := vinylVerse
-		switch {
-		case counts[vinylKey(l.Text)] > 1:
-			section = vinylHook
-		case lastHook >= 0 && i > lastHook:
-			section = vinylOutro
-		}
 		// Onto as many spokes as its words need.
-		room := avail - label(section)
 		var parts [][]vinylToken
 		at := float32(0)
 		for _, t := range toks {
@@ -249,7 +228,7 @@ func setVinyl(lines []lyrics.Line, size, avail float32, measure func(text string
 			if n := len(parts); n > 0 && len(parts[n-1]) > 0 && !parts[n-1][len(parts[n-1])-1].space {
 				gap = size * 0.36
 			}
-			if len(parts) == 0 || at+gap+t.w > room && !t.rest {
+			if len(parts) == 0 || at+gap+t.w > avail && !t.rest {
 				parts = append(parts, nil)
 				at, gap = 0, 0
 			}
@@ -258,7 +237,7 @@ func setVinyl(lines []lyrics.Line, size, avail float32, measure func(text string
 			parts[len(parts)-1] = append(parts[len(parts)-1], t)
 		}
 		for k, part := range parts {
-			line := vinylLine{start: part[0].on, end: end, next: next, of: i, cont: k > 0, section: section, label: label(section), toks: part}
+			line := vinylLine{start: part[0].on, end: end, next: next, of: i, cont: k > 0, toks: part}
 			if k == 0 {
 				line.start, line.key, line.chorus = l.At, vinylKey(l.Text), counts[vinylKey(l.Text)] > 1
 			}
@@ -693,7 +672,7 @@ func vinylSpan(text string, size float32, lang string, c ui.Color) ui.Span {
 }
 
 // vinylStage shows lines on the wheel, in box, the stage, around the deck.
-func (a *app) vinylStage(c *ui.Context, box ui.Element, tr *music.Track, lines []lyrics.Line) {
+func (a *app) vinylStage(c *ui.Context, box ui.Element, tr *music.Track, lines []lyrics.Line, accent ui.Color) {
 	pl := a.pl
 	w, h := box.LayoutBounds().W, box.LayoutBounds().H
 	if w == 0 || h == 0 {
@@ -705,27 +684,17 @@ func (a *app) vinylStage(c *ui.Context, box ui.Element, tr *music.Track, lines [
 	unit := min(h/vinylBase, w/620)
 	size := float32(math.Round(float64(vinylType*unit)*2) / 2)
 	lang, locale := lyrics.Lang(lines), c.Locale()
-	labelSpan := func(section string, col ui.Color) ui.Span {
-		sp := vinylSpan(T(section), 12*unit, locale, col)
-		sp.Weight = 600
-		return sp
-	}
-	avail := w - (vinylWheel+34+14.5)*unit
+	avail := w - (vinylWheel+34)*unit
 	set := a.vinyl
 	if set == nil || set.n != len(lines) || set.first != &lines[0] || set.size != size || set.avail != avail {
-		set = setVinyl(lines, size, avail,
-			func(text string, size float32) float32 {
-				tw, _ := c.MeasureText(0, vinylSpan(text, size, lang, white))
-				return tw
-			},
-			func(section string) float32 {
-				tw, _ := c.MeasureText(0, labelSpan(section, white))
-				return tw
-			})
+		set = setVinyl(lines, size, avail, func(text string, size float32) float32 {
+			tw, _ := c.MeasureText(0, vinylSpan(text, size, lang, white))
+			return tw
+		})
 		a.vinyl = set
 	}
 
-	pos, playing := pl.Position(), pl.Playing()
+	pos, playing := a.vinylPos(c.Now()), pl.Playing()
 	still := c.Preferences().ReduceMotion
 	active, at := set.wheelAt(pos)
 	if playing {
@@ -741,66 +710,86 @@ func (a *app) vinylStage(c *ui.Context, box ui.Element, tr *music.Track, lines [
 	}
 
 	dur := pl.Duration()
-	box.Clip().Draw(func(p *ui.Painter, r ui.Rect) {
-		pos := pl.Position()
-		a.paintDeck(p, r, unit, tr, pos, dur, pl.Playing(), set.motionAt(pos).deck)
-		if pl.Playing() && !still {
-			p.AnimationFrameRate(60)
-		}
-	})
+	press := pressingFor(accent, tr)
+	// The deck is an element of its own, painted in every frame the record
+	// turns in, which paint nothing else but the line sung.
+	deck := func() {
+		ui.Box(c.Key("deck")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Draw(func(p *ui.Painter, r ui.Rect) {
+			pos := a.vinylPos(p.Now())
+			a.paintDeck(p, r, unit, tr, press, pos, dur, pl.Playing(), set.motionAt(pos).deck)
+			if pl.Playing() && !still {
+				p.AnimationFrameRate(60)
+			}
+		})
+	}
+	// The spokes fade out toward the stage's top, where the tabs are, and
+	// its foot.
+	black := ui.RGB(0, 0, 0)
 	box.Children(func() {
-		high := 110 * unit
-		for i := max(0, int(at)-5); i < min(len(set.lines), int(at)+7); i++ {
-			slot := float32(i) - at
-			d := abs32(slot)
-			if d > 4.6 {
-				continue
-			}
-			l := &set.lines[i]
-			under := ""
-			if i == active {
-				under = a.under(&lines[l.of])
-			}
-			e := ui.Box(c.Key(i)).Absolute().Left(0).Top(h/2-high/2).Width(w).Height(high).
-				TransformOrigin(0, 0.5).Rotate(slot * vinylStep).Opacity(between(vinylFaint, d)).PassThrough()
-			if soft := between(vinylSoft, d) * unit; soft > 0.3 {
-				e.Blur(soft)
-			}
-			e.Draw(func(p *ui.Painter, r ui.Rect) {
-				a.paintVinylLine(p, r, set, l, vinylLineLook{unit: unit, size: size, away: d, level: i == active, shown: i <= active,
-					lang: lang, under: under, locale: locale, label: labelSpan})
-			})
-		}
+		deck()
+		spokes := ui.Box(c.Key("spokes")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().
+			MaskLinearGradient(ui.LinearGradient{Angle: 180, Stops: stops(0.0, ui.Transparent, 0.04, ui.Transparent, 0.2, black, 0.9, black, 1.0, ui.Transparent)})
+		spokes.Children(func() { a.vinylSpokes(c, set, lines, w, h, unit, size, at, active, still, lang, locale) })
 	})
+}
+
+// vinylSpokes shows the spokes of set near where the wheel is, at, each
+// turned to its place around the record.
+func (a *app) vinylSpokes(c *ui.Context, set *vinylSet, lines []lyrics.Line, w, h, unit, size, at float32, active int, still bool, lang, locale string) {
+	high := 110 * unit
+	for i := max(0, int(at)-5); i < min(len(set.lines), int(at)+7); i++ {
+		slot := float32(i) - at
+		d := abs32(slot)
+		if d > 4.6 {
+			continue
+		}
+		l := &set.lines[i]
+		under := ""
+		if i == active {
+			under = a.under(&lines[l.of])
+		}
+		e := ui.Box(c.Key(i)).Absolute().Left(0).Top(h/2-high/2).Width(w).Height(high).
+			TransformOrigin(0, 0.5).Rotate(slot * vinylStep).Opacity(between(vinylFaint, d)).PassThrough()
+		if soft := between(vinylSoft, d) * unit; soft > 0.3 {
+			e.Blur(soft)
+		}
+		e.Draw(func(p *ui.Painter, r ui.Rect) {
+			a.paintVinylLine(p, r, set, l, vinylLineLook{unit: unit, size: size, away: d, level: i == active, shown: i <= active,
+				still: still, lang: lang, under: under, locale: locale})
+		})
+	}
 }
 
 // vinylLineLook is how a spoke is painted: the sizes of its stage, how far
 // from level it is, whether it is the line sung and whether its turn has
 // come; and what shows under it.
 type vinylLineLook struct {
-	unit, size, away float32
-	level, shown     bool
-	lang, locale     string
-	under            string
-	label            func(section string, c ui.Color) ui.Span
+	unit, size, away    float32
+	level, shown, still bool
+	lang, locale        string
+	under               string
 }
 
 // paintVinylLine paints the spoke l in r, whose left edge's middle is the
 // record's center, as it is where playback is now.
 func (a *app) paintVinylLine(p *ui.Painter, r ui.Rect, set *vinylSet, l *vinylLine, look vinylLineLook) {
-	pos := a.pl.Position()
+	pos := a.vinylPos(p.Now())
 	unit, size := look.unit, look.size
-	m := set.motionAt(pos)
+	// The line sung moves with the song: it is painted in every frame the
+	// record is. The others change only as the wheel turns, when the view
+	// is built anew, and the accents' motion is the sung line's alone.
+	var m vinylMotion
+	if look.level {
+		m = set.motionAt(pos)
+		if a.pl.Playing() && !look.still {
+			p.AnimationFrameRate(60)
+		}
+	}
 	cx, cy := r.X, r.Y+r.H/2
 	paint := func() {
-		// Its section's name, lit while it is the line.
 		on := clamp01((0.6 - look.away) / 0.2)
 		x := cx + vinylWheel*unit
 		_, th := p.MeasureText(0, vinylSpan("Ag", size, look.lang, white))
-		name := look.label(l.section, white.Alpha(0.45).Mix(ui.RGB(224, 112, 95), on))
-		_, lh := p.MeasureText(0, name)
-		p.RichText(x, cy-th/2+(th-lh)*0.8, 0, name)
-		x += l.label + 14.5*unit
 		top := cy - th/2
 
 		if look.level && m.tear > 0.15 {
@@ -861,7 +850,7 @@ func (a *app) paintVinylLine(p *ui.Painter, r ui.Rect, set *vinylSet, l *vinylLi
 			})
 		}
 		if look.under != "" {
-			p.RichText(x, cy+0.6*size+10*unit, set.avail-l.label, ui.Span{Text: look.under, Size: 13 * unit, Weight: 500, Lang: look.locale, Color: white.Alpha(0.55 * on)})
+			p.RichText(x, cy+0.6*size+10*unit, set.avail, ui.Span{Text: look.under, Size: 13 * unit, Weight: 500, Lang: look.locale, Color: white.Alpha(0.55 * on)})
 		}
 	}
 	if m.zoom > 0.00004 || m.zoom < -0.00004 {
@@ -908,4 +897,38 @@ func paintHeld(p *ui.Painter, t *vinylToken, x, top, since, size float32, lang s
 		})
 		i++
 	}
+}
+
+// vinylClock is where playback is, for what moves with it every frame. The
+// player's own position comes in steps as its audio is handed over, a
+// frame's worth now and half of one the next, and a record turned by it
+// stutters: the clock goes on at the pace of the frames, and is drawn
+// toward the player's position, to which it jumps on a seek or a stall.
+type vinylClock struct {
+	pos, raw  time.Duration
+	at, moved time.Time // when it was last read, and when raw last changed
+}
+
+func (k *vinylClock) read(now time.Time, pos time.Duration, playing bool) time.Duration {
+	dt := now.Sub(k.at)
+	if dt == 0 && !k.at.IsZero() && playing {
+		return k.pos // the same frame
+	}
+	if pos != k.raw {
+		k.raw, k.moved = pos, now
+	}
+	want := k.pos + dt
+	off := pos - want
+	if k.at.IsZero() || !playing || dt < 0 || dt > 300*time.Millisecond || now.Sub(k.moved) > 100*time.Millisecond ||
+		off > 150*time.Millisecond || off < -150*time.Millisecond {
+		k.pos, k.at = pos, now
+		return pos
+	}
+	k.pos, k.at = want+time.Duration(float64(off)*min(1, dt.Seconds()/0.4)), now
+	return k.pos
+}
+
+// vinylPos is where playback is at now, a frame's time, for Vinyl.
+func (a *app) vinylPos(now time.Time) time.Duration {
+	return a.deck.clock.read(now, a.pl.Position(), a.pl.Playing())
 }

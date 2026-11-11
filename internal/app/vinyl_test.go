@@ -55,8 +55,7 @@ func vinylSong() []lyrics.Line {
 // DIPs, each character 15 of them.
 func vinylSetOf(lines []lyrics.Line, wide float32) *vinylSet {
 	return setVinyl(lines, vinylType, wide,
-		func(text string, size float32) float32 { return float32(utf8.RuneCountInString(text)) * size * 0.6 },
-		func(string) float32 { return 40 })
+		func(text string, size float32) float32 { return float32(utf8.RuneCountInString(text)) * size * 0.6 })
 }
 
 // The wheel has the line sung level, and turns to the next from a little
@@ -96,8 +95,8 @@ func TestVinylLongLineTakesMoreSpokes(t *testing.T) {
 	}
 	for i, l := range set.lines {
 		last := l.toks[len(l.toks)-1]
-		if !last.rest && l.label+last.x+last.w > 240 {
-			t.Errorf("spoke %d is %v wide", i, l.label+last.x+last.w)
+		if !last.rest && last.x+last.w > 240 {
+			t.Errorf("spoke %d is %v wide", i, last.x+last.w)
 		}
 		if l.cont && l.start != l.toks[0].on {
 			t.Errorf("spoke %d, a line's second part, starts at %v, its first word at %v", i, l.start, l.toks[0].on)
@@ -163,19 +162,21 @@ func TestVinylBuildBudget(t *testing.T) {
 
 // With MM_FRAMES set, saves the stage's Vinyl as a line is sung and gives
 // way to the next, a frame every 30th of a second, in Japanese and in
-// Chinese, and one of each with the record marbled as a GPU draws it; and
-// a song in English as its chorus comes in and its last word is held.
+// Chinese, and one of each with the record as a GPU draws it; each of the
+// pressings; and a song in English as its chorus comes in and its last
+// word is held.
 func TestVinylFrames(t *testing.T) {
 	dir := framesDir(t)
 	step := time.Second / 30
-	open := func(a *app) {
+	open := func(a *app, tt *ui.Tester) {
 		a.npPane = paneStage
 		a.settings.StageStyle = "vinyl"
+		tt.Frame()
 	}
 	for _, lang := range []string{"ja", "zh"} {
 		// The eighth line begins at 49.4 s.
 		a, tt, _ := motionApp(motionSongs()[lang], 48200*time.Millisecond)
-		open(a)
+		open(a, tt)
 		playFrames(a, tt, 48200*time.Millisecond, step, 70, func(i int) {
 			saveFrame(t, dir, fmt.Sprintf("vinyl-%s-%02d.png", lang, i), tt.Image())
 		})
@@ -184,17 +185,30 @@ func TestVinylFrames(t *testing.T) {
 		saveFrame(t, dir, fmt.Sprintf("vinyl-%s-marbled.png", lang), tt.Image())
 		vinylMarbleOnCPU = false
 	}
+	// Each pressing, as a GPU draws it.
+	a, tt, _ := motionApp(motionSongs()["ja"], 50*time.Second)
+	open(a, tt)
+	playFrames(a, tt, 50*time.Second, step, 20, func(int) {}) // the stage takes the lyrics' place
+	vinylMarbleOnCPU = true
+	for i := range pressings {
+		vinylPressed = i
+		a.pl.Seek(50*time.Second + time.Duration(i)*200*time.Millisecond)
+		tt.Advance(step)
+		tt.Frame()
+		saveFrame(t, dir, fmt.Sprintf("vinyl-pressing-%02d.png", i), tt.Image())
+	}
+	vinylMarbleOnCPU, vinylPressed = false, -1
+
 	lines := vinylSong()
-	a := newTestApp()
+	a = newTestApp()
 	a.pl.Cue([]music.Track{coveredSong(a)})
 	a.pl.SetLyrics(lines)
 	a.pl.Hold(lines[3].At - 500*time.Millisecond)
 	a.nowPlaying = true
-	open(a)
 	a.settings.StageSparks = true
-	tt := ui.NewTester(a.view, 1180, 780)
+	tt = ui.NewTester(a.view, 1180, 780)
 	tt.SetDark(true)
-	tt.Frame()
+	open(a, tt)
 	tt.Advance(3 * time.Second)
 	// The chorus comes in, and then its second line to the end of the
 	// word it holds.

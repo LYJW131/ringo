@@ -124,7 +124,7 @@ func (a *app) stage(c *ui.Context, tr *music.Track, accent ui.Color) {
 		return
 	}
 	if a.settings.StageStyle == "vinyl" {
-		a.vinylStage(c, box, tr, lines)
+		a.vinylStage(c, box, tr, lines, accent)
 		return
 	}
 	pos := pl.Position()
