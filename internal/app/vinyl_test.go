@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -239,6 +240,48 @@ func TestVinylDeckStaysThroughASongChange(t *testing.T) {
 	}
 }
 
+// The record turns on through the change from a song to the next, no
+// farther in a frame than in any other, and the next song's record and
+// label fade in over the one before's for as long as its backdrop does.
+// The record's turn was the song's position: another song started it from
+// nothing, a jump of however far it had turned, in a frame, with another
+// record in the next.
+func TestVinylRecordTurnsOnThroughASongChange(t *testing.T) {
+	a, tt, ch, change, release := vinylChange(t, []music.LyricLine{{Start: 1000, End: 3000, Text: "another line"}, {Start: 4000, End: 6000, Text: "and one more"}})
+	turned := func() float64 {
+		before := a.deck.spin
+		tt.Advance(time.Second / 60)
+		return math.Mod(a.deck.spin-before+360, 360)
+	}
+	frame := turned()
+	if frame < vinylTurn/60*0.9 || frame > vinylTurn/60*1.1 {
+		t.Fatalf("the record turns %v degrees a frame, of %v", frame, vinylTurn/60.0)
+	}
+	even := func(when string, frames int) {
+		t.Helper()
+		for i := range frames {
+			if d := turned(); d > frame*1.5 {
+				t.Fatalf("%s, the record turns %v degrees in frame %d, %v in one before", when, d, i, frame)
+			}
+		}
+	}
+	was := a.deck.label
+	change()
+	tt.Frame()
+	even("as the next song starts", 20)
+	if a.deck.fadeAt.IsZero() || a.deck.labelBefore != was || a.deck.label == was {
+		t.Errorf("a third of a second into the next song, its label is %+v over %+v, fading since %v", a.deck.label, a.deck.labelBefore, a.deck.fadeAt)
+	}
+	close(release)
+	until(t, ch, func() bool { _, loaded := a.pl.Lyrics(); return loaded })
+	a.pl.Hold(0)
+	tt.Frame()
+	even("once its lyrics have come", 40)
+	if !a.deck.fadeAt.IsZero() {
+		t.Error("a second into the next song, its record is still fading in")
+	}
+}
+
 // With MM_FRAMES set, saves the stage's Vinyl as a line is sung and gives
 // way to the next, a frame every 30th of a second, in Japanese and in
 // Chinese, and one of each with the record as a GPU draws it; each of the
@@ -290,14 +333,34 @@ func TestVinylFrames(t *testing.T) {
 				n++
 			}
 		}
+		vinylPressed = 0
+		tt.Frame()
 		frames(6)
+		vinylPressed = 3 // another record
 		change()
 		tt.Frame()
-		frames(15)
+		frames(24)
 		close(release)
 		until(t, ch, func() bool { _, loaded := a.pl.Lyrics(); return loaded })
 		tt.Frame()
-		frames(15)
+		frames(6)
+		vinylPressed = -1
+	}
+	// And three frames of the next song's record fading in, as a GPU
+	// draws them.
+	{
+		vinylPressed = 0
+		_, tt, _, change, _ := vinylChange(t, nil)
+		vinylMarbleOnCPU = true
+		tt.Frame()
+		vinylPressed = 3
+		change()
+		tt.Frame()
+		for i := range 3 {
+			tt.Advance(backdropFade / 5)
+			saveFrame(t, dir, fmt.Sprintf("vinyl-change-marbled-%d.png", i), tt.Image())
+		}
+		vinylMarbleOnCPU, vinylPressed = false, -1
 	}
 
 	lines := vinylSong()

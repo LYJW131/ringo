@@ -214,7 +214,8 @@ func Fragment(dst vec4, pos vec2) vec4 {
 `
 
 // vinylSource paints the record, a square around it, Unit DIPs to one of
-// its own, from its vinyl as vinylVinylSource painted it: turned by Spin,
+// its own, from its vinyl as vinylVinylSource painted it, Cross of the way
+// from the vinyl of the record before, the second image: turned by Spin,
 // under a light that stays where it is, a bright lobe up and to the right,
 // a fainter one below and a shade between; with the grooves' hairlines,
 // five rings and a darker rim, and on the label its rings, its grain and
@@ -223,6 +224,7 @@ const vinylSource = `package main
 
 var Spin float
 var Unit float
+var Cross float
 var Deep vec4
 var Bright vec4
 var Ink vec4
@@ -247,6 +249,10 @@ func Fragment(dst vec4, pos vec2) vec4 {
 	ph := th - Spin
 	at := vec2(cos(ph), sin(ph)) * (min(r, 281.0) / 282.3 / 2)
 	col := image0Sample((at + 0.5) * image0Size()).rgb
+	if Cross < 1.0 {
+		// Another song's record, coming in over the one before's.
+		col = mix(image1Sample((at+0.5)*image1Size()).rgb, col, Cross)
+	}
 
 	deg := th * 57.29577951
 	l1 := exp(-0.5 * pow((deg+45.0)/10.0, 2.0))
@@ -412,15 +418,29 @@ var (
 )
 
 // deck is the stage's deck as last painted: how high its ticks stood,
-// and where its clock is.
+// where its clock is, and where its record, its tonearm and its marker are.
 type deck struct {
 	levels barState
 	clock  vinylClock
-	// The record's vinyl, as last painted: for which pressing, and when.
-	vinyl   *ui.Canvas
-	press   pressing
-	vinylAt time.Time
+	// How far the record has turned, in degrees, and its vinyl flowed,
+	// and how far along the song the tonearm and the marker show: they
+	// go on from where they are as another song starts, or playback is
+	// moved, rather than follow its position.
+	spin, flow float64
+	along      float32
+	turnedAt   time.Time
+	// The record's vinyl, as last painted: for which pressing, with which
+	// label, and when; and the record before's, which the one of another
+	// song fades in over, since fadeAt.
+	vinyl, before      *ui.Canvas
+	press, pressBefore pressing
+	label, labelBefore deckLabel
+	fadeAt, vinylAt    time.Time
 }
+
+// deckLabel is what a record's label says: its song, the artist and the
+// album.
+type deckLabel struct{ name, artist, album string }
 
 // arcPoints are the points of an arc of radius r around (cx, cy), from a0
 // to a1 in degrees clockwise from the right.
@@ -451,13 +471,60 @@ type vinylAccent struct{ pulse, glow float32 }
 // deck's own: tr playing, pos into dur of it.
 func (a *app) paintDeck(p *ui.Painter, r ui.Rect, s float32, tr *music.Track, press pressing, pos, dur time.Duration, playing bool, ac vinylAccent) {
 	cx, cy := r.X, r.Y+r.H/2
-	secs := pos.Seconds()
+	dk := &a.deck
+	now := p.Now()
+	moving := false // something of it goes on moving, whether or not the song plays
+
+	// The record turns on from where it is, by the time since it was last
+	// painted, and the tonearm and the marker glide to where the song is:
+	// another song, or a seek, moves nothing at once.
+	dt := now.Sub(dk.turnedAt).Seconds()
+	first := dk.turnedAt.IsZero()
+	if first || dt < 0 || dt > 0.25 {
+		dt = 0
+	}
+	dk.turnedAt = now
+	if playing {
+		dk.spin = math.Mod(dk.spin+dt*vinylTurn, 360)
+		dk.flow += dt * 0.9
+	}
 	progress := float32(0)
 	if dur > 0 {
 		progress = clamp01(float32(pos.Seconds() / dur.Seconds()))
 	}
-	spin := float32(math.Mod(secs*vinylTurn, 360))
-	ink := press.base.Mix(ui.RGB(0, 0, 0), 0.7)
+	if d := progress - dk.along; first || abs32(d) < 0.0005 {
+		dk.along = progress
+	} else {
+		dk.along += d * float32(1-math.Exp(-8*dt))
+		moving = true
+	}
+	spin := float32(dk.spin)
+
+	// Another song's record fades in over the one before's, as its
+	// backdrop does, and its label's words with it.
+	label := deckLabel{short(tr.Name, 26), short(tr.ArtistNames(), 30), tr.Album.Name}
+	if !first && (dk.press != press || dk.label != label) {
+		dk.before, dk.pressBefore, dk.labelBefore, dk.fadeAt = dk.vinyl, dk.press, dk.label, now
+		if dk.press != press {
+			dk.vinyl = nil
+		}
+	}
+	dk.label = label
+	k := float32(1)
+	if dk.before != nil || !dk.fadeAt.IsZero() {
+		if k = float32(now.Sub(dk.fadeAt)) / float32(backdropFade); k < 1 && k >= 0 {
+			k = 1 - (1-k)*(1-k)*(1-k)
+			moving = true
+		} else {
+			k, dk.before, dk.fadeAt = 1, nil, time.Time{}
+		}
+	}
+	was := dk.pressBefore
+	if k == 1 {
+		was = press
+	}
+	deep, base, bright, second, third := was.deep.Mix(press.deep, k), was.base.Mix(press.base, k), was.bright.Mix(press.bright, k), was.second.Mix(press.second, k), was.third.Mix(press.third, k)
+	ink := base.Mix(ui.RGB(0, 0, 0), 0.7)
 
 	// The dark the record sits in, and the glow an accent throws off it.
 	reach := float32(365) * s
@@ -468,7 +535,7 @@ func (a *app) paintDeck(p *ui.Painter, r ui.Rect, s float32, tr *music.Track, pr
 	if g := ac.glow; g > 0.01 {
 		reach := float32(vinylRecord+130) * s
 		at := func(d float64) float64 { return (vinylRecord + d) / (vinylRecord + 130) }
-		hot, warm := press.bright, press.third
+		hot, warm := bright, third
 		p.FillRadialGradient(ui.Rect{X: cx - reach, Y: cy - reach, W: 2 * reach, H: 2 * reach}, ui.RadialGradient{
 			Radius: reach,
 			Stops:  stops(0.0, hot.Alpha(0.75*g), at(0), hot.Alpha(0.75*g), at(12), hot.Alpha(0.3*g), at(37), warm.Alpha(0.16*g), at(60), warm.Alpha(0.07*g), 1.0, warm.Alpha(0)),
@@ -480,12 +547,10 @@ func (a *app) paintDeck(p *ui.Painter, r ui.Rect, s float32, tr *music.Track, pr
 	// CPU draws the window it is plain: the shaders are far too slow there.
 	R := float32(vinylRecord) * s
 	if p.Accelerated() || vinylMarbleOnCPU {
-		dk := &a.deck
 		n := int(min(900, max(256, 2*R)))
 		if !p.Accelerated() {
 			n = 256 // a test's look at it
 		}
-		now := p.Now()
 		if dk.vinyl != nil {
 			if w, _ := dk.vinyl.Size(); w != n {
 				dk.vinyl = nil
@@ -498,34 +563,47 @@ func (a *app) paintDeck(p *ui.Painter, r ui.Rect, s float32, tr *music.Track, pr
 			dk.press, dk.vinylAt = press, now
 			dk.vinyl.Draw(p, func(cp *ui.Painter) {
 				vinylVinylShader().Draw(cp, ui.Rect{W: float32(n), H: float32(n)}, shader.Options{Uniforms: map[string]any{
-					"Flow": float32(secs * 0.9), "Seed": press.seed, "Style": float32(press.kind),
+					"Flow": float32(dk.flow), "Seed": press.seed, "Style": float32(press.kind),
 					"Deep": press.deep, "Base": press.base, "Bright": press.bright, "Second": press.second, "Third": press.third,
 				}})
 			})
 		}
+		images, cross := [4]*ui.Bitmap{dk.vinyl.Bitmap()}, float32(1)
+		if dk.before != nil && k < 1 {
+			images[1], cross = dk.before.Bitmap(), k
+		}
 		vinylShader().Draw(p, ui.Rect{X: cx - R - 2, Y: cy - R - 2, W: 2*R + 4, H: 2*R + 4}, shader.Options{
-			Images: [4]*ui.Bitmap{dk.vinyl.Bitmap()},
+			Images: images,
 			Uniforms: map[string]any{
-				"Spin": float32(float64(spin) * math.Pi / 180), "Unit": s, "Deep": press.deep, "Bright": press.bright, "Ink": ink,
+				"Spin": float32(float64(spin) * math.Pi / 180), "Unit": s, "Cross": cross, "Deep": deep, "Bright": bright, "Ink": ink,
 			},
 		})
 	} else {
+		dk.press = press
 		p.FillConicGradient(ui.Rect{X: cx - R, Y: cy - R, W: 2 * R, H: 2 * R}, ui.ConicGradient{
 			Angle: spin,
-			Stops: stops(0.0, press.base, 0.16, press.second, 0.3, press.base, 0.52, press.base.Mix(press.third, 0.7), 0.6, press.base, 0.8, press.second, 1.0, press.base),
+			Stops: stops(0.0, base, 0.16, second, 0.3, base, 0.52, base.Mix(third, 0.7), 0.6, base, 0.8, second, 1.0, base),
 		}, R)
 		disc(p, cx, cy, float32(vinylLabel+5)*s, ui.RGB(8, 8, 11))
-		disc(p, cx, cy, float32(vinylLabel)*s, white.Mix(press.base, 0.24))
+		disc(p, cx, cy, float32(vinylLabel)*s, white.Mix(base, 0.24))
 		disc(p, cx, cy, 3.8*s, ui.RGB(5, 5, 3))
 	}
 
 	p.Transform(ui.Scaling(s, s), cx, cy, func() {
-		p.Transform(ui.Rotation(spin), cx, cy, func() { paintLabel(p, cx, cy, tr, ink) })
-		a.paintRing(p, cx, cy, press.bright, progress, playing, ac.pulse)
+		p.Transform(ui.Rotation(spin), cx, cy, func() {
+			if k < 1 {
+				paintLabel(p, cx, cy, dk.labelBefore, ink, 1-k)
+			}
+			paintLabel(p, cx, cy, label, ink, k)
+		})
+		a.paintRing(p, cx, cy, bright, dk.along, playing, ac.pulse)
 		// The tonearm's pivot is over the record's top, and its head tracks
 		// in from the edge as the song goes.
-		paintArm(p, cx+171, cy-286, lerp(17.7, -8.6, progress))
+		paintArm(p, cx+171, cy-286, lerp(17.7, -8.6, dk.along))
 	})
+	if moving {
+		p.AnimationFrame()
+	}
 }
 
 // labelGlyphs are the widths of the characters of texts set around the
@@ -599,26 +677,30 @@ func short(s string, n int) string {
 	return strings.TrimSpace(string([]rune(s)[:n-1])) + "…"
 }
 
-// paintLabel prints the record's label around (cx, cy): the song over the
-// top, its artist under, its album between, the side and the speed either
-// side of the hole, and the three of them again around the rim.
-func paintLabel(p *ui.Painter, cx, cy float32, tr *music.Track, ink ui.Color) {
-	soft, pale := ink.Alpha(0.62), ink.Alpha(0.55)
-	name, artist, album := short(tr.Name, 26), short(tr.ArtistNames(), 30), tr.Album.Name
-	arcText(p, cx, cy, 71, 0, labelText{text: name, size: 14.5, weight: 700}, 0.3, false, ink)
-	if album != "" {
-		centered(p, cx, cy-28, ui.Span{Text: short(album, 24), Size: 7.5, Color: soft})
+// paintLabel prints the record's label around (cx, cy), in ink, as much
+// of it showing as fade: the song over the top, its artist under, its
+// album between, the side and the speed either side of the hole, and the
+// three of them again around the rim.
+func paintLabel(p *ui.Painter, cx, cy float32, l deckLabel, ink ui.Color, fade float32) {
+	if fade <= 0.004 {
+		return
+	}
+	at := func(a float32) ui.Color { return ink.Alpha(a * fade) }
+	soft, pale := at(0.62), at(0.55)
+	arcText(p, cx, cy, 71, 0, labelText{text: l.name, size: 14.5, weight: 700}, 0.3, false, at(1))
+	if l.album != "" {
+		centered(p, cx, cy-28, ui.Span{Text: short(l.album, 24), Size: 7.5, Color: soft})
 	}
 	centered(p, cx-33, cy-11, ui.Span{Text: "Side", Size: 6.5, Color: soft})
-	centered(p, cx-33, cy+3, ui.Span{Text: "A", Size: 19, Weight: 800, Color: ink.Alpha(0.92)})
-	centered(p, cx+33, cy-1, ui.Span{Text: "33⅓", Size: 15, Weight: 700, Color: ink.Alpha(0.85)})
+	centered(p, cx-33, cy+3, ui.Span{Text: "A", Size: 19, Weight: 800, Color: at(0.92)})
+	centered(p, cx+33, cy-1, ui.Span{Text: "33⅓", Size: 15, Weight: 700, Color: at(0.85)})
 	centered(p, cx+33, cy+11, ui.Span{Text: "rpm", Size: 6.5, Color: soft})
-	if artist != "" {
-		arcText(p, cx, cy, 71, 0, labelText{text: artist, size: 10, weight: 600}, 0.3, true, ink.Alpha(0.8))
+	if l.artist != "" {
+		arcText(p, cx, cy, 71, 0, labelText{text: l.artist, size: 10, weight: 600}, 0.3, true, at(0.8))
 	}
 	// Around the rim, as often as fits.
-	rim := strings.ToLower(tr.Name)
-	for _, s := range []string{tr.ArtistNames(), album} {
+	rim := strings.ToLower(l.name)
+	for _, s := range []string{l.artist, l.album} {
 		if s != "" {
 			rim += " · " + strings.ToLower(s)
 		}

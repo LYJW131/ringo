@@ -28,8 +28,10 @@ import (
 // the record. A word held a second or more rises and glows a letter at a
 // time, and a long one swells the wheel while it lasts.
 //
-// Like the stage's other styles, everything follows from where playback
-// is: seeking shows the frame playing would.
+// Like the stage's other styles, the lines follow from where playback is:
+// seeking shows the frame playing would. The deck goes on from where it
+// is: its record turns on, and its tonearm glides, through a seek or the
+// change to another song.
 
 const (
 	vinylWheel = 362.5                  // how far from the record's center a line starts
