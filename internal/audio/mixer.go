@@ -406,11 +406,34 @@ func mix(out []float32) bool {
 }
 
 // mixLocked is mix, under mu.
-func mixLocked(out []float32) bool {
+func mixLocked(out []float32) bool { return mixVoices(out, false) }
+
+// mixFadingOut fills out with the voices that play no more, fading out,
+// and leaves those playing where they are: what the output mixes before
+// it opens again at another rate, so that a song stopped for the next
+// fades out as it would have, rather than being cut where it was.
+func mixFadingOut(out []float32) {
+	mu.Lock()
+	defer mu.Unlock()
+	if testMode {
+		clear(out)
+		return
+	}
+	mixVoices(out, true)
+}
+
+// mixVoices mixes the voices into out, or with fading only those that
+// play no more, and reports whether any is left. Under mu.
+func mixVoices(out []float32, fading bool) bool {
 	clear(out)
 	at, h := mixed, heard()
 	n := 0
 	for _, v := range voices {
+		if fading && v.playing && !v.closed {
+			voices[n] = v
+			n++
+			continue
+		}
 		if v.closed || !v.mix(out, volume, at, h) {
 			if v.atEnd {
 				v.atEnd = false

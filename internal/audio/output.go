@@ -119,10 +119,12 @@ func run() {
 		for {
 			busy, why := mixFor(buf, lat, rate)
 			if why == rateChanged {
-				// What the device holds, the end of the song before, is
-				// heard before it closes, which would drop it.
-				clear(buf)
-				for range (int64(lat.ahead()) + int64(per) - 1) / int64(per) {
+				// What the device holds of the song before, and its fading
+				// out if it was stopped for this one, is heard before the
+				// device closes, which would drop it. One silent for as
+				// long as it holds has nothing left to wait for.
+				for left := lat.ahead() - idle; left > 0; left -= per {
+					mixFadingOut(buf)
 					if dev.write(buf) != nil {
 						break
 					}

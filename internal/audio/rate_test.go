@@ -40,7 +40,7 @@ func TestOpensAgainAtANewRate(t *testing.T) {
 	}
 	opens := make(chan opened, 8)
 	openOutput = func(ahead time.Duration, rate int) (device, int, error) {
-		d := &loggedDevice{}
+		d := newLoggedDevice()
 		opens <- opened{rate, d}
 		return d, nullFrames(rate), nil
 	}
@@ -60,8 +60,6 @@ func TestOpensAgainAtANewRate(t *testing.T) {
 	if first.rate != defaultRate {
 		t.Fatalf("opened at %d, want %d", first.rate, defaultRate)
 	}
-	a.Close()
-	first.dev.waitWrites(t, first.dev.count()+2)
 
 	const rate = 96000
 	samples := ramp(rate / 10)
@@ -71,7 +69,7 @@ func TestOpensAgainAtANewRate(t *testing.T) {
 	if second.rate != rate {
 		t.Fatalf("opened again at %d, want %d", second.rate, rate)
 	}
-	// 40 ms of silence at 10 ms a write, besides one mixed as it started.
+	// 40 ms at 10 ms a write, besides one mixed as it started.
 	if n := first.dev.closedAfter() - before; n < 4 {
 		t.Errorf("the device closed %d writes after the song started, want what it held heard first", n)
 	}
@@ -84,14 +82,111 @@ func TestOpensAgainAtANewRate(t *testing.T) {
 	}
 }
 
+// A song stopped for one of another rate, which starts at once, still fades
+// out, in what the device plays before it closes: before, the output mixed
+// nothing more once the rate changed, and cut the song where it was.
+func TestFadesOutBeforeANewRate(t *testing.T) {
+	setup(t)
+	opens := make(chan *loggedDevice, 8)
+	openOutput = func(ahead time.Duration, rate int) (device, int, error) {
+		d := newLoggedDevice()
+		opens <- d
+		return d, nullFrames(rate), nil
+	}
+	defer func() { openOutput = openDevice }()
+	mu.Lock()
+	testMode = false
+	mu.Unlock()
+	defer func() {
+		mu.Lock()
+		testMode = true
+		mu.Unlock()
+	}()
+	loud := make([]float32, defaultRate)
+	for i := range loud {
+		loud[i] = 0.5
+	}
+	a := NewSound(defaultRate, 1, loud).NewPlayer().SetLoop(true)
+	a.Play()
+	first := waitFor(t, "the output to open", opens)
+	first.waitWrites(t, 2)
+	// The output waits in a write while one stops and the other starts, as
+	// when the next song is ready the moment this one is skipped.
+	<-first.park
+	a.Pause()
+	b := NewSound(96000, 1, make([]float32, 96000)).NewPlayer()
+	b.Play()
+	first.resume <- struct{}{}
+	defer b.Close()
+	waitFor(t, "the output to open again", opens)
+	faded := false
+	for _, w := range first.all() {
+		for i := 0; i < len(w); i += 2 {
+			faded = faded || (w[i] > 0.05 && w[i] < 0.45)
+		}
+	}
+	if !faded {
+		t.Error("the song stopped was cut, not faded out")
+	}
+}
+
+// A device silent for as long as it holds closes for a new rate at once,
+// rather than after as long again.
+func TestOpensAgainAtOnceWhenSilent(t *testing.T) {
+	setup(t)
+	opens := make(chan *loggedDevice, 8)
+	openOutput = func(ahead time.Duration, rate int) (device, int, error) {
+		d := newLoggedDevice()
+		opens <- d
+		return d, nullFrames(rate), nil
+	}
+	defer func() { openOutput = openDevice }()
+	mu.Lock()
+	testMode = false
+	mu.Unlock()
+	defer func() {
+		mu.Lock()
+		testMode = true
+		mu.Unlock()
+	}()
+	a := NewSound(defaultRate, 1, make([]float32, defaultRate)).NewPlayer().SetLoop(true)
+	a.Play()
+	first := waitFor(t, "the output to open", opens)
+	a.Close()
+	// 40 ms held, at 10 ms a write, and one more that found it closed.
+	first.waitWrites(t, first.count()+6)
+	<-first.park
+	before := first.count()
+	b := NewSound(96000, 1, make([]float32, 96000)).NewPlayer()
+	b.Play()
+	first.resume <- struct{}{}
+	defer b.Close()
+	waitFor(t, "the output to open again", opens)
+	if n := first.closedAfter() - before; n > 1 {
+		t.Errorf("the silent device closed %d writes after the song started", n)
+	}
+}
+
 // A loggedDevice keeps what it is given and counts its writes, a little at a time.
 type loggedDevice struct {
-	mu     sync.Mutex
-	writes [][]float32
-	closed int // the writes before it closed, or -1
+	// A test that takes from park keeps the output waiting in its next
+	// write until it gives to resume.
+	park, resume chan struct{}
+	mu           sync.Mutex
+	writes       [][]float32
+	closed       int // the writes before it closed, or -1
+}
+
+func newLoggedDevice() *loggedDevice {
+	return &loggedDevice{park: make(chan struct{}), resume: make(chan struct{})}
 }
 
 func (d *loggedDevice) write(s []float32) error {
+	select {
+	case d.park <- struct{}{}:
+		<-d.resume
+	default:
+	}
 	time.Sleep(time.Millisecond)
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -115,6 +210,12 @@ func (d *loggedDevice) closedAfter() int {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.closed
+}
+
+func (d *loggedDevice) all() [][]float32 {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([][]float32(nil), d.writes...)
 }
 
 func (d *loggedDevice) first() []float32 {
@@ -215,7 +316,7 @@ func TestFallsBackToTheRateBefore(t *testing.T) {
 		if rate != defaultRate {
 			return nil, 0, errors.New("rate refused")
 		}
-		return &loggedDevice{}, nullFrames(rate), nil
+		return newLoggedDevice(), nullFrames(rate), nil
 	}
 	defer func() { openOutput = openDevice }()
 	mu.Lock()
@@ -262,7 +363,7 @@ func TestOpensAgainOnANewDevice(t *testing.T) {
 	opened := make(chan int, 8)
 	openOutput = func(ahead time.Duration, rate int) (device, int, error) {
 		opened <- rate
-		return &loggedDevice{}, nullFrames(rate), nil
+		return newLoggedDevice(), nullFrames(rate), nil
 	}
 	defer func() { openOutput = openDevice }()
 	mu.Lock()
