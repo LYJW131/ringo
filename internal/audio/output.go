@@ -8,7 +8,7 @@ import (
 )
 
 // A device is the system's audio output, opened by openDevice to hold
-// about ahead of what is heard.
+// about ahead of what is heard, and to take frames at rate.
 type device interface {
 	// write plays interleaved stereo frames after those written before,
 	// waiting while the device holds enough already. An error closes the
@@ -47,16 +47,35 @@ func active() bool {
 	return len(voices) > 0 && !testMode
 }
 
-// mixFor mixes into buf for an output open at latency lat, and reports
-// whether anything plays; ok is false, and it mixes nothing, once tests
-// mix by hand or the latency changed.
-func mixFor(buf []float32, lat Latency) (busy, ok bool) {
+// Why mixFor didn't mix.
+type reopen int
+
+const (
+	mixing      reopen = iota
+	stop               // tests mix by hand, or the latency changed
+	rateChanged        // the newest player playing is of another rate
+)
+
+// mixFor mixes into buf for an output open at latency lat and rate, and
+// reports whether anything plays; it mixes nothing, and says why, once
+// the output is to open again.
+func mixFor(buf []float32, lat Latency, rate int) (busy bool, why reopen) {
 	mu.Lock()
 	defer mu.Unlock()
 	if testMode || latency != lat {
-		return false, false
+		return false, stop
 	}
-	return mixLocked(buf), true
+	if wantedRate() != rate {
+		return false, rateChanged
+	}
+	return mixLocked(buf), mixing
+}
+
+// outputRate returns the rate for the output to open at.
+func outputRate() int {
+	mu.Lock()
+	defer mu.Unlock()
+	return wantedRate()
 }
 
 // run opens the device while anything plays, and mixes into it.
@@ -67,23 +86,34 @@ func run() {
 		for !active() {
 			<-wake
 		}
-		lat := outputLatency()
-		dev, n, err := openOutput(lat.ahead())
+		lat, rate := outputLatency(), outputRate()
+		dev, n, err := openOutput(lat.ahead(), rate)
+		setRate(rate)
 		if err != nil {
 			setErr(err)
-			dev, n = newNullDevice(err != errUnsupported), nullFrames
+			dev, n = newNullDevice(err != errUnsupported, rate), nullFrames(rate)
 			// It holds nothing: what it takes is heard as it takes it.
 			setHeld(0)
 		} else {
 			setErr(nil)
-			setHeld(int64(lat.ahead() * sampleRate / time.Second))
+			setHeld(int64(lat.ahead()) * int64(rate) / int64(time.Second))
 		}
 		buf := make([]float32, n*channels)
 		idle := time.Duration(0)
-		per := frames(int64(n), sampleRate)
+		per := frames(int64(n), rate)
 		for {
-			busy, ok := mixFor(buf, lat)
-			if !ok {
+			busy, why := mixFor(buf, lat, rate)
+			if why == rateChanged {
+				// What the device holds, the end of the song before, is
+				// heard before it closes, which would drop it.
+				clear(buf)
+				for range (int64(lat.ahead()) + int64(per) - 1) / int64(per) {
+					if dev.write(buf) != nil {
+						break
+					}
+				}
+			}
+			if why != mixing {
 				break
 			}
 			if err := dev.write(buf); err != nil {
@@ -102,13 +132,15 @@ func run() {
 
 var errUnsupported = errors.New("audio: no audio output on this platform")
 
-// nullFrames is how many frames a null device takes at a time: 10 ms.
-const nullFrames = sampleRate / 100
+// nullFrames returns how many frames a null device takes at a time at
+// rate: 10 ms.
+func nullFrames(rate int) int { return rate / 100 }
 
 // A nullDevice plays nothing, on time: players still end when they would
 // have. One standing in for a device that failed to open fails after a
 // while, so that the output tries the device again.
 type nullDevice struct {
+	rate  int
 	next  time.Time
 	retry time.Time
 	// now and sleep are its clock, which tests replace.
@@ -116,8 +148,8 @@ type nullDevice struct {
 	sleep func(time.Duration)
 }
 
-func newNullDevice(retry bool) *nullDevice {
-	d := &nullDevice{next: time.Now(), now: time.Now, sleep: time.Sleep}
+func newNullDevice(retry bool, rate int) *nullDevice {
+	d := &nullDevice{rate: rate, next: time.Now(), now: time.Now, sleep: time.Sleep}
 	if retry {
 		d.retry = d.next.Add(2 * time.Second)
 	}
@@ -135,7 +167,7 @@ func (d *nullDevice) write(samples []float32) error {
 		// Behind, as after a sleep: don't hurry to catch up.
 		d.next = now
 	}
-	d.next = d.next.Add(frames(int64(len(samples)/channels), sampleRate))
+	d.next = d.next.Add(frames(int64(len(samples)/channels), d.rate))
 	d.sleep(d.next.Sub(d.now()))
 	return nil
 }

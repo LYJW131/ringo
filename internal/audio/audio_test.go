@@ -22,6 +22,7 @@ func setup(t *testing.T) {
 	voices = nil
 	volume = 1
 	held, unheard = 0, 0
+	sampleRate, rampFrames = defaultRate, defaultRate/200
 	mu.Unlock()
 }
 
@@ -55,7 +56,7 @@ func ramp(n int) []float32 {
 func TestSoundPlaysAsDecoded(t *testing.T) {
 	setup(t)
 	samples := ramp(1000)
-	p := NewSound(sampleRate, 1, samples).Play()
+	p := NewSound(defaultRate, 1, samples).Play()
 	out := render(1200)
 	for i, s := range samples {
 		if !near(out[2*i], s) || !near(out[2*i+1], s) {
@@ -80,7 +81,7 @@ func TestSoundPlaysAsDecoded(t *testing.T) {
 
 func TestStereoKeepsChannels(t *testing.T) {
 	setup(t)
-	NewSound(sampleRate, 2, []float32{0.1, 0.2, 0.3, 0.4}).Play()
+	NewSound(defaultRate, 2, []float32{0.1, 0.2, 0.3, 0.4}).Play()
 	out := render(4)
 	if !near(out[0], 0.1) || !near(out[1], 0.2) || !near(out[2], 0.3) || !near(out[3], 0.4) {
 		t.Errorf("out = %v", out)
@@ -89,7 +90,7 @@ func TestStereoKeepsChannels(t *testing.T) {
 
 func TestPlayAgainAfterEnd(t *testing.T) {
 	setup(t)
-	p := NewSound(sampleRate, 1, ramp(100)).Play()
+	p := NewSound(defaultRate, 1, ramp(100)).Play()
 	render(200)
 	p.Play()
 	if !p.Playing() {
@@ -103,7 +104,7 @@ func TestPlayAgainAfterEnd(t *testing.T) {
 
 func TestOnEnd(t *testing.T) {
 	setup(t)
-	p := NewSound(sampleRate, 1, ramp(100)).NewPlayer()
+	p := NewSound(defaultRate, 1, ramp(100)).NewPlayer()
 	ended := make(chan struct{}, 4)
 	off := p.OnEnd(func() { ended <- struct{}{} })
 	p.Play()
@@ -122,7 +123,7 @@ func TestOnEnd(t *testing.T) {
 		t.Errorf("%d more ends, want 0", n)
 	}
 
-	loop := NewSound(sampleRate, 1, ramp(100)).NewPlayer().SetLoop(true)
+	loop := NewSound(defaultRate, 1, ramp(100)).NewPlayer().SetLoop(true)
 	loop.OnEnd(func() { ended <- struct{}{} })
 	loop.Play()
 	render(350)
@@ -135,7 +136,7 @@ func TestOnEnd(t *testing.T) {
 
 func TestSoundsOverlap(t *testing.T) {
 	setup(t)
-	s := NewSound(sampleRate, 1, []float32{0.25, 0.25, 0.25, 0.25})
+	s := NewSound(defaultRate, 1, []float32{0.25, 0.25, 0.25, 0.25})
 	s.Play()
 	s.Play()
 	out := render(2)
@@ -146,7 +147,7 @@ func TestSoundsOverlap(t *testing.T) {
 
 func TestClipping(t *testing.T) {
 	setup(t)
-	s := NewSound(sampleRate, 1, []float32{0.8, 0.8})
+	s := NewSound(defaultRate, 1, []float32{0.8, 0.8})
 	s.Play()
 	s.Play()
 	if out := render(1); out[0] != 1 {
@@ -157,7 +158,7 @@ func TestClipping(t *testing.T) {
 func TestLoop(t *testing.T) {
 	setup(t)
 	samples := ramp(100)
-	p := NewSound(sampleRate, 1, samples).NewPlayer().SetLoop(true)
+	p := NewSound(defaultRate, 1, samples).NewPlayer().SetLoop(true)
 	p.Play()
 	out := render(350)
 	for i := range 350 {
@@ -168,7 +169,7 @@ func TestLoop(t *testing.T) {
 	if !p.Playing() {
 		t.Error("a loop stopped")
 	}
-	if got, want := p.Position(), frames(50, sampleRate); got != want {
+	if got, want := p.Position(), frames(50, defaultRate); got != want {
 		t.Errorf("Position = %v, want %v", got, want)
 	}
 }
@@ -179,7 +180,7 @@ func TestPauseFadesOutAndResumes(t *testing.T) {
 	for i := range samples {
 		samples[i] = 0.5
 	}
-	p := NewSound(sampleRate, 1, samples).Play()
+	p := NewSound(defaultRate, 1, samples).Play()
 	render(1000)
 	p.Pause()
 	if p.Playing() {
@@ -210,7 +211,7 @@ func TestVolumeRamps(t *testing.T) {
 	for i := range samples {
 		samples[i] = 0.5
 	}
-	p := NewSound(sampleRate, 1, samples).Play()
+	p := NewSound(defaultRate, 1, samples).Play()
 	render(10)
 	p.SetVolume(0.5)
 	out := render(rampFrames * 2)
@@ -226,14 +227,14 @@ func TestVolumeRamps(t *testing.T) {
 
 func TestPan(t *testing.T) {
 	setup(t)
-	mono := NewSound(sampleRate, 1, []float32{0.5, 0.5, 0.5})
+	mono := NewSound(defaultRate, 1, []float32{0.5, 0.5, 0.5})
 	mono.NewPlayer().SetPan(-1).Play()
 	out := render(2)
 	if !near(out[0], 0.5*math.Sqrt2) || !near(out[1], 0) {
 		t.Errorf("mono panned left = %v %v", out[0], out[1])
 	}
 	setup(t)
-	stereo := NewSound(sampleRate, 2, []float32{0.2, 0.4, 0.2, 0.4})
+	stereo := NewSound(defaultRate, 2, []float32{0.2, 0.4, 0.2, 0.4})
 	stereo.NewPlayer().SetPan(1).Play()
 	out = render(1)
 	if !near(out[0], 0) || !near(out[1], 0.6) {
@@ -243,13 +244,13 @@ func TestPan(t *testing.T) {
 
 func TestSpeed(t *testing.T) {
 	setup(t)
-	p := NewSound(sampleRate, 1, ramp(1000)).NewPlayer().SetSpeed(2)
+	p := NewSound(defaultRate, 1, ramp(1000)).NewPlayer().SetSpeed(2)
 	p.Play()
 	out := render(100)
 	if !near(out[2*10], ramp(1000)[20]) {
 		t.Errorf("frame 10 at speed 2 = %v, want %v", out[2*10], ramp(1000)[20])
 	}
-	if got, want := p.Position(), frames(200, sampleRate); got != want {
+	if got, want := p.Position(), frames(200, defaultRate); got != want {
 		t.Errorf("Position = %v, want %v", got, want)
 	}
 }
@@ -263,9 +264,9 @@ func TestResamples(t *testing.T) {
 		samples[i] = float32(math.Sin(2 * math.Pi * 1000 * float64(i) / rate))
 	}
 	p := NewSound(rate, 1, samples).Play()
-	out := render(sampleRate / 20)
-	for i := 100; i < sampleRate/20; i++ {
-		want := math.Sin(2 * math.Pi * 1000 * float64(i) / sampleRate)
+	out := render(defaultRate / 20)
+	for i := 100; i < defaultRate/20; i++ {
+		want := math.Sin(2 * math.Pi * 1000 * float64(i) / defaultRate)
 		if math.Abs(float64(out[2*i])-want) > 0.01 {
 			t.Fatalf("frame %d = %v, want %v", i, out[2*i], want)
 		}
@@ -278,7 +279,7 @@ func TestResamples(t *testing.T) {
 func TestSeek(t *testing.T) {
 	setup(t)
 	samples := ramp(48000)
-	p := NewSound(sampleRate, 1, samples).NewPlayer()
+	p := NewSound(defaultRate, 1, samples).NewPlayer()
 	p.Seek(500 * time.Millisecond)
 	if got := p.Position(); got != 500*time.Millisecond {
 		t.Errorf("Position = %v after Seek", got)
@@ -296,7 +297,7 @@ func TestSeek(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	setup(t)
-	p := NewSound(sampleRate, 1, ramp(1000)).Play()
+	p := NewSound(defaultRate, 1, ramp(1000)).Play()
 	p.Close()
 	p.Play()
 	if p.Playing() {
@@ -316,7 +317,7 @@ type genDecoder struct {
 	closed atomic.Bool
 }
 
-func (d *genDecoder) SampleRate() int { return sampleRate }
+func (d *genDecoder) SampleRate() int { return defaultRate }
 func (d *genDecoder) Channels() int   { return d.ch }
 func (d *genDecoder) Len() int64      { return d.length }
 func (d *genDecoder) Close() error    { d.closed.Store(true); return nil }
@@ -362,7 +363,7 @@ func TestStream(t *testing.T) {
 	setup(t)
 	d := &genDecoder{ch: 3, length: 5000}
 	p := NewPlayer(d)
-	if p.Duration() != frames(5000, sampleRate) {
+	if p.Duration() != frames(5000, defaultRate) {
 		t.Errorf("Duration = %v", p.Duration())
 	}
 	waitDecoded(t, p)
@@ -419,7 +420,7 @@ func TestStreamSeek(t *testing.T) {
 	setup(t)
 	d := &genDecoder{ch: 1, length: 48000}
 	p := NewPlayer(d)
-	p.Seek(frames(700, sampleRate))
+	p.Seek(frames(700, defaultRate))
 	waitDecoded(t, p)
 	p.Play()
 	out := render(rampFrames + 20)
@@ -551,9 +552,9 @@ func TestNullOutput(t *testing.T) {
 		mu.Unlock()
 	}()
 	failure := errors.New("no device here")
-	openOutput = func(time.Duration) (device, int, error) { return nil, 0, failure }
+	openOutput = func(time.Duration, int) (device, int, error) { return nil, 0, failure }
 	defer func() { openOutput = openDevice }()
-	p := NewSound(sampleRate, 1, make([]float32, sampleRate/10)).Play()
+	p := NewSound(defaultRate, 1, make([]float32, defaultRate/10)).Play()
 	// How long it takes is TestNullDeviceKeepsTime's: a minute only
 	// guards against a hang.
 	for start := time.Now(); p.Playing(); time.Sleep(5 * time.Millisecond) {
@@ -571,9 +572,9 @@ func TestNullOutput(t *testing.T) {
 func TestSetLatencyReopens(t *testing.T) {
 	setup(t)
 	opened := make(chan time.Duration, 8)
-	openOutput = func(ahead time.Duration) (device, int, error) {
+	openOutput = func(ahead time.Duration, _ int) (device, int, error) {
 		opened <- ahead
-		return pacedDevice{}, nullFrames, nil
+		return pacedDevice{}, nullFrames(defaultRate), nil
 	}
 	defer func() { openOutput = openDevice }()
 	mu.Lock()
@@ -585,7 +586,7 @@ func TestSetLatencyReopens(t *testing.T) {
 		latency = LatencyInteractive
 		mu.Unlock()
 	}()
-	p := NewSound(sampleRate, 1, make([]float32, sampleRate)).NewPlayer().SetLoop(true)
+	p := NewSound(defaultRate, 1, make([]float32, defaultRate)).NewPlayer().SetLoop(true)
 	p.Play()
 	defer p.Close()
 	if got := waitFor(t, "the output to open", opened); got != 40*time.Millisecond {
@@ -609,11 +610,11 @@ func (pacedDevice) close()                {}
 func TestNullDeviceKeepsTime(t *testing.T) {
 	start := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
 	clock := start
-	d := newNullDevice(true)
+	d := newNullDevice(true, defaultRate)
 	d.next, d.retry = start, start.Add(2*time.Second)
 	d.now = func() time.Time { return clock }
 	d.sleep = func(dt time.Duration) { clock = clock.Add(max(dt, 0)) }
-	chunk := make([]float32, nullFrames*channels) // 10 ms
+	chunk := make([]float32, nullFrames(defaultRate)*channels) // 10 ms
 	for range 10 {
 		if err := d.write(chunk); err != nil {
 			t.Fatal(err)

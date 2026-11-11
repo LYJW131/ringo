@@ -6,18 +6,18 @@ import (
 )
 
 // heldFrames is what the output holds ahead in these tests: 100 ms.
-const heldFrames = sampleRate / 10
+const heldFrames = defaultRate / 10
 
 // atFrame checks that p's position is source frame f.
 func atFrame(t *testing.T, p *Player, f int64, when string) {
 	t.Helper()
-	got, want := p.Position(), frames(f, sampleRate)
+	got, want := p.Position(), frames(f, defaultRate)
 	if d := got - want; d < -time.Microsecond || d > time.Microsecond {
 		t.Errorf("%s: Position = %v, want %v (frame %d)", when, got, want, f)
 	}
 }
 
-func longSound() *Sound { return NewSound(sampleRate, 1, make([]float32, 10*sampleRate)) }
+func longSound() *Sound { return NewSound(defaultRate, 1, make([]float32, 10*defaultRate)) }
 
 // Position is what is heard: it stands still while the device fills, and
 // then lags what was mixed by what the device holds.
@@ -45,11 +45,11 @@ func TestPositionHoldsAtSeek(t *testing.T) {
 	p := longSound().Play()
 	render(2 * heldFrames)
 	p.Seek(2 * time.Second)
-	atFrame(t, p, 2*sampleRate, "right after Seek")
+	atFrame(t, p, 2*defaultRate, "right after Seek")
 	render(heldFrames - 100)
-	atFrame(t, p, 2*sampleRate, "before the seek is heard")
+	atFrame(t, p, 2*defaultRate, "before the seek is heard")
 	render(600)
-	atFrame(t, p, 2*sampleRate+500, "500 frames into the seek heard")
+	atFrame(t, p, 2*defaultRate+500, "500 frames into the seek heard")
 	p.Stop()
 	atFrame(t, p, 0, "after Stop")
 }
@@ -67,14 +67,14 @@ func TestPositionPlaysOutPause(t *testing.T) {
 	atFrame(t, p, 12000-heldFrames, "2000 frames after Pause")
 	// It faded out over rampFrames after the pause.
 	render(2 * heldFrames)
-	atFrame(t, p, 10000+rampFrames, "played out")
+	atFrame(t, p, 10000+defaultRate/200, "played out")
 	render(1000)
-	atFrame(t, p, 10000+rampFrames, "paused, played out")
+	atFrame(t, p, 10000+defaultRate/200, "paused, played out")
 	p.Play()
 	render(heldFrames - 100)
-	atFrame(t, p, 10000+rampFrames, "before playing again is heard")
+	atFrame(t, p, 10000+defaultRate/200, "before playing again is heard")
 	render(600)
-	atFrame(t, p, 10000+rampFrames+500, "500 frames into playing again")
+	atFrame(t, p, 10000+defaultRate/200+500, "500 frames into playing again")
 }
 
 // With a speed, what the device holds is that many more frames of the
@@ -96,8 +96,8 @@ func TestPositionAtSpeed(t *testing.T) {
 func TestPositionWrapsLoops(t *testing.T) {
 	setup(t)
 	hold(50)
-	p := NewSound(sampleRate, 1, ramp(100)).NewPlayer().
-		SetLoopRange(frames(30, sampleRate), frames(60, sampleRate))
+	p := NewSound(defaultRate, 1, ramp(100)).NewPlayer().
+		SetLoopRange(frames(30, defaultRate), frames(60, defaultRate))
 	p.Play()
 	render(160)
 	atFrame(t, p, 50, "110 frames heard")
@@ -111,7 +111,7 @@ func TestLateStreamPositionIsHeard(t *testing.T) {
 	setup(t)
 	hold(heldFrames)
 	src := &lateSource{ready: 1000}
-	p := newPlayer(src, sampleRate, 1, -1)
+	p := newPlayer(src, defaultRate, 1, -1)
 	p.Play()
 	// It plays 998 frames of the 1000, reading two ahead to interpolate,
 	// then waits for 1002.

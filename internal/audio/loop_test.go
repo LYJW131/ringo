@@ -9,8 +9,8 @@ import (
 func TestLoopRange(t *testing.T) {
 	setup(t)
 	samples := ramp(100) // frame i is i/200
-	p := NewSound(sampleRate, 1, samples).NewPlayer().
-		SetLoopRange(frames(30, sampleRate), frames(60, sampleRate))
+	p := NewSound(defaultRate, 1, samples).NewPlayer().
+		SetLoopRange(frames(30, defaultRate), frames(60, defaultRate))
 	p.Play()
 	out := render(200)
 	for i := range 200 {
@@ -23,7 +23,7 @@ func TestLoopRange(t *testing.T) {
 		}
 	}
 	// 200 frames in: 60 + 140 = 4 loops of 30 and 20 more.
-	if got, want := p.Position(), frames(50, sampleRate); got != want {
+	if got, want := p.Position(), frames(50, defaultRate); got != want {
 		t.Errorf("Position = %v, want %v", got, want)
 	}
 	// Looping no more, it plays on past the loop's end, to the end (after
@@ -47,7 +47,7 @@ func TestLoopRange(t *testing.T) {
 func TestStreamLoopRange(t *testing.T) {
 	setup(t)
 	d := &genDecoder{ch: 1, length: 5000} // frame i is (i%1000)/1000
-	p := NewPlayer(d).SetLoopRange(frames(1000, sampleRate), frames(3000, sampleRate))
+	p := NewPlayer(d).SetLoopRange(frames(1000, defaultRate), frames(3000, defaultRate))
 	waitDecoded(t, p)
 	p.Play()
 	out := make([]float32, 0, 9000*channels)
@@ -80,14 +80,14 @@ func TestStreamLoopRange(t *testing.T) {
 
 func TestLoopRangeOutOfRange(t *testing.T) {
 	setup(t)
-	p := NewSound(sampleRate, 1, ramp(100)).NewPlayer()
+	p := NewSound(defaultRate, 1, ramp(100)).NewPlayer()
 	// An end before the start loops it all.
-	p.SetLoopRange(frames(60, sampleRate), frames(30, sampleRate))
+	p.SetLoopRange(frames(60, defaultRate), frames(30, defaultRate))
 	if p.v.loopStart != 0 || p.v.loopEnd != 0 || !p.Loop() {
 		t.Errorf("loop %d to %d, looping %v", p.v.loopStart, p.v.loopEnd, p.Loop())
 	}
 	// Past the end, clamped to it.
-	p.SetLoopRange(frames(10, sampleRate), time.Hour)
+	p.SetLoopRange(frames(10, defaultRate), time.Hour)
 	if p.v.loopStart != 10 || p.v.loopEnd != 100 {
 		t.Errorf("loop %d to %d", p.v.loopStart, p.v.loopEnd)
 	}

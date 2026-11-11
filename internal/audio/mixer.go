@@ -16,6 +16,27 @@ var (
 	held    int64
 )
 
+// wantedRate returns the rate the output is to run at: the newest voice
+// playing's, within the rates it opens at, or, with none playing, the rate
+// it runs at, so that a pause doesn't open it again. Under mu.
+func wantedRate() int {
+	for i := len(voices) - 1; i >= 0; i-- {
+		if v := voices[i]; v.playing && !v.closed {
+			return min(max(int(math.Round(v.rate)), lowestRate), highestRate)
+		}
+	}
+	return sampleRate
+}
+
+// setRate tells the mixer the device open runs at rate.
+func setRate(rate int) {
+	mu.Lock()
+	defer mu.Unlock()
+	if !testMode {
+		sampleRate, rampFrames = rate, max(rate/200, 1)
+	}
+}
+
 // setHeld tells the mixer that a device opened which holds n frames ahead
 // of what is heard, and none of what was mixed before.
 func setHeld(n int64) {
@@ -29,9 +50,6 @@ func setHeld(n int64) {
 // heard returns the output's frame heard now: the frames mixed before it
 // are.
 func heard() int64 { return mixed - unheard }
-
-// rampFrames is how long volume changes, fades in and fades out take: 5 ms.
-const rampFrames = sampleRate / 200
 
 // A source gives a voice its frames. Its methods run under mu and never
 // block.
@@ -309,7 +327,7 @@ func (v *voice) retarget(t [4]float32) {
 	}
 	v.target = t
 	for i := range t {
-		v.step[i] = (t[i] - v.gain[i]) / rampFrames
+		v.step[i] = (t[i] - v.gain[i]) / float32(rampFrames)
 	}
 	v.rampLeft = rampFrames
 }
@@ -328,10 +346,12 @@ func (v *voice) mix(out []float32, master float64, at, heard int64) bool {
 // through its source for, and whether it is still active.
 func (v *voice) play(out []float32, master float64) (int, bool) {
 	v.retarget(v.gains(master))
-	step := v.rate / sampleRate * v.speed
+	// At the output's rate, step is 1 and phase stays whole, where the
+	// spline gives the frame itself: the source plays as decoded.
+	step := v.rate / float64(sampleRate) * v.speed
 	if v.st != nil && v.st.on {
 		// Stretched to the speed already.
-		step = v.rate / sampleRate
+		step = v.rate / float64(sampleRate)
 	}
 	for i := 0; i < len(out); i += 2 {
 		for v.phase >= 1 {

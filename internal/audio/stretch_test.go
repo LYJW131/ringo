@@ -36,7 +36,7 @@ func channel(out []float32, c, from, to int) []float32 {
 func dominant(x []float32) float64 {
 	best, at := 0.0, 0.0
 	for f := 50.0; f <= 2000; f++ {
-		w := 2 * math.Pi * f / sampleRate
+		w := 2 * math.Pi * f / defaultRate
 		c := 2 * math.Cos(w)
 		var s1, s2 float64
 		for _, v := range x {
@@ -55,13 +55,13 @@ func dominant(x []float32) float64 {
 // without its peaks.
 func smooth(t *testing.T, out []float32, c, from, to int, maxHz float64, what string) {
 	t.Helper()
-	steep := 2 * math.Pi * maxHz * 0.5 / sampleRate
+	steep := 2 * math.Pi * maxHz * 0.5 / defaultRate
 	for i := from + 1; i < to; i++ {
 		if d := math.Abs(float64(out[2*i+c] - out[2*(i-1)+c])); d > 1.6*steep {
 			t.Fatalf("%s: a click at frame %d: %v to %v", what, i, out[2*(i-1)+c], out[2*i+c])
 		}
 	}
-	period := int(sampleRate/maxHz*2) + 1
+	period := int(defaultRate/maxHz*2) + 1
 	for i := from; i+period <= to; i += period / 2 {
 		peak := float32(0)
 		for _, v := range channel(out, c, i, i+period) {
@@ -79,7 +79,7 @@ func renderToEnd(t *testing.T, p *Player) []float32 {
 	var out []float32
 	for p.Playing() {
 		out = append(out, render(256)...)
-		if len(out) > 60*sampleRate*channels {
+		if len(out) > 60*defaultRate*channels {
 			t.Fatal("a minute and not at its end")
 		}
 	}
@@ -104,8 +104,8 @@ func TestPreservesPitch(t *testing.T) {
 		rate  int
 		freqs []float64
 	}{
-		{"mono", sampleRate, []float64{220}},
-		{"stereo", sampleRate, []float64{200, 300}},
+		{"mono", defaultRate, []float64{220}},
+		{"stereo", defaultRate, []float64{200, 300}},
 		{"mono at 24 kHz", 24000, []float64{220}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -117,18 +117,18 @@ func TestPreservesPitch(t *testing.T) {
 					p.SetPreservesPitch(true)
 				}
 				p.Play()
-				out := render(sampleRate)
+				out := render(defaultRate)
 				for c := range 2 {
 					f := tc.freqs[min(c, len(tc.freqs)-1)]
 					want := f
 					if !keep {
 						want = f * 1.5
 					}
-					if got := dominant(channel(out, c, sampleRate/4, sampleRate*3/4)); math.Abs(got-want) > want*0.01 {
+					if got := dominant(channel(out, c, defaultRate/4, defaultRate*3/4)); math.Abs(got-want) > want*0.01 {
 						t.Errorf("preserving pitch %v: channel %d of %v Hz plays at %v Hz, want %v", keep, c, f, got, want)
 					}
 					if keep {
-						smooth(t, out, c, 0, sampleRate, f, "stretched")
+						smooth(t, out, c, 0, defaultRate, f, "stretched")
 					}
 				}
 			}
@@ -141,7 +141,7 @@ func TestPreservesPitch(t *testing.T) {
 func TestPreservesPitchDuration(t *testing.T) {
 	for _, ch := range []int{1, 2} {
 		freqs := []float64{220, 330}[:ch]
-		s := NewSound(sampleRate, ch, sine(sampleRate, 1, freqs...))
+		s := NewSound(defaultRate, ch, sine(defaultRate, 1, freqs...))
 		for _, speed := range []float64{0.25, 0.5, 1, 1.25, 1.5, 2, 4, 16} {
 			setup(t)
 			p := s.NewPlayer().SetSpeed(speed).SetPreservesPitch(true)
@@ -149,7 +149,7 @@ func TestPreservesPitchDuration(t *testing.T) {
 			p.OnEnd(func() { ended <- struct{}{} })
 			p.Play()
 			out := renderToEnd(t, p)
-			got := frames(int64(framesPlayed(out)), sampleRate)
+			got := frames(int64(framesPlayed(out)), defaultRate)
 			want := time.Duration(float64(time.Second) / speed)
 			// Within a hop.
 			if d := got - want; d < -25*time.Millisecond || d > 25*time.Millisecond {
@@ -171,8 +171,8 @@ func TestPreservesPitchDuration(t *testing.T) {
 // preserves pitch, and at speed 1 a stretched one plays as decoded.
 func TestPreservesPitchIsOptIn(t *testing.T) {
 	setup(t)
-	samples := sine(sampleRate, 0.5, 220)
-	p := NewSound(sampleRate, 1, samples).NewPlayer().SetSpeed(1.5).SetPreservesPitch(false)
+	samples := sine(defaultRate, 0.5, 220)
+	p := NewSound(defaultRate, 1, samples).NewPlayer().SetSpeed(1.5).SetPreservesPitch(false)
 	if p.PreservesPitch() || p.v.st != nil {
 		t.Fatalf("PreservesPitch = %v, stretcher %v, by default", p.PreservesPitch(), p.v.st)
 	}
@@ -180,8 +180,8 @@ func TestPreservesPitchIsOptIn(t *testing.T) {
 	if !p.PreservesPitch() {
 		t.Error("PreservesPitch = false after SetPreservesPitch(true)")
 	}
-	out := render(sampleRate / 4)
-	for i := range sampleRate / 4 {
+	out := render(defaultRate / 4)
+	for i := range defaultRate / 4 {
 		if !near(out[2*i], samples[i]) {
 			t.Fatalf("frame %d at 1× = %v, want %v as decoded", i, out[2*i], samples[i])
 		}
@@ -192,7 +192,7 @@ func TestPreservesPitchIsOptIn(t *testing.T) {
 func TestPreservesPitchPosition(t *testing.T) {
 	setup(t)
 	hold(heldFrames)
-	p := NewSound(sampleRate, 1, sine(sampleRate, 4, 220)).NewPlayer().SetSpeed(1.5).SetPreservesPitch(true)
+	p := NewSound(defaultRate, 1, sine(defaultRate, 4, 220)).NewPlayer().SetSpeed(1.5).SetPreservesPitch(true)
 	p.Play()
 	render(3 * heldFrames)
 	atFrame(t, p, 3*heldFrames, "200 ms heard at 1.5×")
@@ -202,9 +202,9 @@ func TestPreservesPitchPosition(t *testing.T) {
 	// a hop or so behind.
 	atFrame(t, p, 3*heldFrames+heldFrames*3/2, "100 ms more at 1.5×")
 	p.Seek(time.Second)
-	atFrame(t, p, sampleRate, "right after Seek")
+	atFrame(t, p, defaultRate, "right after Seek")
 	render(heldFrames + 1000)
-	atFrame(t, p, sampleRate+2000, "1000 frames into the seek at 2×")
+	atFrame(t, p, defaultRate+2000, "1000 frames into the seek at 2×")
 }
 
 // The stretch goes on without a click or a gap as the speed changes, over
@@ -213,13 +213,13 @@ func TestPreservesPitchPosition(t *testing.T) {
 func TestStretchIsContinuous(t *testing.T) {
 	setup(t)
 	// 100 periods of 200 Hz: a seamless loop.
-	samples := sine(sampleRate, 0.5, 200)
-	p := NewSound(sampleRate, 1, samples).NewPlayer().SetLoop(true).SetPreservesPitch(true)
+	samples := sine(defaultRate, 0.5, 200)
+	p := NewSound(defaultRate, 1, samples).NewPlayer().SetLoop(true).SetPreservesPitch(true)
 	p.Play()
 	var out []float32
 	for _, speed := range []float64{1, 1.25, 1.5, 2, 3, 0.75, 0.5, 4} {
 		p.SetSpeed(speed)
-		out = append(out, render(sampleRate/5)...)
+		out = append(out, render(defaultRate/5)...)
 	}
 	// 8 × 200 ms at 1.95× on average: 6 loops.
 	smooth(t, out, 0, 0, len(out)/2, 200, "changing speed and looping")
@@ -228,22 +228,22 @@ func TestStretchIsContinuous(t *testing.T) {
 	}
 
 	p.SetSpeed(1.5)
-	out = render(sampleRate / 5)
+	out = render(defaultRate / 5)
 	p.SetPreservesPitch(false)
-	out = append(out, render(sampleRate/5)...)
+	out = append(out, render(defaultRate/5)...)
 	p.SetPreservesPitch(true)
-	out = append(out, render(sampleRate/5)...)
+	out = append(out, render(defaultRate/5)...)
 	smooth(t, out, 0, 0, len(out)/2, 300, "turning on and off")
-	if got := dominant(channel(out, 0, sampleRate/5+2000, 2*sampleRate/5)); got != 300 {
+	if got := dominant(channel(out, 0, defaultRate/5+2000, 2*defaultRate/5)); got != 300 {
 		t.Errorf("resampled at 1.5× again: %v Hz, want 300", got)
 	}
-	if got := dominant(channel(out, 0, 2*sampleRate/5+2000, 3*sampleRate/5)); got != 200 {
+	if got := dominant(channel(out, 0, 2*defaultRate/5+2000, 3*defaultRate/5)); got != 200 {
 		t.Errorf("stretched again: %v Hz, want 200", got)
 	}
 
 	setup(t)
-	ramped := ramp(sampleRate)
-	q := NewSound(sampleRate, 1, ramped).NewPlayer().SetSpeed(2).SetPreservesPitch(true)
+	ramped := ramp(defaultRate)
+	q := NewSound(defaultRate, 1, ramped).NewPlayer().SetSpeed(2).SetPreservesPitch(true)
 	q.Play()
 	render(5000)
 	q.Seek(500 * time.Millisecond)
@@ -261,7 +261,7 @@ type sineDecoder struct {
 	pos, length int64
 }
 
-func (d *sineDecoder) SampleRate() int { return sampleRate }
+func (d *sineDecoder) SampleRate() int { return defaultRate }
 func (d *sineDecoder) Channels() int   { return d.ch }
 func (d *sineDecoder) Len() int64      { return d.length }
 
@@ -269,7 +269,7 @@ func (d *sineDecoder) Read(buf []float32) (int, error) {
 	n := 0
 	for ; n+d.ch <= len(buf) && d.pos < d.length; n += d.ch {
 		for c := range d.ch {
-			buf[n+c] = float32(0.5 * math.Sin(2*math.Pi*d.hz*float64(d.pos)/sampleRate))
+			buf[n+c] = float32(0.5 * math.Sin(2*math.Pi*d.hz*float64(d.pos)/defaultRate))
 		}
 		d.pos++
 	}
@@ -284,7 +284,7 @@ func (d *sineDecoder) SetPosition(f int64) error { d.pos = f; return nil }
 // A stream stretches as a sound does, to its end.
 func TestStreamStretches(t *testing.T) {
 	setup(t)
-	p := NewPlayer(&sineDecoder{ch: 2, hz: 250, length: sampleRate}).SetSpeed(1.5).SetPreservesPitch(true)
+	p := NewPlayer(&sineDecoder{ch: 2, hz: 250, length: defaultRate}).SetSpeed(1.5).SetPreservesPitch(true)
 	defer p.Close()
 	p.Play()
 	s := p.v.src.(*stream)
@@ -302,15 +302,15 @@ func TestStreamStretches(t *testing.T) {
 			time.Sleep(time.Millisecond)
 		}
 		out = append(out, render(256)...)
-		if len(out) > 10*sampleRate*channels {
+		if len(out) > 10*defaultRate*channels {
 			t.Fatal("10 s and not at its end")
 		}
 	}
 	n := framesPlayed(out)
-	if got, want := frames(int64(n), sampleRate), time.Second*2/3; got < want-25*time.Millisecond || got > want+25*time.Millisecond {
+	if got, want := frames(int64(n), defaultRate), time.Second*2/3; got < want-25*time.Millisecond || got > want+25*time.Millisecond {
 		t.Errorf("played %v, want %v", got, want)
 	}
-	smooth(t, out, 1, 0, n-2*sampleRate/250, 250, "a stream")
+	smooth(t, out, 1, 0, n-2*defaultRate/250, 250, "a stream")
 	if got := dominant(channel(out, 0, 0, n)); got != 250 {
 		t.Errorf("plays at %v Hz, want 250", got)
 	}
@@ -319,7 +319,7 @@ func TestStreamStretches(t *testing.T) {
 // Stretching allocates nothing as it mixes.
 func TestStretchAllocatesNothing(t *testing.T) {
 	setup(t)
-	p := NewSound(sampleRate, 2, sine(sampleRate, 0.5, 200, 300)).NewPlayer().
+	p := NewSound(defaultRate, 2, sine(defaultRate, 0.5, 200, 300)).NewPlayer().
 		SetLoop(true).SetSpeed(1.5).SetPreservesPitch(true)
 	p.Play()
 	buf := make([]float32, 480*channels)

@@ -33,10 +33,25 @@ import (
 	"time"
 )
 
-// The output's format: every player is resampled to it.
+// The output's format: stereo, at the sample rate of the newest player
+// playing, so that music reaches the system as it was recorded, a Hi-Res
+// Lossless song's 96 kHz as 96 kHz. Every other player is resampled to it.
+const channels = 2
+
+// defaultRate is the output's rate before anything played.
+const defaultRate = 48000
+
+// The output's rate, and the frames its ramps take, 5 ms of it, under mu:
+// the device open runs at it.
+var (
+	sampleRate = defaultRate
+	rampFrames = defaultRate / 200
+)
+
+// The rates the output opens at. A player's beyond them plays resampled.
 const (
-	sampleRate = 48000
-	channels   = 2
+	lowestRate  = 8000
+	highestRate = 384000
 )
 
 // mu guards the voices playing and the state of every player.
