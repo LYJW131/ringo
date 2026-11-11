@@ -9,6 +9,7 @@ Ringo（林檎）是日语的「苹果」。标记是一只横着切开的苹果
 | `mark.svg` | 彩色标记，透明底。网页、文档、深浅背景都可用 |
 | `mark-green.svg` | 青苹果版，只用于开发版（`mygo dev` 的图标） |
 | `mark-mono.svg` | 单色标记：外圈加五个心室，不画籽。用于需要着色或很小的场合 |
+| `brand.go` | 把 `mark.svg` 嵌进程序的 Go 包，未登录的主页用它 |
 | `wordmark.svg` / `wordmark-dark.svg` | 字标，浅色底 / 深色底。字母是画出来的单线圆头笔画，不依赖任何字体，`o` 就是标记本身 |
 | `../icon/AppIcon.icon` | macOS 26 的 Liquid Glass 图标文档（Icon Composer），两层：`slice`（果皮与果肉）和 `core`（心室与籽） |
 | `../icon/AppIcon-dev.icon` | 开发版图标，青苹果 |

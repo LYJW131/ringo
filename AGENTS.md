@@ -8,7 +8,7 @@ Ringo is a desktop client for Apple Music: one Go program, its windows drawn by 
 - `internal/applemusic`: the one source. It asks what the web player at music.apple.com asks. `amhelper` decrypts audio and serves it on 127.0.0.1 for the player; `widevine` and `fairplay` get it its keys.
 - `internal/app`: the windows. `ui_sidebar.go`, `ui_shelf.go` and `ui_detail.go` are where Apple Music's layout lives.
 - `internal/video`, `internal/heaac`: the covers that move, and High Efficiency audio. Each has an `AGENTS.md` of its own: read it before changing that directory.
-- `icon/`, `brand/`: the icons and the mark, drawn by `go run ./icon` and `go run ./icon/tray` (`brand/README.md`).
+- `icon/`, `brand/`: the icons and the mark, drawn by `go run ./icon` and `go run ./icon/tray` (`brand/README.md`). `brand` is a Go package too, which embeds the mark for the app to show.
 
 ## Rules
 
@@ -23,7 +23,7 @@ Ringo is a desktop client for Apple Music: one Go program, its windows drawn by 
 ## Checking a change
 
 ```bash
-gofmt -l internal icon
+gofmt -l internal icon brand
 go vet ./...
 go test ./...
 ```

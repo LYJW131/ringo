@@ -5,6 +5,7 @@ package i18n
 // Hi-Res Lossless, Apple Digital Master) are not Apple Music's words: its texts
 // have none for them.
 var ringoChinese = map[string]string{
+	"Your library and playlists show here once you sign in.": "登录后，这里会显示你的资料库和播放列表。",
 	"All Albums":                           "所有专辑",
 	"All Songs":                            "所有歌曲",
 	"Ascending":                            "升序",

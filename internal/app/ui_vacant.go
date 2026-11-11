@@ -1,6 +1,10 @@
 package app
 
-import "github.com/egoist/mygo/ui"
+import (
+	"github.com/egoist/mygo/ui"
+
+	"ringo/brand"
+)
 
 // What a page shows in place of what it lists, where it has nothing or
 // couldn't load it: a glyph over a few words, in the middle of the room the
@@ -19,6 +23,9 @@ var (
 	glyphStar   = thinIcon(`<path d="m12 3 2.7 5.8 6.3.8-4.6 4.3 1.2 6.2L12 17l-5.6 3.1 1.2-6.2L3 9.6l6.3-.8z"/>`)
 	glyphAlbums = thinIcon(`<rect x="3" y="6" width="15" height="15" rx="2.5"/><path d="M7 3h11.5A2.5 2.5 0 0 1 21 5.5V17"/><circle cx="10.5" cy="13.5" r="3"/>`)
 	glyphAlert  = thinIcon(`<circle cx="12" cy="12" r="9.5"/><path d="M12 7.5v5.2"/><path d="M12 16.4v.1"/>`)
+
+	// markRingo is the app's mark, in its own colors.
+	markRingo = ui.MustParseSVG(brand.Mark)
 )
 
 // vacantGlyph is the size of the glyph over what vacant says.
@@ -31,7 +38,12 @@ func (a *app) vacant(c *ui.Context, icon *ui.SVG, title, hint string, actions fu
 	p := a.pal
 	col := ui.Column(c.Key("vacant")).AlignItems(ui.Center).Gap(6)
 	col.Children(func() {
-		if icon != nil {
+		switch icon {
+		case nil:
+		case markRingo:
+			// In its own colors, not the text's as an icon is.
+			ui.Image(c, icon).Size(72, 72).Margin(0, 0, 14, 0)
+		default:
 			ui.Icon(c, icon).Size(vacantGlyph, vacantGlyph).TextColor(p.faint).Margin(0, 0, 8, 0)
 		}
 		if title != "" {

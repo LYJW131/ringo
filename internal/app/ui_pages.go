@@ -86,7 +86,8 @@ func (a *app) homePage(c *ui.Context) {
 	})
 }
 
-// emptyHome invites the listener to do what gets the source going.
+// emptyHome invites the listener to do what gets the source going: under
+// the app's mark, to sign in, which is all Home is without them.
 func (a *app) emptyHome(c *ui.Context) {
 	p := a.pal
 	lib := a.library
@@ -96,11 +97,12 @@ func (a *app) emptyHome(c *ui.Context) {
 			a.vacant(c, glyphNote, T("Nothing here yet"), T("Search for something to play."), nil)
 			return
 		}
-		a.vacant(c, glyphNote, Tf("Sign in to %s", lib.name()), "", func() {
-			if pillButton(c.Key("sign-in"), iconUser, T("Sign In"), p.accent, p.onAccent).Clicked() {
-				a.promptSignIn()
-			}
-		})
+		a.vacant(c, markRingo, Tf("Sign in to %s", lib.name()),
+			T("Your library and playlists show here once you sign in."), func() {
+				if pillButton(c.Key("sign-in"), iconUser, T("Sign In"), p.accent, p.onAccent).Clicked() {
+					a.promptSignIn()
+				}
+			})
 	})
 }
 
