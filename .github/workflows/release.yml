@@ -65,12 +65,21 @@ jobs:
     needs: draft-release
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    # Bash on every runner: it is the one shell the steps are written for,
+    # and not what a Windows runner runs them in by itself.
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
         include:
           - { name: macOS, os: macos-latest, platform: "darwin/arm64,darwin/amd64" }
-          - { name: Windows, os: ubuntu-latest, platform: "windows/amd64,windows/arm64" }
+          # The Windows installers are made by NSIS, which a Windows runner
+          # has. An Ubuntu runner has to install it, and as 0.2.1 was
+          # released none could reach its package mirrors to: the job failed
+          # four times over, and the installers were built this way instead.
+          - { name: Windows, os: windows-latest, platform: "windows/amd64,windows/arm64" }
           - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
     steps:
       - uses: actions/checkout@v7
@@ -82,11 +91,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      # setup-go's own cache is keyed on the runner and go.sum alone, so the
-      # Windows and Linux jobs, both on Ubuntu, race for one key and only
-      # one of them keeps its build cache, and any change to go.sum, like
-      # bumping mygo, starts every job cold. This one is per job, and falls
-      # back to the job's last cache when go.mod or go.sum changes.
+      # setup-go's own cache is keyed on the runner and go.sum alone, so
+      # jobs on one kind of runner race for one key and only one of them
+      # keeps its build cache, and any change to go.sum, like bumping mygo,
+      # starts every job cold. This one is per job, and falls back to the
+      # job's last cache when go.mod or go.sum changes.
       - name: Find Go's caches
         id: go-env
         run: |
@@ -99,9 +108,6 @@ jobs:
             ${{ steps.go-env.outputs.mod }}
           key: go-${{ matrix.name }}-${{ hashFiles('go.mod', 'go.sum') }}
           restore-keys: go-${{ matrix.name }}-
-      - name: Install NSIS, for the Windows installers
-        if: matrix.name == 'Windows'
-        run: sudo apt-get update && sudo apt-get install -y nsis
       - name: Build and upload
         env:
           GH_TOKEN: ${{ github.token }}
