@@ -177,8 +177,8 @@ func (a *app) coverFill(c *ui.Context, url string, mv moving, px int, radius flo
 
 // coverFillWith is coverFill showing icon in the cover's place until it
 // comes, or for good where there's none. Over it, the cover of mv plays
-// moving where it moves: as a page's head, a cover asked for as large as
-// one is (px over 400).
+// moving where it moves, if it is a large one (motionLeast); as a page's
+// head, one asked for as large as that is (px over 400).
 func (a *app) coverFillWith(c *ui.Context, url string, mv moving, px int, radius float32, icon *ui.SVG) {
 	bmp := bitmap(a.art.get(sized(url, px), false))
 	box := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(radius)
@@ -191,11 +191,13 @@ func (a *app) coverFillWith(c *ui.Context, url string, mv moving, px int, radius
 			a.blankIcon(c, icon, 1-in)
 		}
 		artImage(c, bmp, radius, in)
-		size := motionThumb
-		if px > 400 {
-			size = motionHead
+		if px >= motionLeast {
+			size := motionSquare
+			if px > 400 {
+				size = motionHead
+			}
+			a.motionOver(c, box, mv, float32(px)/2, float32(px)/2, size, radius)
 		}
-		a.motionOver(c, box, mv, float32(px)/2, float32(px)/2, size, radius)
 	})
 }
 
@@ -392,7 +394,7 @@ func (a *app) playlistRow(c *ui.Context, tracks []music.Track, i int, pid string
 		}
 		ui.Row(c).Grow(3).Basis(0).MinWidth(0).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Size(40, 40).Shrink(0).Children(func() {
-				a.cover(c, tr.Album.ImageURL, songMoving(tr), 96, 40, 4)
+				a.cover(c, tr.Album.ImageURL, 96, 40, 4)
 				if playing || hovered && !tr.Unavailable {
 					ui.Box(c.Key("cover-shade")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(4).Center().Background(ui.RGBA(0, 0, 0, 0.4)).
 						Transition(rowHoverIn).Children(func() {
@@ -718,7 +720,7 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 			}
 		})
 		if covers {
-			a.cover(c, tr.Album.ImageURL, songMoving(tr), 96, 38, 6)
+			a.cover(c, tr.Album.ImageURL, 96, 38, 6)
 		}
 		ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
 			name := p.text

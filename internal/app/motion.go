@@ -14,11 +14,13 @@ import (
 )
 
 // Animated Art: the covers Apple Music has moving, played without sound and
-// over and over wherever their still shows: an album's or a playlist's on
-// its page, its cards and in the sidebar, a song's album's in Now Playing,
-// the player bar, the queue and the rows of songs, an artist's across the
-// head of their page, and Home's picks on their cards three to four. The
-// still shows first, and the video fades in over it once it has a frame.
+// over and over wherever their still shows large: an album's or a
+// playlist's at the head of its page and on its cards, a song's album's in
+// Now Playing, an artist's across the head of their page, and Home's picks
+// on their cards three to four. Small ones, in rows, bars, the sidebar and
+// the notch, stay still: there they would only flicker, and take players
+// from the large ones. The still shows first, and the video fades in over
+// it once it has a frame.
 // Most of what the source answers doesn't say which covers move, so those
 // that show are asked about, a frame's at a time, once each (motionKnown).
 
@@ -27,6 +29,10 @@ import (
 // difference at the size they show: a card at
 // 436×582 takes some 6% of a core, a page's head at 486² as much, an
 // artist's at 768×432 some 8%.
+// motionLeast is the fewest pixels across a cover is asked for at, to move:
+// a card's, some 200 points.
+const motionLeast = 400
+
 // prime marks the places a cover is the most of: one of them that shows
 // takes a player from a smaller cover that shows, where all are taken.
 type motionSize struct {
@@ -35,9 +41,9 @@ type motionSize struct {
 }
 
 var (
-	// motionThumb is a cover in a row, a card or a bar: the smallest that
-	// Apple makes, 360 square, is sharp enough for all of them.
-	motionThumb  = motionSize{360, 360, false}
+	// motionSquare is a card's cover, some 200 points across: Apple's 456
+	// square is as sharp as that is on a Retina display.
+	motionSquare = motionSize{456, 456, false}
 	motionCard   = motionSize{436, 582, false}
 	motionHead   = motionSize{486, 486, true}
 	motionArtist = motionSize{768, 432, true}
@@ -74,7 +80,7 @@ func stageMotion() motionSize {
 // five cards took 20–40% of a core between them on an M4 Pro, so four keep
 // it near a third at most, and a screen of Home shows three or four cards.
 // Others show their still. motionPlayersMac is as many where the Mac's own
-// decoder plays them, which takes almost no CPU: a page of songs shows a
+// decoder plays them, which takes almost no CPU: a screen of cards shows a
 // dozen covers.
 const (
 	motionPlayers    = 4

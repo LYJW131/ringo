@@ -133,16 +133,16 @@ func TestMotionPrimeTakesAPlayer(t *testing.T) {
 	m := &motionArt{clips: map[string]*motionClip{}, load: openClip(&loads), post: func(fn func()) { ch <- fn }, players: 2}
 	now := time.Now()
 	for i := range 2 {
-		m.player(now, fmt.Sprint("https://example.test/row", i), 80, 80, motionThumb, true)
+		m.player(now, fmt.Sprint("https://example.test/row", i), 80, 80, motionSquare, true)
 	}
 	runPost(t, ch)
 	runPost(t, ch)
 	// The rows show on, and another row finds no player free.
 	later := now.Add(100 * time.Millisecond)
 	for i := range 2 {
-		m.player(later, fmt.Sprint("https://example.test/row", i), 80, 80, motionThumb, true)
+		m.player(later, fmt.Sprint("https://example.test/row", i), 80, 80, motionSquare, true)
 	}
-	m.player(later, "https://example.test/row2", 80, 80, motionThumb, true)
+	m.player(later, "https://example.test/row2", 80, 80, motionSquare, true)
 	if len(m.clips) != 2 {
 		t.Fatalf("a third row took a player: %v", m.clips)
 	}
@@ -222,6 +222,47 @@ func TestMotionAskedAsShown(t *testing.T) {
 	key := "https://example.test/hls/polar.m3u8|" + fmt.Sprintf("%dx%d", stageMotion().w, stageMotion().h)
 	if cl := a.motion.clips[key]; cl == nil || cl.player == nil {
 		t.Errorf("Now Playing's cover doesn't move: %v", a.motion.clips)
+	}
+	a.motion.stop()
+}
+
+// A song's cover moves where it shows large, in Now Playing, and stays
+// still where it is small, in the player bar and the notch: it moved in
+// those too, two windows building one player, which then stood still in
+// both, and took players from the large ones.
+func TestMotionOnlyLarge(t *testing.T) {
+	if !video.Supported() {
+		t.Skip("no decoder on this machine")
+	}
+	a := newTestApp()
+	ch := posts(a)
+	var loads atomic.Int32
+	a.motionArt().load = openClip(&loads)
+	tr := coveredSong(a)
+	tr.Album.VideoURL = "https://example.test/hls/polar.m3u8"
+	a.pl.Cue([]music.Track{tr})
+	// A display with a notch, which shows the song that plays beside it.
+	a.settings.Notch, a.settings.NotchActivity = true, true
+	n := &notch{a: a, real: true, w0: 185, h0: 32, winW: notchOpenW + 60, winH: 240}
+	a.notch = n
+	main := ui.NewTester(a.view, 1180, 780)
+	side := ui.NewTester(n.view, int(n.winW), int(n.winH))
+	for range 3 {
+		main.Advance(100 * time.Millisecond)
+		side.Advance(100 * time.Millisecond)
+		main.Frame()
+		side.Frame()
+	}
+	if loads.Load() != 0 {
+		t.Fatalf("the bar or the notch fetched %d videos", loads.Load())
+	}
+	a.nowPlaying = true
+	main.Frame()
+	runPost(t, ch)
+	main.Frame()
+	key := fmt.Sprintf("%s|%dx%d", tr.Album.VideoURL, stageMotion().w, stageMotion().h)
+	if cl := a.motion.clips[key]; cl == nil || cl.player == nil || len(a.motion.clips) != 1 {
+		t.Errorf("Now Playing's cover: clips %v", a.motion.clips)
 	}
 	a.motion.stop()
 }

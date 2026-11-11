@@ -355,7 +355,7 @@ func (a *app) wallTile(c *ui.Context, tr *music.Track, i int, x float32, playing
 		tile.Shadow(0, 14, 30, -8, ui.RGBA(0, 0, 0, 0.6))
 	}
 	tile.Children(func() {
-		a.cover(c, tr.Album.ImageURL, songMoving(tr), 240, wallTile, 12)
+		a.cover(c, tr.Album.ImageURL, 240, wallTile, 12)
 		if hovered {
 			// Its name and artists over a shade along its foot, on the
 			// cover, so that they move with it.

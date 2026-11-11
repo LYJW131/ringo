@@ -167,9 +167,9 @@ func pillWidth(c *ui.Context, label string, icon bool) float32 {
 	return w
 }
 
-// cover shows an artwork, or a placeholder of the same size while it loads,
-// and over it the cover of mv moving, where it moves.
-func (a *app) cover(c *ui.Context, url string, mv moving, px int, size, radius float32) ui.Element {
+// cover shows an artwork, or a placeholder of the same size while it loads.
+// It is a small one, in a row or a bar, which doesn't move.
+func (a *app) cover(c *ui.Context, url string, px int, size, radius float32) ui.Element {
 	p := a.pal
 	box := ui.Box(c).Size(size, size).Radius(radius).Center()
 	bmp := bitmap(a.art.get(sized(url, px), false))
@@ -182,7 +182,6 @@ func (a *app) cover(c *ui.Context, url string, mv moving, px int, size, radius f
 			ui.Icon(c, iconNote).Size(size*0.3, size*0.3).TextColor(p.faint).Opacity(1 - in)
 		}
 		artImage(c, bmp, radius, in)
-		a.motionOver(c, box, mv, size, size, motionThumb, radius)
 	})
 	return box
 }
