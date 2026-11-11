@@ -163,8 +163,8 @@ const notesLines = 3
 const notesWidth = 600
 
 // notes is what the editors say of an album or a playlist, as many lines
-// as notesLines, with More after them where there's more to it, which
-// shows it all.
+// as notesLines, the last of them fading out under More where there's more
+// to it, as Music's does, which shows it all, with Less after it.
 func (a *app) notes(c *ui.Context, text string) {
 	p := a.pal
 	text = strings.Join(strings.Fields(strings.ReplaceAll(text, "\n", " \n ")), " ")
@@ -175,33 +175,70 @@ func (a *app) notes(c *ui.Context, text string) {
 	_, h := c.MeasureText(width, ui.Span{Text: text, Size: size})
 	_, line := c.MeasureText(0, ui.Span{Text: "M", Size: size})
 	more := line > 0 && h/line > notesLines+0.5
-	ui.Column(c.Key("notes")).MaxWidth(notesWidth).Margin(16, 0, 0, 0).Gap(2).Children(func() {
-		t := ui.Text(c, text).FontSize(size).LineHeight(leading).TextColor(p.muted)
-		if !open {
-			t.MaxLines(notesLines)
-		}
+	body := func() ui.Element {
+		return ui.Text(c, text).FontSize(size).LineHeight(leading).TextColor(p.muted)
+	}
+	ui.Column(c.Key("notes")).MaxWidth(notesWidth).Margin(16, 0, 0, 0).Children(func() {
 		if !more {
+			body().MaxLines(notesLines)
 			return
 		}
 		label := T("More")
 		if open {
 			label = T("Less")
 		}
-		b := ui.ButtonBase(c.Key("more")).AlignSelf(ui.End).FocusRing(false).Label(label)
-		color := p.text
-		if b.Hovered() {
-			color = p.accent
-		}
-		b.Children(func() { ui.Text(c, label).FontSize(11.5).FontWeight(700).TextColor(color) })
-		if b.Clicked() {
-			if open {
-				a.notesOpen = route{}
-			} else {
-				a.notesOpen = a.route
+		toggle := func() ui.Element {
+			b := ui.ButtonBase(c.Key("more")).FocusRing(false).Label(label)
+			color := p.text
+			if b.Hovered() {
+				color = p.accent
 			}
+			b.Children(func() { ui.Text(c, label).FontSize(11.5).FontWeight(700).TextColor(color) })
+			if b.Clicked() {
+				if open {
+					a.notesOpen = route{}
+				} else {
+					a.notesOpen = a.route
+				}
+			}
+			return b
 		}
+		if open {
+			body()
+			toggle().AlignSelf(ui.End).Margin(2, 0, 0, 0)
+			return
+		}
+		// The lines are laid out twice: all but the last as they are, and
+		// the last alone under a mask that fades its end out, where More
+		// sits. A mask over them all would fade the end of each.
+		const pitch = size * leading
+		above := float32(notesLines-1) * pitch
+		ui.Box(c).Height(above).Clip().Children(func() { body().MaxLines(notesLines) })
+		last := ui.Box(c.Key("last")).Height(pitch)
+		w := last.Bounds().W
+		if w <= 0 {
+			w = width
+		}
+		moreW, _ := c.MeasureText(0, ui.Span{Text: label, Size: 11.5, Weight: 700})
+		black := ui.RGB(0, 0, 0)
+		last.Children(func() {
+			ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Clip().IgnoreInput(true).
+				MaskLinearGradient(ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{
+					{Color: black, At: 0},
+					{Color: black, At: max(0, 1-(moreW+notesFade+6)/w)},
+					{Color: ui.Transparent, At: max(0, 1-(moreW+6)/w)},
+					{Color: ui.Transparent, At: 1},
+				}}).Children(func() {
+				body().MaxLines(notesLines).Absolute().Top(-above).Left(0).Right(0)
+			})
+			toggle().Absolute().Top(0).Right(0).Bottom(0).AlignItems(ui.Center)
+		})
 	})
 }
+
+// notesFade is how far the last line of what the editors say fades out
+// before More.
+const notesFade = 56
 
 // libraryButton adds what kind and id name to the listener's library; once
 // it's there, it is the star that makes it a favorite instead, as Apple
