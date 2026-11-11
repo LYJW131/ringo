@@ -180,3 +180,54 @@ func (a *app) albumInLibrary(id string) (in, known bool) {
 	}
 	return false, false
 }
+
+// albumKept is whether the album al, of tracks, is in the listener's
+// library, as its songs now say where they all agree: the library has an
+// album once every song of it that can be added is, added one at a time,
+// and no longer once none is, though its page was loaded before either. It
+// notes that with what the listener did in the app (setInLibrary), as the
+// source would answer it, so a song's menu and the album's say the same.
+// While the album itself is being added or deleted, that stands.
+func (a *app) albumKept(al *music.Album, tracks []music.Track) bool {
+	lib := a.library
+	key := itemKey(music.ItemAlbum, al.ID)
+	if !lib.busy[key] {
+		all, none, some := true, true, false
+		for i := range tracks {
+			tr := &tracks[i]
+			if !lib.canKeep(tr) || tr.Unavailable {
+				continue
+			}
+			// A song still being added or deleted may yet go back.
+			in, known := a.songInLibrary(tr)
+			if !known || lib.busy[itemKey(trackKind(tr), tr.ID)] {
+				all, none = false, false
+				break
+			}
+			all, none, some = all && in, none && !in, true
+		}
+		switch {
+		case some && all:
+			lib.kept[key] = true
+		case some && none:
+			lib.kept[key] = false
+		}
+	}
+	return lib.inLibrary(music.ItemAlbum, al.ID, al.Saved)
+}
+
+// keepTracks has the songs of the album id say what was done to it: added
+// with it, or deleted with it.
+func (a *app) keepTracks(id string, on bool) {
+	lib := a.library
+	d := lib.albums[id]
+	if d == nil || d.album == nil {
+		return
+	}
+	for i := range d.album.Tracks {
+		tr := &d.album.Tracks[i]
+		if lib.canKeep(tr) && !tr.Unavailable {
+			lib.kept[itemKey(trackKind(tr), tr.ID)] = on
+		}
+	}
+}

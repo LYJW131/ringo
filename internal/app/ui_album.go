@@ -192,7 +192,7 @@ func (a *app) albumHeader(c *ui.Context, page *music.AlbumPage) {
 		})
 	}
 	a.detailHeader(c, al.ImageURL, al.VideoURL, lines, al.Notes, page.Tracks, func(compact bool) {
-		a.libraryButton(c, music.ItemAlbum, al.ID, al.Saved, al.Favorite, compact)
+		a.libraryButton(c, music.ItemAlbum, al.ID, a.albumKept(al, page.Tracks), al.Favorite, compact)
 		a.moreButton(c, a.albumItems(*al))
 	})
 }

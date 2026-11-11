@@ -107,8 +107,11 @@ func (a *app) setInLibrary(kind, id string, on bool) {
 			} else {
 				a.toast = T("Deleted From Library")
 			}
-			if kind == music.ItemPlaylist {
+			switch kind {
+			case music.ItemPlaylist:
 				a.loadMine()
+			case music.ItemAlbum:
+				a.keepTracks(id, on)
 			}
 		})
 }

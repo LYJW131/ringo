@@ -649,3 +649,51 @@ func TestLightTintIsAPastel(t *testing.T) {
 		}
 	}
 }
+
+// An album whose songs are added one at a time from their menus is then in
+// the library, its star in place of Add to Library, and deleting them all
+// takes it out again. Its page had kept to what the source said as it
+// loaded, so the album still offered to be added.
+func TestAlbumKeptWithItsSongs(t *testing.T) {
+	a := albumApp()
+	ch := posts(a)
+	fake(a).addToLibrary = func(kind, id string, on bool) error { return nil }
+	page := a.albums["1440755169"].album
+	page.Tracks = page.Tracks[:2]
+	for i := range page.Tracks {
+		page.Tracks[i].Saved, page.Tracks[i].SavedKnown = false, true
+	}
+	tt := ui.NewTester(a.view, 1180, 900)
+	settle := func() {
+		tt.Advance(time.Second)
+		tt.Frame()
+	}
+	settle()
+	for i, tr := range page.Tracks {
+		if err := tt.RightClick(tr.Name); err != nil {
+			t.Fatal(err)
+		}
+		if err := tt.ChooseMenuItem("Add to Library"); err != nil {
+			t.Fatalf("%v: %q", err, tt.Menu())
+		}
+		runPost(t, ch)
+		settle()
+		_, plus := tt.Find("Add to Library")
+		if last := i == len(page.Tracks)-1; plus == last {
+			t.Fatalf("with %d of %d songs added, the album offers to be added: %v", i+1, len(page.Tracks), plus)
+		}
+	}
+	for _, tr := range page.Tracks {
+		if err := tt.RightClick(tr.Name); err != nil {
+			t.Fatal(err)
+		}
+		if err := tt.ChooseMenuItem("Delete From Library"); err != nil {
+			t.Fatalf("%v: %q", err, tt.Menu())
+		}
+		runPost(t, ch)
+		settle()
+	}
+	if _, ok := tt.Find("Add to Library"); !ok {
+		t.Fatal("an album with none of its songs left still in the library")
+	}
+}
