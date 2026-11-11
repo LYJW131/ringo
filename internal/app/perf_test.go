@@ -70,6 +70,11 @@ func TestNowPlayingFrameBudget(t *testing.T) {
 	a.npPane = paneStage
 	a.settings.StageSparks = true
 	for _, s := range stageStyles {
+		if s.id == "vinyl" {
+			// Its record turns all the while, in frames that only paint:
+			// TestVinylBuildBudget counts what it builds.
+			continue
+		}
 		a.settings.StageStyle = s.id
 		if n := framesAt(a, tt, 18*time.Second); n > 12 {
 			t.Errorf("the stage between lines, in %s: %d frames a second", s.label, n)

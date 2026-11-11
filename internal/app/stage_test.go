@@ -19,7 +19,7 @@ func TestStageStyleMenu(t *testing.T) {
 	a.pl.Seek(2 * time.Second)
 	tt.Move(600, 400)       // the pointer in the window shows the bar the menu is in
 	tt.Advance(time.Second) // Now Playing slides into place
-	for _, c := range []struct{ item, want string }{{"Steps", "partita"}, {"Tilt", "tilt"}, {"Flow", ""}} {
+	for _, c := range []struct{ item, want string }{{"Steps", "partita"}, {"Tilt", "tilt"}, {"Vinyl", "vinyl"}, {"Flow", ""}} {
 		if err := tt.Click("Stage Style"); err != nil {
 			t.Fatal(err)
 		}

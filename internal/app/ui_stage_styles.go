@@ -16,11 +16,13 @@ import (
 // (github.com/chthollyphile/folia-major): Flow, its classic (ui_stage.go);
 // Steps, which stacks a line in staggered rows, each springing in as it is
 // sung; and Tilt, which breaks a line into a few large lines, one of them
-// leaning, its characters swelling as they are sung.
+// leaning, its characters swelling as they are sung. Vinyl is Ringo's own
+// (ui_stage_vinyl.go): the lines turn around a record as spokes of a wheel.
 var stageStyles = []struct{ id, label string }{
 	{"", N("Flow")},
 	{"partita", N("Steps")},
 	{"tilt", N("Tilt")},
+	{"vinyl", N("Vinyl")},
 }
 
 // stageStyleButton names the stage's style, and opens the menu of the
@@ -70,26 +72,33 @@ func stageSparks(e ui.Element, since float32, seed float64, last bool, accent ui
 	if since < 0 || since >= sparkTime {
 		return
 	}
+	e.DrawOver(func(p *ui.Painter, r ui.Rect) { paintSparks(p, r, since, seed, last, accent) })
+}
+
+// paintSparks paints the sparks off a word in r, since seconds after it is
+// sung, as stageSparks has them.
+func paintSparks(p *ui.Painter, r ui.Rect, since float32, seed float64, last bool, accent ui.Color) {
+	if since < 0 || since >= sparkTime {
+		return
+	}
 	t := since / sparkTime
-	e.DrawOver(func(p *ui.Painter, r ui.Rect) {
-		cx, cy := r.X+r.W/2, r.Y+r.H/2
-		n, reach := 9, max(r.W, r.H)*0.75
-		if last {
-			n, reach = 16, reach*1.6
-		}
-		out := 1 - (1-t)*(1-t)*(1-t)
-		fade := (1 - t) * (1 - t)
-		color := accent.Mix(white, 0.6*(1-t))
-		for i := range n {
-			angle := 2 * math.Pi * (float64(i) + float64(lineRandom(seed, float64(i)))*0.7) / float64(n)
-			dx, dy := float32(math.Cos(angle)), float32(math.Sin(angle))
-			// From the word's edge, each at its own speed.
-			edge := r.W/2*0.7*abs32(dx) + r.H/2*0.7*abs32(dy)
-			head := edge + reach*(0.55+0.45*lineRandom(seed, float64(i)+50))*out
-			tail := max(edge, head-reach*0.3*(1-t))
-			p.Line(cx+dx*tail, cy+dy*tail, cx+dx*head, cy+dy*head, 0.8+1.6*(1-t), color.Alpha(0.9*fade))
-		}
-	})
+	cx, cy := r.X+r.W/2, r.Y+r.H/2
+	n, reach := 9, max(r.W, r.H)*0.75
+	if last {
+		n, reach = 16, reach*1.6
+	}
+	out := 1 - (1-t)*(1-t)*(1-t)
+	fade := (1 - t) * (1 - t)
+	color := accent.Mix(white, 0.6*(1-t))
+	for i := range n {
+		angle := 2 * math.Pi * (float64(i) + float64(lineRandom(seed, float64(i)))*0.7) / float64(n)
+		dx, dy := float32(math.Cos(angle)), float32(math.Sin(angle))
+		// From the word's edge, each at its own speed.
+		edge := r.W/2*0.7*abs32(dx) + r.H/2*0.7*abs32(dy)
+		head := edge + reach*(0.55+0.45*lineRandom(seed, float64(i)+50))*out
+		tail := max(edge, head-reach*0.3*(1-t))
+		p.Line(cx+dx*tail, cy+dy*tail, cx+dx*head, cy+dy*head, 0.8+1.6*(1-t), color.Alpha(0.9*fade))
+	}
 }
 
 func abs32(v float32) float32 { return max(v, -v) }

@@ -123,6 +123,10 @@ func (a *app) stage(c *ui.Context, tr *music.Track, accent ui.Color) {
 		})
 		return
 	}
+	if a.settings.StageStyle == "vinyl" {
+		a.vinylStage(c, box, tr, lines)
+		return
+	}
 	pos := pl.Position()
 	cur := lyrics.Index(lines, pos)
 	if pl.Playing() {

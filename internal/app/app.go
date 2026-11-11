@@ -186,6 +186,8 @@ type app struct {
 	barScrub              scrubState
 	npScrub               scrubState
 	backdropCache         backdropCache // the backdrop of Now Playing, as last painted
+	deck                  deck          // the deck of the stage's Vinyl, as last painted
+	vinyl                 *vinylSet     // the lyrics playing, as Vinyl sets them
 	npArt                 *artwork      // the cover whose colors Now Playing shows
 	npCoverState          coverState    // the cover of Now Playing, as it is tilted and flicked
 	wallState             wallState     // the wall of the queue's covers, as it is dragged
