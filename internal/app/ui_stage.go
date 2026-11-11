@@ -98,11 +98,22 @@ func (a *app) stage(c *ui.Context, tr *music.Track, accent ui.Color) {
 	f := min(64, max(36, w*0.045))
 	box := ui.Box(c.Key("stage")).Grow(1)
 	a.npRise(box, 1)
-	if len(lines) == 0 && !loaded && a.settings.StageStyle == "vinyl" {
-		// Vinyl's record goes on turning while a song's lyrics are on
-		// their way, with no lines yet: what the stage shows for a song is
-		// decided once they have come.
-		a.vinylStage(c, box, tr, nil, accent)
+	// Vinyl's deck is there whatever a song's lyrics are, and through the
+	// change from a song to the next: while the lyrics are on their way
+	// the record turns with no lines yet, and a song without lyrics, or
+	// with lyrics without times, shows beside the deck what the other
+	// styles show alone.
+	vinyl := a.settings.StageStyle == "vinyl"
+	if len(lines) == 0 && vinyl {
+		var beside func(left float32)
+		if loaded {
+			beside = func(left float32) {
+				ui.Column(c).Absolute().Top(0).Left(left).Right(0).Bottom(0).Center().Children(func() {
+					ui.Text(c, T("No lyrics. Enjoy the music.")).FontSize(28).FontWeight(800).TextColor(white.Alpha(0.4)).TextAlign(ui.Center)
+				})
+			}
+		}
+		a.vinylStage(c, box, tr, nil, accent, beside)
 		return
 	}
 	if len(lines) == 0 {
@@ -121,17 +132,22 @@ func (a *app) stage(c *ui.Context, tr *music.Track, accent ui.Color) {
 		// Lyrics without times have no line to set on the stage as it's
 		// sung: they're there to read, in a column in its middle.
 		a.lyricsOf(tr.ID)
-		box.Children(func() {
-			ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).AlignItems(ui.Center).Padding(npTabsHeight+16, 48, 0, 48).Children(func() {
-				ui.Column(c).Width(min(w-96, 760)).Grow(1).Basis(0).MinHeight(0).Children(func() {
+		column := func(left float32) {
+			ui.Column(c).Absolute().Top(0).Left(left).Right(0).Bottom(0).AlignItems(ui.Center).Padding(npTabsHeight+16, 48, 0, 48).Children(func() {
+				ui.Column(c).Width(min(w-left-96, 760)).Grow(1).Basis(0).MinHeight(0).Children(func() {
 					a.stillLines(c, lines, linesStyle{size: 28, weight: 800, lineHeight: 1.3}, 64)
 				})
 			})
-		})
+		}
+		if vinyl {
+			a.vinylStage(c, box, tr, nil, accent, column)
+			return
+		}
+		box.Children(func() { column(0) })
 		return
 	}
-	if a.settings.StageStyle == "vinyl" {
-		a.vinylStage(c, box, tr, lines, accent)
+	if vinyl {
+		a.vinylStage(c, box, tr, lines, accent, nil)
 		return
 	}
 	pos := pl.Position()

@@ -672,8 +672,9 @@ func vinylSpan(text string, size float32, lang string, c ui.Color) ui.Span {
 }
 
 // vinylStage shows lines on the wheel, in box, the stage, around the deck:
-// with none, as while a song's lyrics are on their way, the deck alone.
-func (a *app) vinylStage(c *ui.Context, box ui.Element, tr *music.Track, lines []lyrics.Line, accent ui.Color) {
+// with none, as while a song's lyrics are on their way, the deck alone, or
+// with what beside shows to the right of it, from left on.
+func (a *app) vinylStage(c *ui.Context, box ui.Element, tr *music.Track, lines []lyrics.Line, accent ui.Color, beside func(left float32)) {
 	pl := a.pl
 	w, h := box.LayoutBounds().W, box.LayoutBounds().H
 	if w == 0 || h == 0 {
@@ -728,6 +729,10 @@ func (a *app) vinylStage(c *ui.Context, box ui.Element, tr *music.Track, lines [
 	black := ui.RGB(0, 0, 0)
 	box.Children(func() {
 		deck()
+		if beside != nil {
+			beside((vinylTick + 44) * unit)
+			return
+		}
 		spokes := ui.Box(c.Key("spokes")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().
 			MaskLinearGradient(ui.LinearGradient{Angle: 180, Stops: stops(0.0, ui.Transparent, 0.04, ui.Transparent, 0.2, black, 0.9, black, 1.0, ui.Transparent)})
 		spokes.Children(func() { a.vinylSpokes(c, set, lines, w, h, unit, size, at, active, still, lang, locale) })

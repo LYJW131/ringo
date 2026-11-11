@@ -161,42 +161,89 @@ func TestVinylBuildBudget(t *testing.T) {
 	}
 }
 
-// Vinyl's record stays while a song's lyrics are on their way, and the
-// lines come onto the wheel as they arrive. The stage showed its skeleton
-// until they came, without the deck: going to the next song, the record
-// went and came back.
-func TestVinylKeepsItsRecordAsLyricsLoad(t *testing.T) {
-	a := newTestApp()
-	ch := posts(a)
+// vinylChange is an app playing a song on the stage, in Vinyl, held two
+// seconds in, with its lyrics. change plays another, whose lyrics are next,
+// nil for none, and come once release is closed.
+func vinylChange(t *testing.T, next []music.LyricLine) (a *app, tt *ui.Tester, ch chan func(), change func(), release chan struct{}) {
+	t.Helper()
+	a = newTestApp()
+	ch = posts(a)
 	a.pl = player.New(a.post)
 	a.pl.Source = a.src
 	a.pl.More = a.autoplay
-	fake(a).lyrics = func(string) (*music.Lyrics, error) {
-		return &music.Lyrics{Lines: []music.LyricLine{{Start: 1000, End: 3000, Text: "hello world"}, {Start: 4000, End: 6000, Text: "the next line"}}}, nil
+	release = make(chan struct{})
+	fake(a).lyrics = func(id string) (*music.Lyrics, error) {
+		if id != "8" {
+			return &music.Lyrics{Lines: []music.LyricLine{{Start: 1000, End: 3000, Text: "hello world"}, {Start: 4000, End: 6000, Text: "the next line"}}}, nil
+		}
+		<-release
+		if next == nil {
+			return nil, nil
+		}
+		return &music.Lyrics{Lines: next}, nil
 	}
-	a.pl.PlayQueue([]music.Track{song("7", "宝船")}, 0, music.Origin{})
-	if _, loaded := a.pl.Lyrics(); loaded {
-		t.Fatal("the lyrics came at once")
+	first, second := coveredSong(a), song("8", "Southern Cross", "Solveig")
+	second.Album = first.Album
+	a.pl.PlayQueue([]music.Track{first}, 0, music.Origin{})
+	until(t, ch, func() bool { _, loaded := a.pl.Lyrics(); return loaded })
+	change = func() {
+		a.pl.PlayQueue([]music.Track{second}, 0, music.Origin{})
+		a.pl.Hold(0)
 	}
+	a.pl.Hold(2 * time.Second)
 	a.nowPlaying, a.npPane = true, paneStage
 	a.settings.StageStyle = "vinyl"
-	tt := ui.NewTester(a.view, 1200, 800)
+	tt = ui.NewTester(a.view, 1180, 780)
+	tt.SetDark(true)
 	tt.Frame()
-	if a.deck.clock.at.IsZero() {
-		t.Error("no deck is painted while the lyrics are on their way")
-	}
-	until(t, ch, func() bool { _, loaded := a.pl.Lyrics(); return loaded })
-	tt.Frame()
-	if a.vinyl == nil || len(a.vinyl.lines) != 2 {
-		t.Errorf("the lyrics came, and the wheel has %+v", a.vinyl)
+	tt.Advance(time.Second) // Now Playing slides into place
+	return a, tt, ch, change, release
+}
+
+// Vinyl's deck is painted in every frame through the change from a song
+// to the next: while the next one's lyrics are on their way, and once they
+// have come, with times, without, or not at all. The stage showed its
+// skeleton until they came, and a song without timed lyrics its text
+// alone, each without the deck: going to the next song, the record, the
+// tonearm and the ring went and came back.
+func TestVinylDeckStaysThroughASongChange(t *testing.T) {
+	timed := []music.LyricLine{{Start: 1000, End: 3000, Text: "another line"}, {Start: 4000, End: 6000, Text: "and one more"}}
+	untimed := []music.LyricLine{{Text: "another line"}, {Text: "and one more"}}
+	for name, next := range map[string][]music.LyricLine{"with times": timed, "without times": untimed, "not at all": nil} {
+		a, tt, ch, change, release := vinylChange(t, next)
+		// The deck's ring is painted with the rest of it.
+		painted := func(when string) {
+			t.Helper()
+			for i := range 30 {
+				before := a.deck.levels.last
+				tt.Advance(time.Second / 60)
+				if !a.deck.levels.last.After(before) {
+					t.Fatalf("lyrics %s: %s, the deck isn't painted in frame %d", name, when, i)
+				}
+			}
+		}
+		painted("in the first song")
+		change()
+		if _, loaded := a.pl.Lyrics(); loaded {
+			t.Fatalf("lyrics %s: they came at once", name)
+		}
+		tt.Frame()
+		painted("as the next song's lyrics are on their way")
+		close(release)
+		until(t, ch, func() bool { _, loaded := a.pl.Lyrics(); return loaded })
+		tt.Frame()
+		painted("once the next song's lyrics have come")
+		if next != nil && len(next[0].Text) > 0 && next[1].Start > 0 && (a.vinyl == nil || len(a.vinyl.lines) != 2) {
+			t.Errorf("lyrics %s: the wheel has %+v", name, a.vinyl)
+		}
 	}
 }
 
 // With MM_FRAMES set, saves the stage's Vinyl as a line is sung and gives
 // way to the next, a frame every 30th of a second, in Japanese and in
 // Chinese, and one of each with the record as a GPU draws it; each of the
-// pressings; and a song in English as its chorus comes in and its last
-// word is held.
+// pressings; the change from a song to the next; and a song in English as
+// its chorus comes in and its last word is held.
 func TestVinylFrames(t *testing.T) {
 	dir := framesDir(t)
 	step := time.Second / 30
@@ -230,6 +277,28 @@ func TestVinylFrames(t *testing.T) {
 		saveFrame(t, dir, fmt.Sprintf("vinyl-pressing-%02d.png", i), tt.Image())
 	}
 	vinylMarbleOnCPU, vinylPressed = false, -1
+
+	// Through the change to the next song, whose lyrics come half a
+	// second after it starts.
+	{
+		a, tt, ch, change, release := vinylChange(t, []music.LyricLine{{Start: 1000, End: 3000, Text: "another line"}, {Start: 4000, End: 6000, Text: "and one more"}})
+		n := 0
+		frames := func(count int) {
+			for range count {
+				tt.Advance(step)
+				saveFrame(t, dir, fmt.Sprintf("vinyl-change-%02d.png", n), tt.Image())
+				n++
+			}
+		}
+		frames(6)
+		change()
+		tt.Frame()
+		frames(15)
+		close(release)
+		until(t, ch, func() bool { _, loaded := a.pl.Lyrics(); return loaded })
+		tt.Frame()
+		frames(15)
+	}
 
 	lines := vinylSong()
 	a = newTestApp()
