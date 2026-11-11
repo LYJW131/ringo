@@ -47,6 +47,10 @@ type Player struct {
 	Autoplay func() bool
 	// Cache keeps the songs played, if set.
 	Cache *Cache
+	// Heard, if set, is told what the source is told of what plays, after
+	// it, whether or not the source records it: for telemetry of the
+	// listener's own, which Apple's settings don't stop.
+	Heard func(music.PlayEvent)
 	// Changed, if set, hears that what plays, where it is or whether it
 	// plays changed.
 	Changed func()
@@ -106,6 +110,9 @@ type Player struct {
 	// that it stopped: so that what stops is told once, and what never
 	// started isn't told of.
 	told bool
+	// sourceTold is told for the source alone, which StopTelling ends while
+	// Heard hears on.
+	sourceTold bool
 
 	ahead *ahead // the next track's audio, asked for before its turn
 }
@@ -879,6 +886,11 @@ func (p *Player) recorder() music.Recorder {
 	return rec
 }
 
+// telling says someone wants to know what's played, and a track plays.
+func (p *Player) telling() bool {
+	return p.track != nil && (p.recorder() != nil || p.Heard != nil)
+}
+
 // mode is how the player is set to play.
 func (p *Player) mode() music.Mode {
 	return music.Mode{Shuffle: p.shuffle, Repeat: p.repeat, Autoplay: p.Autoplay != nil && p.Autoplay()}
@@ -887,17 +899,29 @@ func (p *Player) mode() music.Mode {
 // tell tells the source of the current track what happens to it, with where
 // in it that is, as the player has it and not by the clock.
 func (p *Player) tell(ev music.PlayEvent) {
-	rec := p.recorder()
-	if rec == nil {
+	if !p.telling() {
 		return
 	}
 	ev.Track, ev.Mode = *p.track, p.mode()
-	rec.Played(ev)
+	if rec := p.recorder(); rec != nil {
+		if ev.Action == music.Started || ev.Action == music.Resumed {
+			p.sourceTold = true
+		}
+		if p.sourceTold {
+			rec.Played(ev)
+		}
+		if ev.Action == music.Stopped {
+			p.sourceTold = false
+		}
+	}
+	if p.Heard != nil {
+		p.Heard(ev)
+	}
 }
 
 // started tells the source the current track plays, from pos.
 func (p *Player) started(action music.PlayAction, pos time.Duration) {
-	if p.track == nil || !p.playing || p.recorder() == nil {
+	if p.track == nil || !p.playing || !p.telling() {
 		return
 	}
 	p.told = true
@@ -919,7 +943,19 @@ func (p *Player) Exit() { p.stopped(music.StopQuit) }
 
 // StopTelling tells the source what plays is done with, though it plays on,
 // and tells it no more of it: for a listener who turns their history off.
-func (p *Player) StopTelling() { p.stopped(music.StopOther) }
+// Heard is not told: it goes on hearing of the song, whose source drops
+// what it hears from now on.
+func (p *Player) StopTelling() {
+	rec := p.recorder()
+	if !p.sourceTold || rec == nil {
+		return
+	}
+	p.sourceTold = false
+	if p.Heard == nil {
+		p.told = false
+	}
+	rec.Played(music.PlayEvent{Action: music.Stopped, Track: *p.track, Position: p.Position(), Why: music.StopOther, Mode: p.mode()})
+}
 
 // loadSkipping loads the track at order[at], to play or not, from from,
 // skipping those that cannot play the way dir goes: skipped of them so far.

@@ -217,3 +217,27 @@ func TestSourceToldOfRepeatAndFailures(t *testing.T) {
 	p.Exit()
 	told(t, src)
 }
+
+// Heard hears what the source does, and goes on hearing of the song once the
+// listener turns their history off and the source hears no more of it.
+func TestHeardOutlastsTheSource(t *testing.T) {
+	p, ch, src, q := listenedQueue(t, "a")
+	heard := &listener{}
+	p.Heard = heard.Played
+	p.PlayQueue(q, 0, music.Origin{})
+	settle(t, ch, p)
+	told(t, src, [3]any{music.Started, nil, "a"})
+	told(t, heard, [3]any{music.Started, nil, "a"})
+
+	p.StopTelling()
+	told(t, src, [3]any{music.Stopped, music.StopOther, "a"})
+	told(t, heard)
+
+	p.TogglePlay()
+	run(t, ch)
+	told(t, src)
+	told(t, heard, [3]any{music.Stopped, music.StopPaused, "a"})
+	p.Exit()
+	told(t, src)
+	told(t, heard)
+}

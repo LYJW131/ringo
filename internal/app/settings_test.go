@@ -176,3 +176,24 @@ func TestSettingsFoundControlWorks(t *testing.T) {
 		t.Error("the switch did nothing")
 	}
 }
+
+// With MM_FRAMES set, saves the settings' Advanced page with an OTLP endpoint
+// and headers filled in, light and dark, and in Chinese.
+func TestTelemetrySettingsFrames(t *testing.T) {
+	dir := framesDir(t)
+	shot := func(name string, dark bool) {
+		a := newTestApp()
+		a.settings.TelemetryEndpoint = "http://127.0.0.1:4318"
+		a.settings.TelemetryHeaders = "Authorization=Bearer not-a-real-token"
+		a.settingsPage = "advanced"
+		tt := ui.NewTester(a.settingsView, 780, 1200)
+		tt.SetDark(dark)
+		settled(tt)
+		saveFrame(t, dir, name, tt.Image())
+	}
+	shot("telemetry-light.png", false)
+	shot("telemetry-dark.png", true)
+	defer i18n.SetLanguage(i18n.English)
+	i18n.SetLanguage(i18n.Chinese)
+	shot("telemetry-zh-dark.png", true)
+}

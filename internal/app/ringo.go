@@ -214,11 +214,17 @@ func (a *app) accountCard(c *ui.Context, p palette) {
 // the field the width of the card, and what it's for. A token or a key is
 // hidden as it's typed. It's kept as it's submitted, or as the focus leaves it.
 func (a *app) textSetting(c *ui.Context, p palette, block settingsBlock, key, label, desc string, secret bool) {
+	lib := a.library
+	a.typedSetting(c, p, block, key, label, desc, secret, func() string { return lib.src.Setting(key) }, func(v string) { a.keepSetting(key, v) })
+}
+
+// typedSetting is textSetting of a setting that get reads and keep keeps,
+// wherever it lives.
+func (a *app) typedSetting(c *ui.Context, p palette, block settingsBlock, key, label, desc string, secret bool, get func() string, keep func(string)) {
 	block(label+" "+desc, func() {
-		lib := a.library
 		text := a.settingText[key]
 		if text == nil {
-			v := lib.src.Setting(key)
+			v := get()
 			text = &v
 			a.settingText[key] = text
 		}
@@ -228,8 +234,8 @@ func (a *app) textSetting(c *ui.Context, p palette, block settingsBlock, key, la
 			if secret {
 				in.Password()
 			}
-			if in.Submitted() || !in.Focused() && *text != lib.src.Setting(key) {
-				a.keepSetting(key, *text)
+			if in.Submitted() || !in.Focused() && *text != get() {
+				keep(*text)
 			}
 			ui.Text(c, desc).FontSize(12).TextColor(p.muted).LineHeight(1.4)
 		})

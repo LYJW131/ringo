@@ -587,6 +587,11 @@ func (a *app) settingsPages(c *ui.Context, p palette) []settingsPage {
 				a.clearCache()
 			}
 		})
+	}}, settingsGroup{T("OpenTelemetry"), func(row settingsRow, block settingsBlock) {
+		a.typedSetting(c, p, block, "telemetry-endpoint", T("OTLP Endpoint"), T("Each song you play is sent to this OpenTelemetry collector as it starts, pauses, ends or jumps, as log events over OTLP/HTTP, such as http://127.0.0.1:4318. Empty sends nothing."), false,
+			func() string { return a.settings.TelemetryEndpoint }, func(v string) { a.keepTelemetry(v, a.settings.TelemetryHeaders) })
+		a.typedSetting(c, p, block, "telemetry-headers", T("OTLP Headers"), T("Headers sent with each request, as key=value separated by commas, such as Authorization=Bearer and your token."), true,
+			func() string { return a.settings.TelemetryHeaders }, func(v string) { a.keepTelemetry(a.settings.TelemetryEndpoint, v) })
 	}}, settingsGroup{T("Experimental Features"), func(row settingsRow, block settingsBlock) {
 		row(T("Smoke on the Progress Bar"), T("The progress bar turns into a light trailing smoke, moving with the music. Uses a little more power."), func() {
 			if ui.Switch(c.Key("smoke"), &s.Smoke).Label(T("Smoke on the Progress Bar")).Changed() {

@@ -83,6 +83,12 @@ type settings struct {
 	// CacheMB is how many megabytes the songs kept on disk may take; 0
 	// keeps none.
 	CacheMB int `json:"cacheMB"`
+	// TelemetryEndpoint is the OpenTelemetry collector that what plays is
+	// sent to, over OTLP/HTTP (telemetry.go); empty sends nothing.
+	TelemetryEndpoint string `json:"telemetryEndpoint,omitempty"`
+	// TelemetryHeaders go with each request to it, "k1=v1,k2=v2": a key
+	// may be among them, which is why the file is the user's alone.
+	TelemetryHeaders string `json:"telemetryHeaders,omitempty"`
 	// SearchHistory keeps submitted keywords, most recent first.
 	SearchHistory []string `json:"searchHistory,omitempty"`
 

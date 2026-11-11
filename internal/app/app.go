@@ -14,6 +14,7 @@ import (
 	"ringo/internal/i18n"
 	"ringo/internal/music"
 	"ringo/internal/player"
+	"ringo/internal/telemetry"
 )
 
 type pageKind int
@@ -45,6 +46,7 @@ type app struct {
 	tray  *mygo.Tray // the icon in the menu bar or notification area, while it shows
 	art   *artCache
 	pl    *player.Player
+	plays *telemetry.Plays // what plays, sent to the listener's own collector
 	pal   palette
 
 	// library is what the app has of its one source, Apple Music, embedded:
@@ -317,6 +319,7 @@ func Run() error {
 		a.pl.Cache = newSongCache(a.settings.CacheMB)
 		a.pl.Changed = a.keepSession
 		a.pl.More = a.autoplay
+		a.startTelemetry()
 		a.volume = a.settings.Volume
 		a.pl.SetVolume(a.volume)
 		a.win = mygo.NewWindow(mygo.WindowOptions{
@@ -384,6 +387,7 @@ func Run() error {
 		// The end of what plays is sent before the app is, if Apple is quick.
 		a.pl.Exit()
 		a.flushSource(sendAtQuit)
+		a.plays.Flush(sendAtQuit)
 	})
 	// Windows leaves an icon in the notification area after its app until
 	// the pointer passes over it.
