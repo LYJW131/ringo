@@ -194,7 +194,14 @@ func (a *app) shelfRow(c *ui.Context, secs []music.Section, r browseRow) {
 	case rowTrack:
 		a.trackRow(c, sec.Tracks, r.from, true, "")
 	case rowEmpty:
-		ui.Column(c).Margin(0, 12, cardRowGap, 12).Children(func() { a.empty(c, sec.Empty) })
+		ui.Column(c).Margin(0, 12, cardRowGap, 12).Children(func() {
+			if len(secs) == 1 && a.route.page == pageBrowse {
+				// All a page of the library has: in the middle of it.
+				a.empty(c, glyphNote, sec.Empty, browseHead)
+				return
+			}
+			ui.Text(c, sec.Empty).FontSize(13).TextColor(a.pal.muted).Padding(40, 0).AlignSelf(ui.Center)
+		})
 	default:
 		a.cardRow(c, sec, r, a.columns(c, 156))
 	}

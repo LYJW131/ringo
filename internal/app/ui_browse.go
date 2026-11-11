@@ -142,7 +142,7 @@ func (a *app) browseView(c *ui.Context, id string) {
 			ui.Box(c).PaddingX(12).Children(func() { a.browseHeader(c, &music.Browse{}, id) })
 			switch {
 			case failed:
-				a.failure(ui.Column(c).Padding(60, 12, 0, 12), c, d.err, func() { a.loadBrowse(id, true) })
+				a.failure(ui.Column(c).Padding(a.vacantUnder(c, browseHead), 12, 40, 12), c, d.err, func() { a.loadBrowse(id, true) })
 			case strings.HasPrefix(id, "library:"):
 				a.librarySkeleton(c, a.pageShimmer(c), id)
 			default:
@@ -153,6 +153,10 @@ func (a *app) browseView(c *ui.Context, id string) {
 	}
 	a.browseRows(c, d.page, id, func(c *ui.Context) { a.browseHeader(c, d.page, id) }, d)
 }
+
+// browseHead is about how high the title heading a page of the source's is,
+// with the room under it.
+const browseHead = 60
 
 // pageTitles are what the app calls the pages it opens of the source's
 // itself, for those the source leaves untitled.
@@ -427,13 +431,11 @@ func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, heade
 				}
 				if strings.HasPrefix(pageID, music.PageSearch) {
 					// A search that found nothing says so, as Apple Music's.
-					ui.Column(c).Gap(6).Padding(60, 0, 0, 0).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, T("No Results")).FontSize(20).FontWeight(700).LetterSpacing(-0.3)
-						ui.Text(c, T("Try a new search.")).FontSize(13).TextColor(a.pal.muted)
-					})
+					a.vacant(c, glyphSearch, T("No Results"), T("Try a new search."), nil).
+						Padding(a.vacantUnder(c, 0), 0, 40, 0).AlignSelf(ui.Center)
 					return
 				}
-				a.empty(c, T("No items"))
+				a.empty(c, glyphNote, T("No items"), browseHead)
 			})
 			return
 		}

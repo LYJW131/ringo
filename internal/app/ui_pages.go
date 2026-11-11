@@ -91,20 +91,16 @@ func (a *app) emptyHome(c *ui.Context) {
 	p := a.pal
 	lib := a.library
 	top, bottom := a.insets(c)
-	ui.Column(c.Key("empty-home")).Grow(1).Padding(top, 40, bottom, 40).Center().Gap(10).Children(func() {
-		ui.Box(c).Size(72, 72).Radius(20).Center().Background(p.hover).Margin(0, 0, 8, 0).Children(func() {
-			ui.Icon(c, iconNote).Size(32, 32).TextColor(p.muted)
-		})
-		switch {
-		case lib.signedOut():
-			ui.Text(c, Tf("Sign in to %s", lib.name())).FontSize(22).FontWeight(700).LetterSpacing(-0.3)
-			if pillButton(c.Key("sign-in"), iconUser, T("Sign In"), p.accent, p.onAccent).Margin(10, 0, 0, 0).Clicked() {
+	ui.Column(c.Key("empty-home")).Grow(1).Padding(top, 40, bottom, 40).Center().Children(func() {
+		if !lib.signedOut() {
+			a.vacant(c, glyphNote, T("Nothing here yet"), T("Search for something to play."), nil)
+			return
+		}
+		a.vacant(c, glyphNote, Tf("Sign in to %s", lib.name()), "", func() {
+			if pillButton(c.Key("sign-in"), iconUser, T("Sign In"), p.accent, p.onAccent).Clicked() {
 				a.promptSignIn()
 			}
-		default:
-			ui.Text(c, T("Nothing here yet")).FontSize(22).FontWeight(700).LetterSpacing(-0.3)
-			ui.Text(c, T("Search for something to play.")).FontSize(13.5).TextColor(p.muted)
-		}
+		})
 	})
 }
 
@@ -298,7 +294,7 @@ func (a *app) playlistPage(c *ui.Context) {
 			a.playlistColumns(c)
 		case i < 2+songs:
 			if len(pl.Tracks) == 0 {
-				a.empty(c, T("Empty Playlist"))
+				a.empty(c, glyphNote, T("Empty Playlist"), detailCover+90)
 				return
 			}
 			a.playlistRow(c, pl.Tracks, i-2, pl.ID)
@@ -511,7 +507,7 @@ func (a *app) likedPage(c *ui.Context) {
 		after = append(after, func(c *ui.Context) {
 			a.pageFoot(c, &lib.likedPaged, func() { a.loadLikedPage() })
 			if len(lib.likedList) == 0 {
-				a.empty(c, T("Songs you favorite will show here"))
+				a.empty(c, glyphStar, T("Songs you favorite will show here"), detailCover+60)
 			}
 		})
 	}

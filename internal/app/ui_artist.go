@@ -383,7 +383,7 @@ func (a *app) artistLists(c *ui.Context, d *artistData) {
 			header(c)
 			a.albumGrid(c, d.page.Albums)
 			if len(d.page.Albums) == 0 {
-				a.empty(c, T("No albums"))
+				a.empty(c, glyphAlbums, T("No albums"), 280)
 			}
 		})
 		return
@@ -402,11 +402,6 @@ func (a *app) scrollPage(c *ui.Context, content func()) {
 		defer a.endMark(c)
 		content()
 	})
-}
-
-// empty says a list has nothing in it.
-func (a *app) empty(c *ui.Context, msg string) {
-	ui.Text(c, msg).FontSize(13).TextColor(a.pal.muted).Padding(40, 0).AlignSelf(ui.Center)
 }
 
 // artistPhotoSize is the width of an artist's round photo on their page.

@@ -474,11 +474,10 @@ func (a *app) centered(c *ui.Context, err string, retry func()) {
 // failure fills col with what centered shows: the message, and the buttons
 // that may put it right.
 func (a *app) failure(col ui.Element, c *ui.Context, err string, retry func()) {
-	col.Gap(12).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, err).TextColor(a.pal.muted).FontSize(13).TextAlign(ui.Center).MaxWidth(520)
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+	col.AlignItems(ui.Center).Children(func() {
+		a.vacant(c, glyphAlert, "", err, func() {
 			a.remedy(c)
-			if retry != nil && ui.Button(c.Key("retry"), T("Try Again")).Clicked() {
+			if retry != nil && a.quietPill(c.Key("retry"), nil, T("Try Again")).Clicked() {
 				retry()
 			}
 		})
@@ -497,7 +496,7 @@ func (a *app) remedy(c *ui.Context) {
 			a.promptSignIn()
 		}
 	case lib.needsSetup:
-		if ui.PrimaryButton(c.Key("setup"), T("Open Settings")).Clicked() {
+		if pillButton(c.Key("setup"), iconSettings, T("Open Settings"), p.accent, p.onAccent).Clicked() {
 			a.openAccountSettings()
 		}
 	}
