@@ -8,11 +8,18 @@ import (
 	"ringo/internal/audio"
 )
 
-// How long pausing and resuming fade the music out and in.
+// How long pausing and resuming fade the music out and in, where the pause
+// is heard after what the output holds ahead; and how long playing again
+// fades in after a pause the output took at once, which is heard at once.
 const (
-	fadeOut = 180 * time.Millisecond
-	fadeIn  = 260 * time.Millisecond
+	fadeOut      = 180 * time.Millisecond
+	fadeIn       = 260 * time.Millisecond
+	fadeInAtOnce = 60 * time.Millisecond
 )
+
+// pauseAtOnce pauses out where it is heard, if the output can. Tests
+// replace it: whether it can is the machine's they run on.
+var pauseAtOnce = (*audio.Player).PauseAtOnce
 
 // fader sets the volume of the player playing: the listener's volume and
 // the track's normalizing gain, times a level that fades as playback

@@ -56,6 +56,45 @@ func next(t *testing.T, ch chan func()) {
 	}
 }
 
+// The tests pause as an output that can't stop at once does, whatever the
+// machine's can, but for the one of an output that can.
+func init() { pauseAtOnce = func(*audio.Player) bool { return false } }
+
+// Where the output stops at once, pausing asks it to and fades nothing out,
+// and playing again fades in for no longer than keeps it from a click:
+// before, a pause was heard after what the output held ahead and a fade,
+// and playing again after as much.
+func TestPausesAtOnceWhereTheOutputCan(t *testing.T) {
+	asked := 0
+	pauseAtOnce = func(out *audio.Player) bool {
+		asked++
+		out.Pause()
+		return true
+	}
+	defer func() { pauseAtOnce = func(*audio.Player) bool { return false } }()
+	ch, p := posted()
+	defer p.out.Close()
+	p.TogglePlay()
+	if asked != 1 || p.Playing() || p.out.Playing() || !p.fade.silent() {
+		t.Fatalf("asked the output %d times; playing %v, the output %v, silent %v", asked, p.Playing(), p.out.Playing(), p.fade.silent())
+	}
+	select {
+	case <-ch:
+		t.Error("something left to do once it faded out")
+	default:
+	}
+	p.TogglePlay()
+	if !p.Playing() || !p.out.Playing() {
+		t.Fatal("did not play again")
+	}
+	p.fade.mu.Lock()
+	dur := p.fade.dur
+	p.fade.mu.Unlock()
+	if dur != fadeInAtOnce {
+		t.Errorf("fades in over %v, want %v", dur, fadeInAtOnce)
+	}
+}
+
 // Pausing fades out before the music stops; playing again fades it in.
 func TestPauseFades(t *testing.T) {
 	ch, p := posted()

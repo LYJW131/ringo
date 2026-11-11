@@ -115,6 +115,10 @@ type Player struct {
 	sourceTold bool
 
 	ahead *ahead // the next track's audio, asked for before its turn
+
+	// atOnce is the pause having been heard as it was asked for
+	// (audio.Player.PauseAtOnce), so that playing again is too.
+	atOnce bool
 }
 
 func New(post func(func())) *Player {
@@ -696,6 +700,15 @@ func (p *Player) TogglePlay() {
 	if p.playing {
 		p.playing = false
 		p.stopped(music.StopPaused)
+		// Where the output can stop at once, the pause is heard as it's
+		// asked for, and nothing is left to fade out: otherwise it would
+		// be heard only after what the output holds ahead, and the fade
+		// after that.
+		if p.atOnce = !p.seeking && pauseAtOnce(out); p.atOnce {
+			p.fade.attach(out, 0)
+			p.sync()
+			return
+		}
 		p.fade.fade(0, fadeOut, func() {
 			p.post(func() {
 				if p.out == out && !p.playing {
@@ -718,7 +731,13 @@ func (p *Player) TogglePlay() {
 		out.Play()
 	}
 	p.started(action, p.Position())
-	p.fade.fade(1, fadeIn, nil)
+	// After a pause heard at once, what plays is heard at once too: it
+	// only needs not to start with a click.
+	in := fadeIn
+	if p.atOnce {
+		p.atOnce, in = false, fadeInAtOnce
+	}
+	p.fade.fade(1, in, nil)
 	p.sync()
 }
 
@@ -859,7 +878,7 @@ func (p *Player) stop() {
 		time.AfterFunc(100*time.Millisecond, out.Close)
 	}
 	p.out, p.stream, p.watch, p.info = nil, nil, nil, nil
-	p.seeking = false
+	p.seeking, p.atOnce = false, false
 	p.fade.attach(nil, 1)
 }
 
