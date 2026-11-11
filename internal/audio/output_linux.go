@@ -175,3 +175,6 @@ func (d *alsaDevice) write(samples []float32) error {
 }
 
 func (d *alsaDevice) close() { sndPcmClose(d.pcm) }
+
+// restoreDeviceRate does nothing: only macOS sets the device's rate.
+func restoreDeviceRate() {}

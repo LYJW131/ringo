@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 	"unsafe"
 
@@ -96,6 +97,7 @@ func openDevice(ahead time.Duration, rate int) (device, int, error) {
 	if err := loadAudioToolbox(); err != nil {
 		return nil, 0, err
 	}
+	setDeviceRate(rate)
 	desc := audioStreamBasicDescription{
 		sampleRate:       float64(rate),
 		formatID:         kAudioFormatLinearPCM,
@@ -153,4 +155,142 @@ func (d *aqDevice) close() {
 	aqCurrent.CompareAndSwap(d, nil)
 	audioQueueStop(d.q, true)
 	audioQueueDispose(d.q, true)
+}
+
+// The system's output device's rate, through Core Audio (devicerate.go).
+
+type audioObjectPropertyAddress struct {
+	selector, scope, element uint32
+}
+
+const (
+	kAudioObjectSystemObject                        = 1
+	kAudioObjectPropertyScopeGlobal                 = 0x676C6F62 // 'glob'
+	kAudioHardwarePropertyDefaultOutputDevice       = 0x644F7574 // 'dOut'
+	kAudioDevicePropertyNominalSampleRate           = 0x6E737274 // 'nsrt'
+	kAudioDevicePropertyAvailableNominalSampleRates = 0x6E737223 // 'nsr#'
+)
+
+var (
+	caLoad sync.Once
+	caErr  error
+
+	audioObjectGetPropertyDataSize func(id uint32, addr *audioObjectPropertyAddress, qualSize uint32, qual uintptr, size *uint32) int32
+	audioObjectGetPropertyData     func(id uint32, addr *audioObjectPropertyAddress, qualSize uint32, qual uintptr, size *uint32, data unsafe.Pointer) int32
+	audioObjectSetPropertyData     func(id uint32, addr *audioObjectPropertyAddress, qualSize uint32, qual uintptr, size uint32, data unsafe.Pointer) int32
+
+	// The devices the output set the rate of: the rate each had, and the
+	// one it set, under ratesMu.
+	ratesMu  sync.Mutex
+	hadRate  = map[uint32]float64{}
+	gaveRate = map[uint32]float64{}
+)
+
+func loadCoreAudio() error {
+	caLoad.Do(func() {
+		lib, err := purego.Dlopen("/System/Library/Frameworks/CoreAudio.framework/CoreAudio", purego.RTLD_LAZY|purego.RTLD_GLOBAL)
+		if err != nil {
+			caErr = err
+			return
+		}
+		purego.RegisterLibFunc(&audioObjectGetPropertyDataSize, lib, "AudioObjectGetPropertyDataSize")
+		purego.RegisterLibFunc(&audioObjectGetPropertyData, lib, "AudioObjectGetPropertyData")
+		purego.RegisterLibFunc(&audioObjectSetPropertyData, lib, "AudioObjectSetPropertyData")
+	})
+	return caErr
+}
+
+func globalAddress(selector uint32) *audioObjectPropertyAddress {
+	return &audioObjectPropertyAddress{selector, kAudioObjectPropertyScopeGlobal, 0}
+}
+
+// defaultOutput returns the system's output device, or 0.
+func defaultOutput() uint32 {
+	var id uint32
+	size := uint32(unsafe.Sizeof(id))
+	if audioObjectGetPropertyData(kAudioObjectSystemObject, globalAddress(kAudioHardwarePropertyDefaultOutputDevice), 0, 0, &size, unsafe.Pointer(&id)) != 0 {
+		return 0
+	}
+	return id
+}
+
+// nominalRate returns the device's rate, or 0.
+func nominalRate(dev uint32) float64 {
+	var rate float64
+	size := uint32(unsafe.Sizeof(rate))
+	if audioObjectGetPropertyData(dev, globalAddress(kAudioDevicePropertyNominalSampleRate), 0, 0, &size, unsafe.Pointer(&rate)) != 0 {
+		return 0
+	}
+	return rate
+}
+
+// availableRates returns the ranges of rates the device takes.
+func availableRates(dev uint32) [][2]float64 {
+	addr := globalAddress(kAudioDevicePropertyAvailableNominalSampleRates)
+	var size uint32
+	if audioObjectGetPropertyDataSize(dev, addr, 0, 0, &size) != 0 || size < 16 {
+		return nil
+	}
+	ranges := make([][2]float64, size/16)
+	if audioObjectGetPropertyData(dev, addr, 0, 0, &size, unsafe.Pointer(&ranges[0])) != 0 {
+		return nil
+	}
+	return ranges[:size/16]
+}
+
+// setNominalRate sets the device's rate and waits, a second at most, for it
+// to run at it, as Core Audio changes it after it returns.
+func setNominalRate(dev uint32, rate float64) bool {
+	if audioObjectSetPropertyData(dev, globalAddress(kAudioDevicePropertyNominalSampleRate), 0, 0, uint32(unsafe.Sizeof(rate)), unsafe.Pointer(&rate)) != 0 {
+		return false
+	}
+	for start := time.Now(); nominalRate(dev) != rate; time.Sleep(10 * time.Millisecond) {
+		if time.Since(start) > time.Second {
+			return false
+		}
+	}
+	return true
+}
+
+// setDeviceRate sets the system's output device to the rate for music at
+// rate, where it takes it. It never keeps the music from playing: a device
+// that can't is left as it is, and the queue's rate converted.
+func setDeviceRate(rate int) {
+	// Tests that play leave the machine they run on as it is.
+	if testing.Testing() || loadCoreAudio() != nil {
+		return
+	}
+	dev := defaultOutput()
+	if dev == 0 {
+		return
+	}
+	now := nominalRate(dev)
+	want := float64(deviceRate(rate, availableRates(dev)))
+	if want == 0 || now == 0 || now == want {
+		return
+	}
+	ratesMu.Lock()
+	defer ratesMu.Unlock()
+	if _, ok := hadRate[dev]; !ok {
+		hadRate[dev] = now
+	}
+	if setNominalRate(dev, want) {
+		gaveRate[dev] = want
+	}
+}
+
+func restoreDeviceRate() {
+	if loadCoreAudio() != nil {
+		return
+	}
+	ratesMu.Lock()
+	defer ratesMu.Unlock()
+	for dev, had := range hadRate {
+		// A rate the listener set meanwhile is theirs.
+		if gave, ok := gaveRate[dev]; ok && nominalRate(dev) == gave {
+			setNominalRate(dev, had)
+		}
+		delete(hadRate, dev)
+		delete(gaveRate, dev)
+	}
 }

@@ -21,7 +21,8 @@ type device interface {
 const idleClose = 5 * time.Second
 
 var (
-	openOutput = openDevice // tests replace it
+	openOutput    = openDevice // tests replace them
+	restoreDevice = restoreDeviceRate
 
 	wake     = make(chan struct{}, 1)
 	runOnce  sync.Once
@@ -99,7 +100,7 @@ func run() {
 			setHeld(int64(lat.ahead()) * int64(rate) / int64(time.Second))
 		}
 		buf := make([]float32, n*channels)
-		idle := time.Duration(0)
+		idle, idled := time.Duration(0), false
 		per := frames(int64(n), rate)
 		for {
 			busy, why := mixFor(buf, lat, rate)
@@ -123,12 +124,21 @@ func run() {
 			if busy {
 				idle = 0
 			} else if idle += per; idle >= idleClose {
+				idled = true
 				break
 			}
 		}
 		dev.close()
+		if idled {
+			restoreDevice()
+		}
 	}
 }
+
+// RestoreDevice puts the system's output device back at the rate it had
+// before the output set it to the music's (devicerate.go), as the app
+// quits. Only macOS sets it.
+func RestoreDevice() { restoreDevice() }
 
 var errUnsupported = errors.New("audio: no audio output on this platform")
 

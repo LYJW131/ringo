@@ -938,8 +938,13 @@ func (p *Player) stopped(why music.StopReason) {
 	p.tell(music.PlayEvent{Action: music.Stopped, Position: p.Position(), Why: why})
 }
 
-// Exit tells the source what plays that the app is closing, before it does.
-func (p *Player) Exit() { p.stopped(music.StopQuit) }
+// Exit tells the source what plays that the app is closing, before it does,
+// and puts the system's output device back at the rate it had before the
+// music set it to its own.
+func (p *Player) Exit() {
+	p.stopped(music.StopQuit)
+	audio.RestoreDevice()
+}
 
 // StopTelling tells the source what plays is done with, though it plays on,
 // and tells it no more of it: for a listener who turns their history off.

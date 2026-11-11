@@ -130,3 +130,75 @@ func (d *loggedDevice) waitWrites(t *testing.T, n int) {
 		}
 	}
 }
+
+// A device is set to the music's rate where it takes it, or else to the
+// rate that converts to with the least loss.
+func TestDeviceRate(t *testing.T) {
+	builtIn := [][2]float64{{44100, 44100}, {48000, 48000}, {88200, 88200}, {96000, 96000}}
+	upTo48 := [][2]float64{{44100, 44100}, {48000, 48000}}
+	ranged := [][2]float64{{8000, 192000}}
+	for _, c := range []struct {
+		want   int
+		ranges [][2]float64
+		got    int
+	}{
+		{96000, builtIn, 96000},
+		{44100, builtIn, 44100},
+		{192000, builtIn, 96000},
+		{176400, builtIn, 88200},
+		{88200, upTo48, 44100},
+		{96000, upTo48, 48000},
+		{22050, upTo48, 44100},
+		{352800, ranged, 176400},
+		{100000, upTo48, 48000},
+		{96000, nil, 0},
+	} {
+		if got := deviceRate(c.want, c.ranges); got != c.got {
+			t.Errorf("deviceRate(%d, %v) = %d, want %d", c.want, c.ranges, got, c.got)
+		}
+	}
+}
+
+// The device's rate is put back once the output closes for being idle,
+// and not when it opens again at another rate.
+func TestRestoresTheDeviceWhenIdle(t *testing.T) {
+	setup(t)
+	restored := make(chan struct{}, 8)
+	restoreDevice = func() { restored <- struct{}{} }
+	defer func() { restoreDevice = restoreDeviceRate }()
+	closed, opened := make(chan struct{}, 8), make(chan int, 8)
+	openOutput = func(ahead time.Duration, rate int) (device, int, error) {
+		opened <- rate
+		return closingDevice{closed}, nullFrames(rate), nil
+	}
+	defer func() { openOutput = openDevice }()
+	mu.Lock()
+	testMode = false
+	mu.Unlock()
+	defer func() {
+		mu.Lock()
+		testMode = true
+		mu.Unlock()
+	}()
+	a := NewSound(defaultRate, 1, make([]float32, defaultRate)).NewPlayer().SetLoop(true)
+	a.Play()
+	waitFor(t, "the output to open", opened)
+	b := NewSound(96000, 1, make([]float32, 96000)).NewPlayer().SetLoop(true)
+	b.Play()
+	waitFor(t, "the output to close for another rate", closed)
+	waitFor(t, "the output to open again", opened)
+	select {
+	case <-restored:
+		t.Fatal("restored the device for another rate")
+	default:
+	}
+	a.Close()
+	b.Close()
+	waitFor(t, "the device to be restored", restored)
+}
+
+// A closingDevice takes writes at once, and says when it closes.
+type closingDevice struct{ closed chan struct{} }
+
+func (closingDevice) write([]float32) error { return nil }
+func (d closingDevice) close()              { d.closed <- struct{}{} }

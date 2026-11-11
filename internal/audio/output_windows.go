@@ -252,3 +252,6 @@ func (d *wasapiDevice) close() {
 		d.event = 0
 	}
 }
+
+// restoreDeviceRate does nothing: only macOS sets the device's rate.
+func restoreDeviceRate() {}
