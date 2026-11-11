@@ -2,6 +2,26 @@
 
 All notable changes to Ringo are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.2.0]
+
+### Added
+
+- How a line of lyrics is said, under it as Music sets it, or its translation: chosen from Now Playing or in the settings.
+- Up Next: drag a song to where it should play, take one out from its menu, and clear what's up next with a button under the queue. AutoPlay is a slip of glass under it.
+- A cover's music loads while the pointer rests on it, and its play button spins until the song starts.
+- What plays can be sent to an OpenTelemetry collector of your own: set an OTLP endpoint and headers under Advanced, and each start, pause, end and jump goes there as a log event over OTLP/HTTP, as Apple hears of it.
+
+### Changed
+
+- AutoPlay starts off, and is turned on from the queue or the settings; settings already saved keep what they say.
+- Now Playing's controls sit on one grid, some of them on glass, and its badge of how a song sounds is lettered faintly in gold.
+- The lyrics fade out toward the top and the foot of their pane, and a song's first lines are sung where the rest are.
+
+### Fixed
+
+- A song in Traditional Chinese shows once, in Simplified for a listener who reads it, rather than every line twice.
+- The line sung comes back into place as the lyrics' pane changes height.
+
 ## [0.1.0]
 
 The first version: Apple Music in a desktop app of its own, drawn by MyGo's native UI, for macOS, Windows and Linux.
@@ -21,4 +41,5 @@ The first version: Apple Music in a desktop app of its own, drawn by MyGo's nati
 - Listening history reported as Apple's web player reports it, which Recently Played follows; it can be turned off.
 - English and Simplified Chinese, in Apple Music's own words.
 
+[0.2.0]: https://github.com/LYJW131/ringo/releases/tag/v0.2.0
 [0.1.0]: https://github.com/LYJW131/ringo/releases/tag/v0.1.0
