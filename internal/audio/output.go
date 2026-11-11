@@ -92,9 +92,16 @@ func run() {
 		for !active() {
 			<-wake
 		}
+		// rate is what the music asks for, opened what the device runs at:
+		// one that won't run at the music's rate plays it resampled, at
+		// the rate it ran at before.
 		lat, rate := outputLatency(), outputRate()
 		opened := rate
 		dev, n, err := openOutput(lat.ahead(), rate)
+		if err != nil && err != errUnsupported && rate != defaultRate {
+			opened = defaultRate
+			dev, n, err = openOutput(lat.ahead(), opened)
+		}
 		setRate(opened)
 		seen := currentDevice()
 		if err != nil {

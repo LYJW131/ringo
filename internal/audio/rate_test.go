@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"errors"
 	"math"
 	"sync"
 	"testing"
@@ -202,6 +203,49 @@ type closingDevice struct{ closed chan struct{} }
 
 func (closingDevice) write([]float32) error { return nil }
 func (d closingDevice) close()              { d.closed <- struct{}{} }
+
+// A device that won't run at the music's rate plays it resampled, at the
+// rate the output ran at before, rather than unheard, and isn't asked again
+// with each write.
+func TestFallsBackToTheRateBefore(t *testing.T) {
+	setup(t)
+	opened := make(chan int, 64)
+	openOutput = func(ahead time.Duration, rate int) (device, int, error) {
+		opened <- rate
+		if rate != defaultRate {
+			return nil, 0, errors.New("rate refused")
+		}
+		return &loggedDevice{}, nullFrames(rate), nil
+	}
+	defer func() { openOutput = openDevice }()
+	mu.Lock()
+	testMode = false
+	mu.Unlock()
+	defer func() {
+		mu.Lock()
+		testMode = true
+		mu.Unlock()
+	}()
+	p := NewSound(96000, 1, make([]float32, 96000)).NewPlayer().SetLoop(true)
+	p.Play()
+	defer p.Close()
+	if got := waitFor(t, "the output to open", opened); got != 96000 {
+		t.Fatalf("asked for %d first, want 96000", got)
+	}
+	if got := waitFor(t, "the output to open at the rate before", opened); got != defaultRate {
+		t.Fatalf("asked for %d then, want %d", got, defaultRate)
+	}
+	for start := time.Now(); time.Since(start) < 50*time.Millisecond; time.Sleep(time.Millisecond) {
+		select {
+		case r := <-opened:
+			t.Fatalf("opened again at %d while it plays", r)
+		default:
+		}
+	}
+	if Err() != nil {
+		t.Errorf("Err = %v", Err())
+	}
+}
 
 // The output opens again when the system's output device changes, so that
 // the new one is set to the music's rate too.
