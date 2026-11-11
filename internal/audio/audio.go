@@ -318,8 +318,10 @@ func (p *Player) Play() {
 		v.fadeIn = !v.snap
 		v.active = true
 		voices = append(voices, v)
-		wakeOutput()
 	}
+	// Also for one still among the voices: the output may be waiting,
+	// holding nothing, for a player to play (PauseAtOnce).
+	wakeOutput()
 }
 
 // Pause pauses the player where it is.
@@ -327,6 +329,29 @@ func (p *Player) Pause() {
 	mu.Lock()
 	defer mu.Unlock()
 	p.v.playing = false
+}
+
+// PauseAtOnce pauses the player where it is heard, within a few tens of
+// milliseconds, where Pause pauses it where it is mixed, which is heard
+// only after what the output holds ahead (SetLatency): the output fades
+// out and drops what it holds, and every player goes back to where it was
+// heard, so that playing again goes on from there, at once. It reports
+// whether the output can, and pauses nothing if it can't: with no device
+// open, or one that can't drop what it holds, as all but macOS's.
+func (p *Player) PauseAtOnce() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	v := p.v
+	if v.closed || !v.playing || !v.active || !flushes || testMode {
+		return false
+	}
+	v.playing = false
+	flushAsked = true
+	select {
+	case wake <- struct{}{}:
+	default:
+	}
+	return true
 }
 
 // Stop pauses the player and moves it to the start.

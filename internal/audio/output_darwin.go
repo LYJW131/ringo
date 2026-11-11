@@ -51,6 +51,9 @@ var (
 	audioQueueEnqueueBuffer  func(q uintptr, b *audioQueueBuffer, n uint32, descs uintptr) int32
 	audioQueueStart          func(q uintptr, at uintptr) int32
 	audioQueueStop           func(q uintptr, immediate bool) int32
+	audioQueuePause          func(q uintptr) int32
+	audioQueueReset          func(q uintptr) int32
+	audioQueueSetParameter   func(q uintptr, param uint32, value float32) int32
 	audioQueueDispose        func(q uintptr, immediate bool) int32
 
 	// aqCallback is created once; queues route buffers back to the device
@@ -71,6 +74,9 @@ func loadAudioToolbox() error {
 		purego.RegisterLibFunc(&audioQueueEnqueueBuffer, lib, "AudioQueueEnqueueBuffer")
 		purego.RegisterLibFunc(&audioQueueStart, lib, "AudioQueueStart")
 		purego.RegisterLibFunc(&audioQueueStop, lib, "AudioQueueStop")
+		purego.RegisterLibFunc(&audioQueuePause, lib, "AudioQueuePause")
+		purego.RegisterLibFunc(&audioQueueReset, lib, "AudioQueueReset")
+		purego.RegisterLibFunc(&audioQueueSetParameter, lib, "AudioQueueSetParameter")
 		purego.RegisterLibFunc(&audioQueueDispose, lib, "AudioQueueDispose")
 		// The queue's own thread calls it when it is done with a buffer.
 		aqCallback = purego.NewCallback(func(user, q uintptr, b *audioQueueBuffer) {
@@ -148,6 +154,35 @@ func (d *aqDevice) write(samples []float32) error {
 			d.started = true
 		}
 	}
+	return nil
+}
+
+// flushRamp is how long the queue takes to fade out before it stops at
+// once: long enough not to click, short enough to feel like a button.
+const flushRamp = 30 * time.Millisecond
+
+const (
+	kAudioQueueParamVolume         = 1
+	kAudioQueueParamVolumeRampTime = 4
+)
+
+// flush fades the queue out, pauses it and takes back the buffers it held:
+// it starts again, at its volume, once write has filled them.
+func (d *aqDevice) flush() error {
+	if d.started {
+		audioQueueSetParameter(d.q, kAudioQueueParamVolumeRampTime, float32(flushRamp.Seconds()))
+		audioQueueSetParameter(d.q, kAudioQueueParamVolume, 0)
+		time.Sleep(flushRamp)
+		if st := audioQueuePause(d.q); st != 0 {
+			return fmt.Errorf("audio: AudioQueuePause failed (OSStatus %d)", st)
+		}
+	}
+	if st := audioQueueReset(d.q); st != 0 {
+		return fmt.Errorf("audio: AudioQueueReset failed (OSStatus %d)", st)
+	}
+	audioQueueSetParameter(d.q, kAudioQueueParamVolumeRampTime, 0)
+	audioQueueSetParameter(d.q, kAudioQueueParamVolume, 1)
+	d.started, d.queued = false, 0
 	return nil
 }
 

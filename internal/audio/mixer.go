@@ -42,6 +42,38 @@ func setRate(rate int) {
 	}
 }
 
+// rewindHeard takes every voice back to where it was heard, as the device
+// dropped what it held of them: those playing go on from there, fading in,
+// and those that play no more leave the voices there, with nothing of them
+// left to fade out, so that the output has nothing to stay open or open
+// again for. Under no lock.
+func rewindHeard() {
+	mu.Lock()
+	defer mu.Unlock()
+	n := 0
+	for _, v := range voices {
+		if !v.closed {
+			f := int64(v.position(v.heardAt()))
+			v.src.seek(f)
+			v.reset(f)
+		}
+		if v.playing && !v.closed {
+			v.snap, v.fadeIn = false, true
+			voices[n] = v
+			n++
+			continue
+		}
+		v.gain, v.target, v.rampLeft = [4]float32{}, [4]float32{}, 0
+		v.active = false
+		if v.orphan {
+			v.close()
+		}
+	}
+	clear(voices[n:])
+	voices = voices[:n]
+	unheard = 0
+}
+
 // setHeld tells the mixer that a device opened which holds n frames ahead
 // of what is heard, and none of what was mixed before.
 func setHeld(n int64) {

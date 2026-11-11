@@ -17,6 +17,13 @@ type device interface {
 	close()
 }
 
+// A flusher is a device that can stop at once: flush fades out what it
+// plays over a few tens of milliseconds and drops what it holds, and what
+// is written next is heard as soon as it is written. Only macOS's can.
+type flusher interface {
+	flush() error
+}
+
 // idleClose is how long the output stays open with nothing playing.
 const idleClose = 5 * time.Second
 
@@ -28,6 +35,8 @@ var (
 	openOutput    = openDevice // tests replace them
 	restoreDevice = restoreDeviceRate
 	currentDevice = outputDevice
+	// parkFor is the clock a device holding nothing waits by.
+	parkFor = func(d time.Duration) <-chan time.Time { return time.After(d) }
 
 	wake     = make(chan struct{}, 1)
 	runOnce  sync.Once
@@ -81,6 +90,47 @@ func mixFor(buf []float32, lat Latency, rate, gen int) (busy bool, why reopen) {
 	return mixLocked(buf), mixing
 }
 
+// The device open, under mu: whether it can stop at once (flusher), and
+// whether a player asked it to (PauseAtOnce).
+var (
+	flushes    bool
+	flushAsked bool
+)
+
+// setFlushes tells the mixer whether the device open can stop at once.
+func setFlushes(can bool) {
+	mu.Lock()
+	defer mu.Unlock()
+	flushes, flushAsked = can, false
+}
+
+// takeFlush reports whether a player asked the device to stop at once,
+// once for each time one did.
+func takeFlush() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	asked := flushAsked
+	flushAsked = false
+	return asked
+}
+
+// parkedFor says what a device holding nothing does next, open at latency
+// lat and rate the gen-th time: wait, while no player plays, or open
+// again, as mixFor would have it; else it mixes on.
+func parkedFor(lat Latency, rate, gen int) (wait, reopen bool) {
+	mu.Lock()
+	defer mu.Unlock()
+	if testMode || latency != lat || reopens != gen {
+		return false, true
+	}
+	for _, v := range voices {
+		if v.playing && !v.closed {
+			return false, false
+		}
+	}
+	return true, false
+}
+
 // outputRate returns the rate for the output to open at, and how many
 // times it was told to open again.
 func outputRate() (rate, gen int) {
@@ -122,14 +172,52 @@ func run() {
 		buf := make([]float32, n*channels)
 		idle, idled, checked := time.Duration(0), false, time.Duration(0)
 		per := frames(int64(n), opened)
+		f, _ := dev.(flusher)
+		setFlushes(f != nil && err == nil)
+		// parked is the device holding nothing, after it stopped at once:
+		// it is written no silence, so that what plays next is heard as
+		// soon as it's mixed, not behind what the device holds ahead.
+		// empty is its holding nothing still, until it is written to.
+		parked, empty := false, false
 		for {
+			if takeFlush() && f != nil {
+				if f.flush() != nil {
+					break
+				}
+				rewindHeard()
+				parked, empty = true, true
+			}
+			if parked {
+				// Until something plays, or the device has been idle
+				// for as long as it stays open.
+				if wait, reopen := parkedFor(lat, rate, gen); reopen {
+					break
+				} else if wait {
+					start := time.Now()
+					select {
+					case <-wake:
+					case <-parkFor(idleClose - idle):
+						idle = idleClose
+					}
+					if idle += time.Since(start); idle >= idleClose {
+						idled = true
+						break
+					}
+					if currentDevice() != seen {
+						break
+					}
+					continue
+				}
+				parked = false
+			}
 			busy, why := mixFor(buf, lat, rate, gen)
 			if why == rateChanged {
 				// What the device holds of the song before, and its fading
 				// out if it was stopped for this one, is heard before the
 				// device closes, which would drop it. One silent for as
-				// long as it holds has nothing left to wait for.
-				for left := lat.ahead() - idle; left > 0; left -= per {
+				// long as it holds, or holding nothing, has nothing left
+				// to wait for.
+				for left := lat.ahead() - idle; left > 0 && !empty; left -= per {
 					mixFadingOut(buf)
 					if dev.write(buf) != nil {
 						break
@@ -143,6 +231,7 @@ func run() {
 				// Lost, or a null device trying the real one again.
 				break
 			}
+			empty = false
 			if busy {
 				idle = 0
 			} else if idle += per; idle >= idleClose {
@@ -156,6 +245,7 @@ func run() {
 				}
 			}
 		}
+		setFlushes(false)
 		dev.close()
 		if idled {
 			restoreDevice()
