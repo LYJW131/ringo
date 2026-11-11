@@ -20,9 +20,14 @@ type device interface {
 // idleClose is how long the output stays open with nothing playing.
 const idleClose = 5 * time.Second
 
+// deviceCheck is how often the output looks for the system's output device
+// changing, to open again on the new one and set it to the music's rate.
+const deviceCheck = time.Second
+
 var (
 	openOutput    = openDevice // tests replace them
 	restoreDevice = restoreDeviceRate
+	currentDevice = outputDevice
 
 	wake     = make(chan struct{}, 1)
 	runOnce  sync.Once
@@ -88,20 +93,22 @@ func run() {
 			<-wake
 		}
 		lat, rate := outputLatency(), outputRate()
+		opened := rate
 		dev, n, err := openOutput(lat.ahead(), rate)
-		setRate(rate)
+		setRate(opened)
+		seen := currentDevice()
 		if err != nil {
 			setErr(err)
-			dev, n = newNullDevice(err != errUnsupported, rate), nullFrames(rate)
+			dev, n = newNullDevice(err != errUnsupported, opened), nullFrames(opened)
 			// It holds nothing: what it takes is heard as it takes it.
 			setHeld(0)
 		} else {
 			setErr(nil)
-			setHeld(int64(lat.ahead()) * int64(rate) / int64(time.Second))
+			setHeld(int64(lat.ahead()) * int64(opened) / int64(time.Second))
 		}
 		buf := make([]float32, n*channels)
-		idle, idled := time.Duration(0), false
-		per := frames(int64(n), rate)
+		idle, idled, checked := time.Duration(0), false, time.Duration(0)
+		per := frames(int64(n), opened)
 		for {
 			busy, why := mixFor(buf, lat, rate)
 			if why == rateChanged {
@@ -126,6 +133,12 @@ func run() {
 			} else if idle += per; idle >= idleClose {
 				idled = true
 				break
+			}
+			if checked += per; checked >= deviceCheck {
+				checked = 0
+				if currentDevice() != seen {
+					break
+				}
 			}
 		}
 		dev.close()

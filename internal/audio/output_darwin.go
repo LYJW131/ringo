@@ -279,6 +279,15 @@ func setDeviceRate(rate int) {
 	}
 }
 
+// outputDevice returns the system's output device, which the Audio Queue
+// follows, or 0.
+func outputDevice() uint32 {
+	if loadCoreAudio() != nil {
+		return 0
+	}
+	return defaultOutput()
+}
+
 func restoreDeviceRate() {
 	if loadCoreAudio() != nil {
 		return

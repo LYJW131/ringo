@@ -202,3 +202,41 @@ type closingDevice struct{ closed chan struct{} }
 
 func (closingDevice) write([]float32) error { return nil }
 func (d closingDevice) close()              { d.closed <- struct{}{} }
+
+// The output opens again when the system's output device changes, so that
+// the new one is set to the music's rate too.
+func TestOpensAgainOnANewDevice(t *testing.T) {
+	setup(t)
+	var devMu sync.Mutex
+	dev := uint32(1)
+	currentDevice = func() uint32 {
+		devMu.Lock()
+		defer devMu.Unlock()
+		return dev
+	}
+	defer func() { currentDevice = outputDevice }()
+	opened := make(chan int, 8)
+	openOutput = func(ahead time.Duration, rate int) (device, int, error) {
+		opened <- rate
+		return &loggedDevice{}, nullFrames(rate), nil
+	}
+	defer func() { openOutput = openDevice }()
+	mu.Lock()
+	testMode = false
+	mu.Unlock()
+	defer func() {
+		mu.Lock()
+		testMode = true
+		mu.Unlock()
+	}()
+	p := NewSound(96000, 1, make([]float32, 96000)).NewPlayer().SetLoop(true)
+	p.Play()
+	defer p.Close()
+	waitFor(t, "the output to open", opened)
+	devMu.Lock()
+	dev = 2
+	devMu.Unlock()
+	if got := waitFor(t, "the output to open on the new device", opened); got != 96000 {
+		t.Errorf("opened again at %d, want 96000", got)
+	}
+}
