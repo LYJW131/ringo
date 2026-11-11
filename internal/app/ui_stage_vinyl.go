@@ -714,13 +714,16 @@ func (a *app) vinylStage(c *ui.Context, box ui.Element, tr *music.Track, lines [
 	dur := pl.Duration()
 	press := pressingFor(accent, tr)
 	// The deck is an element of its own, painted in every frame the record
-	// turns in, which paint nothing else but the line sung.
+	// turns in, which paint nothing else but the line sung: every frame
+	// the display shows. At sixty a second on a display that shows twice as
+	// many, a record this large turned in steps one could see, and went
+	// from one pace to the other each time the wheel turned a line on.
 	deck := func() {
 		ui.Box(c.Key("deck")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Draw(func(p *ui.Painter, r ui.Rect) {
 			pos := a.vinylPos(p.Now())
 			a.paintDeck(p, r, unit, tr, press, pos, dur, pl.Playing(), set.motionAt(pos).deck)
 			if pl.Playing() && !still {
-				p.AnimationFrameRate(60)
+				p.AnimationFrame()
 			}
 		})
 	}
@@ -788,7 +791,7 @@ func (a *app) paintVinylLine(p *ui.Painter, r ui.Rect, set *vinylSet, l *vinylLi
 	if look.level {
 		m = set.motionAt(pos)
 		if a.pl.Playing() && !look.still {
-			p.AnimationFrameRate(60)
+			p.AnimationFrame()
 		}
 	}
 	cx, cy := r.X, r.Y+r.H/2
