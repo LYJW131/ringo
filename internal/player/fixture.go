@@ -3,7 +3,7 @@ package player
 import (
 	"time"
 
-	"github.com/egoist/mygo/audio"
+	"ringo/internal/audio"
 
 	"ringo/internal/lyrics"
 	"ringo/internal/music"

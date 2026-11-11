@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/egoist/mygo/audio"
+	"ringo/internal/audio"
 )
 
 // How long pausing and resuming fade the music out and in.

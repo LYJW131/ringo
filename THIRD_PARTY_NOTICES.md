@@ -31,6 +31,7 @@ file can be replaced by one built from a changed FFmpeg, and the app rebuilt wit
 | --- | --- | --- |
 | [Temari](https://github.com/WorldObservationLog/Temari) v0.5.1 | MIT | `internal/applemusic/fairplay` is a translation of it to Go, by way of [apple-music-downloader](https://github.com/AMDL-Web/apple-music-downloader); its test vector is Temari's (`internal/applemusic/fairplay/doc.go`). |
 | [apple-music-downloader](https://github.com/AMDL-Web/apple-music-downloader) | as that project states | How lossless songs are asked of a [wrapper](https://github.com/WorldObservationLog/wrapper) follows it. |
+| [MyGo](https://github.com/egoist/mygo)'s package `audio` | MIT | `internal/audio` is a copy of it, changed so that its output follows the music's own sample rate. |
 
 ## Go modules built into the app
 

@@ -6,9 +6,9 @@ import (
 	"math"
 	"sync"
 
-	"github.com/egoist/mygo/audio"
 	_ "github.com/egoist/mygo/audio/aac" // AAC in MP4
 	"github.com/egoist/mygo/audio/mp4"
+	"ringo/internal/audio"
 
 	_ "ringo/internal/heaac" // HE-AAC in MP4, High Efficiency's
 )
@@ -93,7 +93,9 @@ func openDecoded(dl *download, open func(io.ReadSeeker) (audio.Decoder, error)) 
 // openMP4Stream opens an .m4a, of ALAC or AAC, HE-AAC among it. One cut
 // into fragments, as a stream for DASH is, plays as its fragments come, its
 // length from its index.
-func openMP4Stream(dl *download) (*decodedStream, error) { return openDecoded(dl, mp4.NewDecoder) }
+func openMP4Stream(dl *download) (*decodedStream, error) {
+	return openDecoded(dl, func(r io.ReadSeeker) (audio.Decoder, error) { return mp4.NewDecoder(r) })
+}
 
 func (s *decodedStream) Read(dst []float32) (int, error) {
 	n, err := s.Decoder.Read(dst)

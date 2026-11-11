@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/egoist/mygo/audio"
+	"ringo/internal/audio"
 
 	"ringo/internal/music"
 )

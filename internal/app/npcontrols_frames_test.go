@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/egoist/mygo/audio"
 	"github.com/egoist/mygo/ui"
+	"ringo/internal/audio"
 
 	"ringo/internal/i18n"
 	"ringo/internal/music"
