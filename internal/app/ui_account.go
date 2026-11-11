@@ -415,7 +415,7 @@ func (a *app) accountRow(c *ui.Context) {
 	}
 	acc := lib.account
 	b.Label(acc.Name).Expanded(a.accountOpen).Children(func() {
-		a.avatar(c, acc.ImageURL, 26, p.press)
+		a.choiceAvatar(c, p, a.accountChoice(acc), 26, true)
 		ui.Text(c, acc.Name).FontSize(13).FontWeight(600).SingleLine().Grow(1).Shrink(1).MinWidth(0)
 		ui.Icon(c, iconUpDown).Size(13, 13).TextColor(p.faint)
 	})
@@ -423,6 +423,19 @@ func (a *app) accountRow(c *ui.Context) {
 		a.accountOpen = !a.accountOpen
 	}
 	a.accountMenu(c, b)
+}
+
+// accountChoice is acc as the accounts to switch to list it, which know
+// where it is: an account without a picture shows that in its place, as it
+// does in the menu, not an empty circle. Not listed, it is a figure.
+func (a *app) accountChoice(acc *music.Account) music.AccountChoice {
+	for _, ch := range a.library.choices {
+		if ch.Current || ch.ID == acc.ID {
+			ch.ImageURL = acc.ImageURL
+			return ch
+		}
+	}
+	return music.AccountChoice{ID: acc.ID, Name: acc.Name, ImageURL: acc.ImageURL}
 }
 
 // accountMenu drops up from the account row, as wide as it, in the colors
