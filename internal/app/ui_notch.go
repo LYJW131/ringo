@@ -386,6 +386,9 @@ func (n *notch) view(c *ui.Context) {
 			}
 		})
 	})
+	// Its covers are asked about as the main window's are, which may not
+	// be built meanwhile.
+	a.askMoves()
 	a.syncWindows()
 }
 
@@ -402,7 +405,10 @@ func (n *notch) compact(c *ui.Context, tr *music.Track, shown float32) {
 		if in < 1 {
 			cov.Background(white.Alpha(0.12))
 		}
-		cov.Children(func() { artImage(c, bitmap(art), s*0.28, in) })
+		cov.Children(func() {
+			artImage(c, bitmap(art), s*0.28, in)
+			n.a.motionOver(c, cov, songMoving(tr), s, s, motionThumb, s*0.28)
+		})
 		ui.Spacer(c)
 		n.levels(c, tr, 16, s*0.7, 4)
 	})
@@ -444,7 +450,10 @@ func (n *notch) expanded(c *ui.Context, tr *music.Track, open, left float32) {
 			if in < 1 {
 				cov.Background(white.Alpha(0.12))
 			}
-			cov.Children(func() { artImage(c, bitmap(art), 12, in) })
+			cov.Children(func() {
+				artImage(c, bitmap(art), 12, in)
+				a.motionOver(c, cov, songMoving(tr), 60, 60, motionThumb, 12)
+			})
 			if cov.Clicked() {
 				a.nowPlaying = true
 				a.showMain()

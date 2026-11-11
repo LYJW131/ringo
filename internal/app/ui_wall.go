@@ -152,7 +152,10 @@ func (a *app) wallSong(c *ui.Context, tr *music.Track, art *artwork, top, h floa
 			if in < 1 {
 				cov.Background(white.Alpha(0.08))
 			}
-			cov.Children(func() { artImage(c, bitmap(art), radius, in) })
+			cov.Children(func() {
+				artImage(c, bitmap(art), radius, in)
+				a.motionOver(c, cov, songMoving(tr), size, size, stageMotion(), radius)
+			})
 		})
 		a.npRise(ui.Column(c).Width(440).Shrink(1).MinWidth(0).Gap(4), 1).Children(func() {
 			if r := a.station(); r != "" {
@@ -352,7 +355,7 @@ func (a *app) wallTile(c *ui.Context, tr *music.Track, i int, x float32, playing
 		tile.Shadow(0, 14, 30, -8, ui.RGBA(0, 0, 0, 0.6))
 	}
 	tile.Children(func() {
-		a.cover(c, tr.Album.ImageURL, 240, wallTile, 12)
+		a.cover(c, tr.Album.ImageURL, songMoving(tr), 240, wallTile, 12)
 		if hovered {
 			// Its name and artists over a shade along its foot, on the
 			// cover, so that they move with it.

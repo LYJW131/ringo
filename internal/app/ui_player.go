@@ -444,7 +444,7 @@ func (a *app) playerBar(c *ui.Context) {
 				mini.Children(func() {
 					// Another song's cover fades in over the last one's.
 					songIn(c, ui.Box(c.Key(tr.ID)).Absolute().Top(0).Left(0), true).Children(func() {
-						a.cover(c, tr.Album.ImageURL, 120, 48, npFromRadius).Shadow(0, 2, 8, 0, p.cardShade)
+						a.cover(c, tr.Album.ImageURL, songMoving(tr), 120, 48, npFromRadius).Shadow(0, 2, 8, 0, p.cardShade)
 					})
 					// The shade and its arrow fade in under the pointer, and out.
 					fade := float32(1)

@@ -119,13 +119,12 @@ func chroma(c ui.Color) float64 {
 // editors' words, notes, and the buttons that play it, with what extra adds
 // at their end. extra is told whether the row is short of room for Add to
 // Library in words, which then goes to its icon alone, as Apple Music's does.
-func (a *app) detailHeader(c *ui.Context, cover, video string, lines func(), notes string, tracks []music.Track, extra func(compact bool)) {
+func (a *app) detailHeader(c *ui.Context, cover string, mv moving, lines func(), notes string, tracks []music.Track, extra func(compact bool)) {
 	p := a.pal
 	ui.Row(c).Gap(30).AlignItems(ui.End).Margin(0, 12, 28, 12).Children(func() {
 		box := ui.Box(c).Size(detailCover, detailCover).Radius(8).Shrink(0).Shadow(0, 14, 34, -10, p.cardShade).Border(0.5, p.hairline)
 		box.Children(func() {
-			a.coverFill(c, cover, 600, 8)
-			a.motionOver(c, box, video, detailCover, detailCover, motionHead, 8)
+			a.coverFill(c, cover, mv, 600, 8)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(2).Children(func() {
 			lines()

@@ -33,6 +33,7 @@ func (a *app) askLikes() {
 		lib.wantLikes = nil
 	}
 	a.askInLibrary()
+	a.askMoves()
 }
 
 // askLiked asks a source about tracks, which show not liked until it answers.

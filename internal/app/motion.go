@@ -14,26 +14,42 @@ import (
 )
 
 // Animated Art: the covers Apple Music has moving, played without sound and
-// over and over where their still shows, as Apple's apps play them: an
-// album's or a playlist's at the head of its page, an artist's across the
-// head of theirs, and Home's picks on their cards three to four. The still
-// shows first, and the video fades in over it once it has a frame.
+// over and over wherever their still shows: an album's or a playlist's on
+// its page, its cards and in the sidebar, a song's album's in Now Playing,
+// the player bar, the queue and the rows of songs, an artist's across the
+// head of their page, and Home's picks on their cards three to four. The
+// still shows first, and the video fades in over it once it has a frame.
+// Most of what the source answers doesn't say which covers move, so those
+// that show are asked about, a frame's at a time, once each (motionKnown).
 
 // motionSize is the biggest variant fetched for a place, in pixels. Past
 // these, the next sizes up took about twice the CPU to decode for no
 // difference at the size they show: a card at
 // 436×582 takes some 6% of a core, a page's head at 486² as much, an
 // artist's at 768×432 some 8%.
-type motionSize struct{ w, h int }
+// prime marks the places a cover is the most of: one of them that shows
+// takes a player from a smaller cover that shows, where all are taken.
+type motionSize struct {
+	w, h  int
+	prime bool
+}
 
 var (
-	motionCard   = motionSize{436, 582}
-	motionHead   = motionSize{486, 486}
-	motionArtist = motionSize{768, 432}
+	// motionThumb is a cover in a row, a card or a bar: the smallest that
+	// Apple makes, 360 square, is sharp enough for all of them.
+	motionThumb  = motionSize{360, 360, false}
+	motionCard   = motionSize{436, 582, false}
+	motionHead   = motionSize{486, 486, true}
+	motionArtist = motionSize{768, 432, true}
 	// motionArtistMac is an artist's head where the Mac's own decoder plays
 	// it (video.Hardware), as large as Music on the Mac plays it: there it
 	// takes almost no CPU, where FFmpeg's took half a core.
-	motionArtistMac = motionSize{1920, 1080}
+	motionArtistMac = motionSize{1920, 1080, true}
+	// motionStage is the cover of Now Playing, some 450 points across;
+	// motionStageMac, as sharp as that is on a Retina display, where the
+	// Mac's decoder plays it.
+	motionStage    = motionSize{486, 486, true}
+	motionStageMac = motionSize{960, 960, true}
 )
 
 // artistMotion is the biggest variant fetched for the head of an artist's
@@ -45,11 +61,33 @@ func artistMotion() motionSize {
 	return motionArtist
 }
 
-// motionPlayers is how many covers decode at once: five cards took 20–40%
-// of a core between them on an M4 Pro, so four keep it near a third at
-// most, and a screen of Home shows three or four cards. Others show their
-// still.
-const motionPlayers = 4
+// stageMotion is the biggest variant fetched for the cover of Now Playing
+// on this machine.
+func stageMotion() motionSize {
+	if video.Hardware() {
+		return motionStageMac
+	}
+	return motionStage
+}
+
+// motionPlayers is how many covers decode at once with FFmpeg's decoder:
+// five cards took 20–40% of a core between them on an M4 Pro, so four keep
+// it near a third at most, and a screen of Home shows three or four cards.
+// Others show their still. motionPlayersMac is as many where the Mac's own
+// decoder plays them, which takes almost no CPU: a page of songs shows a
+// dozen covers.
+const (
+	motionPlayers    = 4
+	motionPlayersMac = 12
+)
+
+// motionMost is how many covers decode at once on this machine.
+func motionMost() int {
+	if video.Hardware() {
+		return motionPlayersMac
+	}
+	return motionPlayers
+}
 
 // motionKeep is how long a cover out of sight keeps its player, to play on
 // at once as it comes back; then it lets go of it and its memory.
@@ -71,6 +109,7 @@ type motionClip struct {
 	player  *ui.VideoPlayer
 	loading bool
 	failed  bool
+	prime   bool // of a prime place (motionSize)
 	seen    time.Time
 }
 
@@ -87,6 +126,8 @@ type motionArt struct {
 	// next cover asked for.
 	later    func(time.Duration, func())
 	sweeping bool
+	// players is how many decode at once, if not motionMost: for tests.
+	players int
 }
 
 func newMotionArt(post func(func())) *motionArt {
@@ -141,14 +182,16 @@ func (a *app) motionArt() *motionArt {
 	return a.motion
 }
 
-// motionOver plays the video at url over the still that el shows, w×h,
-// its corners rounded by radius, once it has a frame, and only while el
-// shows. Nothing is fetched or decoded while covers don't move.
-func (a *app) motionOver(c *ui.Context, el ui.Element, url string, w, h float32, size motionSize, radius float32, focus ...float32) {
+// motionOver plays the cover of mv moving over the still that el shows,
+// w×h, its corners rounded by radius, once it has a frame, and only while
+// el shows. Nothing is fetched or decoded while covers don't move.
+func (a *app) motionOver(c *ui.Context, el ui.Element, mv moving, w, h float32, size motionSize, radius float32, focus ...float32) {
 	var p *ui.VideoPlayer
-	if url != "" && a.motionOn(c) {
-		// Sharp on a Retina display: twice the place, as far as size goes.
-		p = a.motionArt().player(c.Now(), url, int(w*2), int(h*2), size, el.InView())
+	if a.motionOn(c) {
+		if url := a.movingURL(mv); url != "" {
+			// Sharp on a Retina display: twice the place, as far as size goes.
+			p = a.motionArt().player(c.Now(), url, int(w*2), int(h*2), size, el.InView())
+		}
 	}
 	if p == nil {
 		el.Jump("motion", 0)
@@ -185,10 +228,10 @@ func (m *motionArt) player(now time.Time, url string, w, h int, size motionSize,
 	case cl != nil && !shows:
 		return nil
 	case cl == nil:
-		if !m.room(now) {
+		if !m.room(now, size.prime) {
 			return nil
 		}
-		cl = &motionClip{loading: true}
+		cl = &motionClip{loading: true, prime: size.prime}
 		m.clips[key] = cl
 		go func() {
 			dec, err := m.load(url, min(w, size.w), min(h, size.h), size)
@@ -220,11 +263,12 @@ func (m *motionArt) player(now time.Time, url string, w, h int, size motionSize,
 }
 
 // room makes room for another player, letting go of the one that showed
-// longest ago if as many as can decode at once have one, and none is
-// free while all of those show.
-func (m *motionArt) room(now time.Time) bool {
+// longest ago if as many as can decode at once have one. While all of
+// those show, a prime place takes the player of a smaller cover that
+// does, and another finds none free.
+func (m *motionArt) room(now time.Time, prime bool) bool {
 	busy := 0
-	var oldest string
+	var oldest, minor string
 	for key, cl := range m.clips {
 		if cl.player == nil && !cl.loading {
 			continue
@@ -233,15 +277,32 @@ func (m *motionArt) room(now time.Time) bool {
 		if now.Sub(cl.seen) >= motionStale && (oldest == "" || cl.seen.Before(m.clips[oldest].seen)) {
 			oldest = key
 		}
+		if !cl.prime && !cl.loading && (minor == "" || cl.seen.Before(m.clips[minor].seen)) {
+			minor = key
+		}
 	}
-	if busy < motionPlayers {
+	if busy < m.most() {
 		return true
 	}
-	if oldest == "" {
+	switch {
+	case oldest != "":
+		m.drop(oldest)
+	case prime && minor != "":
+		// That cover shows its still, and finds no player free until one
+		// stops showing.
+		m.drop(minor)
+	default:
 		return false
 	}
-	m.drop(oldest)
 	return true
+}
+
+// most is how many covers decode at once.
+func (m *motionArt) most() int {
+	if m.players > 0 {
+		return m.players
+	}
+	return motionMost()
 }
 
 // drop lets go of a cover's player, and of its decoder and memory.

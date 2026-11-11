@@ -734,6 +734,15 @@ func (a *app) pictureAt(c *ui.Context, it *music.Item, url string, px int, radiu
 			a.blankIcon(c, icon, 1-in)
 		}
 		artImage(c, bmp, radius, in)
+		// Its square cover moves where Apple has it so; a wide one or a
+		// tall one, which its own video plays over, doesn't.
+		if url == it.ImageURL {
+			size := motionThumb
+			if px > 400 {
+				size = motionHead
+			}
+			a.motionOver(c, box, itemMoving(it), float32(px)/2, float32(px)/2, size, radius)
+		}
 	})
 }
 
@@ -976,7 +985,7 @@ func (a *app) portraitCard(c *ui.Context, secs []music.Section, s, i int, w floa
 			}
 			if tall {
 				a.pictureAt(c, it, music.Wide(it.TallURL, 900, 1200), 900, portraitRadius)
-				a.motionOver(c, box, it.TallVideoURL, w, h, motionCard, portraitRadius)
+				a.motionOver(c, box, movingVideo(it.TallVideoURL), w, h, motionCard, portraitRadius)
 				if says {
 					// A scrim for the words, as the picture may be light
 					// at its foot.

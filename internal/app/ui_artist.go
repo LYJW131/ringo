@@ -270,7 +270,7 @@ func (a *app) artistHeader(c *ui.Context, d *artistData) {
 		ui.Column(c).AlignItems(ui.Center).Margin(32, 12, 28, 12).Children(func() {
 			ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).
 				ContextMenu(a.artistItems(*ar)).Children(func() {
-				a.coverFillWith(c, ar.ImageURL, 600, artistPhotoSize/2, iconUser)
+				a.coverFillWith(c, ar.ImageURL, moving{}, 600, artistPhotoSize/2, iconUser)
 			})
 			ui.Text(c, ar.Name).FontSize(40).FontWeight(800).LetterSpacing(-0.8).MaxLines(2).TextAlign(ui.Center).Margin(26, 0, 0, 0)
 			ui.Row(c).Gap(24).AlignItems(ui.Center).Margin(20, 0, 0, 0).Children(func() { a.artistButtons(c, d, false) })
@@ -294,7 +294,7 @@ func (a *app) artistHeader(c *ui.Context, d *artistData) {
 				ui.Image(c, bmp).Absolute().Top(0).Left(0).Right(0).Bottom(0).Fit(ui.Cover).ObjectPosition(0.5, 0.4).Opacity(in)
 			}
 		})
-		a.motionOver(c, head, ar.VideoURL, w, h, artistMotion(), 0, 0.5, 0.4)
+		a.motionOver(c, head, movingVideo(ar.VideoURL), w, h, artistMotion(), 0, 0.5, 0.4)
 		// Darker toward its foot, where their name is, and then the page.
 		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(h * 0.6).
 			LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
@@ -416,7 +416,7 @@ func (a *app) artistListsHeader(c *ui.Context, d *artistData) {
 	ar := &d.page.Artist
 	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 8, 0).Children(func() {
 		ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
-			a.coverFillWith(c, ar.ImageURL, 600, artistPhotoSize/2, iconUser)
+			a.coverFillWith(c, ar.ImageURL, moving{}, 600, artistPhotoSize/2, iconUser)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 			ui.Text(c, ar.Name).FontSize(30).FontWeight(800).LetterSpacing(-0.6).MaxLines(2).LineHeight(1.2)
@@ -495,7 +495,7 @@ func (a *app) artistBioDialog(c *ui.Context) {
 		dialogIn(c, backdrop, panel)
 		ui.Scroll(c.Key("scroll")).Grow(1).Children(func() {
 			ui.Box(c).Size(pw, pw).Shrink(0).Children(func() {
-				a.coverFillWith(c, ar.ImageURL, bioArt, 0, iconUser)
+				a.coverFillWith(c, ar.ImageURL, moving{}, bioArt, 0, iconUser)
 				ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(pw * 0.45).
 					LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
 						{Color: ground.Alpha(0), At: 0},

@@ -46,10 +46,21 @@ func TestLiveMotion(t *testing.T) {
 	// An album with one in China's catalog and the US's, whichever the
 	// account is in.
 	var square string
+	var page *music.AlbumPage
 	for _, id := range []string{"1889992111", "1440935467"} {
-		if page, err := s.Album(id); err == nil && page.Album.VideoURL != "" {
-			square = page.Album.VideoURL
+		if p, err := s.Album(id); err == nil && p.Album.VideoURL != "" {
+			square, page = p.Album.VideoURL, p
 			break
+		}
+	}
+	// What the app asks of a cover a page didn't say moves: by the album,
+	// and by one of its songs, whose album most answers leave out.
+	if page != nil && len(page.Tracks) > 0 {
+		for _, c := range []struct{ kind, id string }{{music.ItemAlbum, page.Album.ID}, {music.ItemSong, page.Tracks[0].ID}} {
+			m, err := s.Motion(c.kind, []string{c.id})
+			if err != nil || m[c.id] != square {
+				t.Errorf("Motion of a %s: %v, %d answered, same video %v", c.kind, err, len(m), m[c.id] == square)
+			}
 		}
 	}
 	for _, c := range []struct {

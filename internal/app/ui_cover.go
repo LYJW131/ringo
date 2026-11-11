@@ -243,6 +243,7 @@ func (a *app) npCover(c *ui.Context, tr *music.Track, art *artwork, size float32
 				ui.Icon(c, iconNote).Size(size*0.3, size*0.3).TextColor(white.Alpha(0.32))
 			}
 			artImage(c, bitmap(art), radius, in)
+			a.motionOver(c, box, songMoving(tr), size, size, stageMotion(), radius)
 			if shine > 0.01 {
 				ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Draw(func(p *ui.Painter, r ui.Rect) {
 					glareShader().Draw(p, r, shader.Options{Radius: radius, Uniforms: map[string]any{

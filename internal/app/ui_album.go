@@ -191,7 +191,7 @@ func (a *app) albumHeader(c *ui.Context, page *music.AlbumPage) {
 			a.traitBadges(c, al.Traits, p.muted)
 		})
 	}
-	a.detailHeader(c, al.ImageURL, al.VideoURL, lines, al.Notes, page.Tracks, func(compact bool) {
+	a.detailHeader(c, al.ImageURL, albumMoving(al), lines, al.Notes, page.Tracks, func(compact bool) {
 		a.libraryButton(c, music.ItemAlbum, al.ID, a.albumKept(al, page.Tracks), al.Favorite, compact)
 		a.moreButton(c, a.albumItems(*al))
 	})
@@ -372,7 +372,7 @@ func (a *app) albumCard(c *ui.Context, al *music.Album) {
 			art.Shadow(0, 2, 8, -2, p.cardShade)
 		}
 		art.AnimatePose(lift, ui.Snappy)
-		art.Children(func() { a.coverFill(c, al.ImageURL, 400, 10) })
+		art.Children(func() { a.coverFill(c, al.ImageURL, albumMoving(al), 400, 10) })
 		ui.Text(c, al.Name).FontSize(13).FontWeight(500).MaxLines(2).LineHeight(1.35)
 		var meta []string
 		if a.route.page != pageArtist && len(al.Artists) > 0 {

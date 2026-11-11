@@ -110,7 +110,7 @@ func (a *app) emptyHome(c *ui.Context) {
 // under the pointer, where a play button shows on it.
 func (a *app) playlistCard(c *ui.Context, pl *music.Playlist) {
 	id := pl.ID
-	if a.coverCard(c, pl.Name, pl.ImageURL, playlistLine(pl), a.playlistPlay(id)) {
+	if a.coverCard(c, pl.Name, pl.ImageURL, playlistMoving(pl), playlistLine(pl), a.playlistPlay(id)) {
 		a.open(route{page: pagePlaylist, id: id})
 	}
 }
@@ -132,13 +132,13 @@ func playlistLine(pl *music.Playlist) string {
 // coverCard is a playlist's card, or a show's or a station's: its cover over
 // its name and a line under that. The button on the cover, if there's something
 // for it to do, does play; it reports whether the rest was clicked.
-func (a *app) coverCard(c *ui.Context, name, cover, sub string, play *coverPlay) bool {
-	return a.coverCardWith(c, name, cover, iconNote, sub, play)
+func (a *app) coverCard(c *ui.Context, name, cover string, mv moving, sub string, play *coverPlay) bool {
+	return a.coverCardWith(c, name, cover, mv, iconNote, sub, play)
 }
 
 // coverCardWith is a card that shows icon if there's no cover to show, as a
 // source needn't have one.
-func (a *app) coverCardWith(c *ui.Context, name, cover string, icon *ui.SVG, sub string, play *coverPlay) bool {
+func (a *app) coverCardWith(c *ui.Context, name, cover string, mv moving, icon *ui.SVG, sub string, play *coverPlay) bool {
 	p := a.pal
 	// From the top: a grid stretches the cards of a row as tall as the
 	// tallest, whose name or line under it takes two lines.
@@ -155,7 +155,7 @@ func (a *app) coverCardWith(c *ui.Context, name, cover string, icon *ui.SVG, sub
 		}
 		art.AnimatePose(lift, ui.Snappy)
 		art.Children(func() {
-			a.coverFillWith(c, cover, 400, 10, icon)
+			a.coverFillWith(c, cover, mv, 400, 10, icon)
 			if play != nil {
 				a.coverPlayButton(c, hovered, play)
 			}
@@ -171,13 +171,15 @@ func (a *app) coverCardWith(c *ui.Context, name, cover string, icon *ui.SVG, sub
 // coverFill fills its parent with a cover, its corners rounded by radius.
 // The cover rounds itself rather than its parent clipping it: a clip moved
 // by a transform, as a card lifting under the pointer, is drawn on the CPU.
-func (a *app) coverFill(c *ui.Context, url string, px int, radius float32) {
-	a.coverFillWith(c, url, px, radius, iconNote)
+func (a *app) coverFill(c *ui.Context, url string, mv moving, px int, radius float32) {
+	a.coverFillWith(c, url, mv, px, radius, iconNote)
 }
 
 // coverFillWith is coverFill showing icon in the cover's place until it
-// comes, or for good where there's none.
-func (a *app) coverFillWith(c *ui.Context, url string, px int, radius float32, icon *ui.SVG) {
+// comes, or for good where there's none. Over it, the cover of mv plays
+// moving where it moves: as a page's head, a cover asked for as large as
+// one is (px over 400).
+func (a *app) coverFillWith(c *ui.Context, url string, mv moving, px int, radius float32, icon *ui.SVG) {
 	bmp := bitmap(a.art.get(sized(url, px), false))
 	box := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(radius)
 	in := artIn(box, bmp)
@@ -189,6 +191,11 @@ func (a *app) coverFillWith(c *ui.Context, url string, px int, radius float32, i
 			a.blankIcon(c, icon, 1-in)
 		}
 		artImage(c, bmp, radius, in)
+		size := motionThumb
+		if px > 400 {
+			size = motionHead
+		}
+		a.motionOver(c, box, mv, float32(px)/2, float32(px)/2, size, radius)
 	})
 }
 
@@ -326,7 +333,7 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 			a.traitBadges(c, pl.Traits, p.muted)
 		})
 	}
-	a.detailHeader(c, pl.ImageURL, pl.VideoURL, lines, pl.Description, pl.Tracks, func(compact bool) {
+	a.detailHeader(c, pl.ImageURL, playlistMoving(pl), lines, pl.Description, pl.Tracks, func(compact bool) {
 		if !pl.Mine && !pl.Fixed && !a.ownList(pl.ID) {
 			a.libraryButton(c, music.ItemPlaylist, pl.ID, pl.Saved || a.isSaved(pl), pl.Favorite, compact)
 		}
@@ -385,7 +392,7 @@ func (a *app) playlistRow(c *ui.Context, tracks []music.Track, i int, pid string
 		}
 		ui.Row(c).Grow(3).Basis(0).MinWidth(0).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Size(40, 40).Shrink(0).Children(func() {
-				a.cover(c, tr.Album.ImageURL, 96, 40, 4)
+				a.cover(c, tr.Album.ImageURL, songMoving(tr), 96, 40, 4)
 				if playing || hovered && !tr.Unavailable {
 					ui.Box(c.Key("cover-shade")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(4).Center().Background(ui.RGBA(0, 0, 0, 0.4)).
 						Transition(rowHoverIn).Children(func() {
@@ -711,7 +718,7 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 			}
 		})
 		if covers {
-			a.cover(c, tr.Album.ImageURL, 96, 38, 6)
+			a.cover(c, tr.Album.ImageURL, songMoving(tr), 96, 38, 6)
 		}
 		ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
 			name := p.text

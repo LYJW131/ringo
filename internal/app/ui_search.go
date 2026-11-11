@@ -68,7 +68,7 @@ func (a *app) artistCard(c *ui.Context, ar *music.Artist) {
 		} else {
 			art.Shadow(0, 2, 8, -2, p.cardShade)
 		}
-		art.Children(func() { a.coverFillWith(c, ar.ImageURL, 400, 999, iconUser) })
+		art.Children(func() { a.coverFillWith(c, ar.ImageURL, moving{}, 400, 999, iconUser) })
 		ui.Text(c, ar.Name).FontSize(13).FontWeight(500).SingleLine().AlignSelf(ui.Center)
 	})
 	if card.Clicked() {

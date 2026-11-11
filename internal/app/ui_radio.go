@@ -116,7 +116,7 @@ func (a *app) exitRadio() {
 
 // stationCard is a station's cover over its name: a click plays it.
 func (a *app) stationCard(c *ui.Context, st *music.Station) {
-	if a.coverCardWith(c, st.Name, st.ImageURL, iconRadio, st.Description, a.stationPlay(st)) {
+	if a.coverCardWith(c, st.Name, st.ImageURL, moving{}, iconRadio, st.Description, a.stationPlay(st)) {
 		a.playStation(st)
 	}
 }

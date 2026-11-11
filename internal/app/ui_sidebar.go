@@ -205,7 +205,7 @@ func (a *app) playlistRows(c *ui.Context, lists []music.Playlist, mine bool) {
 		// As the pages' rows above it fade theirs.
 		b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: hoverFade}))
 		b.Children(func() {
-			a.cover(c, pl.ImageURL, 80, 22, 4)
+			a.cover(c, pl.ImageURL, playlistMoving(pl), 80, 22, 4)
 			ui.Text(c, pl.Name).FontSize(13).SingleLine().Shrink(1).MinWidth(0)
 		})
 		switch {

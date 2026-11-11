@@ -607,6 +607,14 @@ type Preloader interface {
 	PreloadLiked() (*Page, error)
 }
 
+// A Mover is a source with covers that move, which most of its answers
+// leave out. Motion answers the square one, as the master playlist of an
+// HLS stream, of each of ids that has one: by an Item's kind, a song's
+// being its album's.
+type Mover interface {
+	Motion(kind string, ids []string) (map[string]string, error)
+}
+
 // Source is where music comes from: Apple Music, the app's one. Everything
 // may take a while and is called off the main thread.
 type Source interface {

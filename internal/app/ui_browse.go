@@ -222,7 +222,7 @@ func (a *app) browseHeader(c *ui.Context, page *music.Browse, id string) {
 	// none of its own.
 	ui.Row(c).Gap(28).AlignItems(ui.End).Margin(0, 0, 34, 0).Children(func() {
 		ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
-			a.coverFillWith(c, page.ImageURL, 600, artistPhotoSize/2, iconUser)
+			a.coverFillWith(c, page.ImageURL, moving{}, 600, artistPhotoSize/2, iconUser)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 			if page.Subtitle != "" {
@@ -476,7 +476,7 @@ func (a *app) cardRow(c *ui.Context, sec *music.Section, r browseRow, cols int) 
 				a.stationCard(c.Key(sec.Stations[i].ID), &sec.Stations[i])
 			case rowLinks:
 				l := &sec.Links[i]
-				if a.coverCard(c.Key(l.Page), l.Title, l.ImageURL, l.Subtitle, nil) {
+				if a.coverCard(c.Key(l.Page), l.Title, l.ImageURL, moving{}, l.Subtitle, nil) {
 					a.open(route{page: pageBrowse, id: l.Page})
 				}
 			}

@@ -53,6 +53,7 @@ type library struct {
 
 	liked      map[string]bool // the tracks known to be liked, or not
 	wantLikes  []string        // the tracks a heart showed for, to ask about
+	moves      *motionKnown    // which covers move (motionknown.go)
 	likedList  []music.Track   // the liked songs' page
 	likedPaged paged
 	// likedTotal is how many liked songs the source says there are in all,
@@ -128,6 +129,7 @@ func (l *library) forget() {
 	l.albums = map[string]*albumData{}
 	l.browses = map[string]*browseData{}
 	l.liked = nil
+	l.moves = nil
 	l.favorites, l.kept, l.busy = map[string]bool{}, map[string]bool{}, map[string]bool{}
 	l.wantKept, l.askedKept, l.doubted = nil, map[string]bool{}, map[string]bool{}
 	l.unsaid = map[string]bool{}

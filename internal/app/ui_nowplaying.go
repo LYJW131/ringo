@@ -639,7 +639,11 @@ func (a *app) stageBar(c *ui.Context, tr *music.Track, art *artwork, accent ui.C
 				if bmp := bitmap(art); bmp != nil {
 					cov := a.npMorph(c, ui.Box(c.Key(tr.ID)).Size(44, 44))
 					in := artIn(cov, bmp)
-					cov.Children(func() { artImage(c, bmp, a.npRadius(c, 8, 44), in) })
+					cov.Children(func() {
+						r := a.npRadius(c, 8, 44)
+						artImage(c, bmp, r, in)
+						a.motionOver(c, cov, songMoving(tr), 44, 44, motionThumb, r)
+					})
 				}
 				// All but the cover, which flies to the bar's, fade as the
 				// rest of Now Playing does.
@@ -753,7 +757,7 @@ func (a *app) queuePane(c *ui.Context) {
 			row.Opacity(0.4)
 		}
 		row.Children(func() {
-			a.cover(c, tr.Album.ImageURL, 96, 42, 7)
+			a.cover(c, tr.Album.ImageURL, songMoving(tr), 96, 42, 7)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
 				ui.Text(c, tr.Name).FontSize(14).FontWeight(600).SingleLine()
 				a.artistLinks(c, tr, white.Alpha(0.55), white).FontSize(12.5).SingleLine()

@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -37,7 +38,9 @@ func motionView(a *app) (*ui.Tester, *bool, *atomic.Int32) {
 			return
 		}
 		box := ui.Box(c).Size(200, 200).Label("cover")
-		box.Children(func() { a.motionOver(c, box, "https://example.test/hls/master.m3u8", 200, 200, motionHead, 8) })
+		box.Children(func() {
+			a.motionOver(c, box, movingVideo("https://example.test/hls/master.m3u8"), 200, 200, motionHead, 8)
+		})
 	}, 400, 400)
 	return tt, &shown, &loads
 }
@@ -89,7 +92,7 @@ func TestMotionPlayers(t *testing.T) {
 	}
 	var loads atomic.Int32
 	ch := make(chan func(), 16)
-	m := &motionArt{clips: map[string]*motionClip{}, load: openClip(&loads), post: func(fn func()) { ch <- fn }}
+	m := &motionArt{clips: map[string]*motionClip{}, load: openClip(&loads), post: func(fn func()) { ch <- fn }, players: motionPlayers}
 	now := time.Now()
 	for i := range motionPlayers + 1 {
 		m.player(now, fmt.Sprint("https://example.test/", i), 400, 400, motionCard, true)
@@ -116,6 +119,111 @@ func TestMotionPlayers(t *testing.T) {
 	if len(m.clips) != 0 {
 		t.Errorf("kept %d", len(m.clips))
 	}
+}
+
+// A page's head or Now Playing's cover takes a player from a row's cover
+// that shows, where all are taken: with a page of songs moving, the cover
+// the listener opened stayed still.
+func TestMotionPrimeTakesAPlayer(t *testing.T) {
+	if !video.Supported() {
+		t.Skip("no decoder on this machine")
+	}
+	var loads atomic.Int32
+	ch := make(chan func(), 16)
+	m := &motionArt{clips: map[string]*motionClip{}, load: openClip(&loads), post: func(fn func()) { ch <- fn }, players: 2}
+	now := time.Now()
+	for i := range 2 {
+		m.player(now, fmt.Sprint("https://example.test/row", i), 80, 80, motionThumb, true)
+	}
+	runPost(t, ch)
+	runPost(t, ch)
+	// The rows show on, and another row finds no player free.
+	later := now.Add(100 * time.Millisecond)
+	for i := range 2 {
+		m.player(later, fmt.Sprint("https://example.test/row", i), 80, 80, motionThumb, true)
+	}
+	m.player(later, "https://example.test/row2", 80, 80, motionThumb, true)
+	if len(m.clips) != 2 {
+		t.Fatalf("a third row took a player: %v", m.clips)
+	}
+	m.player(later, "https://example.test/stage", 900, 900, motionStageMac, true)
+	if _, ok := m.clips["https://example.test/stage|960x960"]; !ok || len(m.clips) != 2 {
+		t.Errorf("Now Playing's cover found no player: %v", m.clips)
+	}
+	runPost(t, ch)
+	for _, cl := range m.clips {
+		if cl.player != nil {
+			cl.player.Close()
+		}
+	}
+}
+
+// moverSource is a fakeSource whose covers move, as motion answers.
+type moverSource struct {
+	*fakeSource
+	motion func(kind string, ids []string) (map[string]string, error)
+}
+
+func (s *moverSource) Motion(kind string, ids []string) (map[string]string, error) {
+	return s.motion(kind, ids)
+}
+
+// moverApp is an app whose source answers that song 7's album moves, with
+// the kinds and IDs it was asked about.
+func moverApp() (*app, *[]string) {
+	a := newTestApp()
+	var asked []string
+	var mu sync.Mutex
+	a.library.src = &moverSource{fake(a), func(kind string, ids []string) (map[string]string, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		out := map[string]string{}
+		for _, id := range ids {
+			asked = append(asked, kind+"|"+id)
+			if kind == music.ItemSong && id == "7" {
+				out[id] = "https://example.test/hls/polar.m3u8"
+			}
+		}
+		return out, nil
+	}}
+	return a, &asked
+}
+
+// A song's cover that its page didn't say moves is asked about as it
+// shows, once however many places show it and however often, and then
+// plays in Now Playing: it stayed still there, its album's video never
+// looked for.
+func TestMotionAskedAsShown(t *testing.T) {
+	if !video.Supported() {
+		t.Skip("no decoder on this machine")
+	}
+	a, asked := moverApp()
+	ch := posts(a)
+	var loads atomic.Int32
+	a.motionArt().load = openClip(&loads)
+	a.pl.Cue([]music.Track{coveredSong(a)})
+	a.nowPlaying = true
+	tt := ui.NewTester(a.view, 1180, 780)
+	tt.Frame()
+	a.askLikes()
+	// The source's answer, then the video it named.
+	runPost(t, ch)
+	for range 3 {
+		tt.Advance(100 * time.Millisecond)
+		tt.Frame()
+		a.askLikes()
+	}
+	for a.motion != nil && loading(a.motion) {
+		runPost(t, ch)
+	}
+	if len(*asked) != 1 || (*asked)[0] != "song|7" {
+		t.Errorf("asked %v", *asked)
+	}
+	key := "https://example.test/hls/polar.m3u8|" + fmt.Sprintf("%dx%d", stageMotion().w, stageMotion().h)
+	if cl := a.motion.clips[key]; cl == nil || cl.player == nil {
+		t.Errorf("Now Playing's cover doesn't move: %v", a.motion.clips)
+	}
+	a.motion.stop()
 }
 
 // loading reports whether a cover's video is on its way.
@@ -184,4 +292,17 @@ func TestMotionFrames(t *testing.T) {
 	tt = ui.NewTester(a.view, 1180, 780)
 	tt.SetDark(true)
 	motionFrames(t, dir, "motion-home", a, ch, tt)
+
+	// Now Playing, its cover moving as its page never said: the source is
+	// asked, and answers before the videos load.
+	a, _ = moverApp()
+	ch = posts(a)
+	a.motionArt().load = openClip(&loads)
+	a.pl.Cue([]music.Track{coveredSong(a)})
+	a.nowPlaying, a.npPane = true, paneQueue
+	tt = ui.NewTester(func(c *ui.Context) { a.view(c); a.askLikes() }, 1180, 780)
+	tt.SetDark(true)
+	settled(tt)
+	runPost(t, ch)
+	motionFrames(t, dir, "motion-nowplaying", a, ch, tt)
 }
