@@ -177,6 +177,33 @@ func TestSettingsFoundControlWorks(t *testing.T) {
 	}
 }
 
+// Turning Match Sample Rate off tells the audio output to leave the Mac's
+// output device alone, and on to set it again.
+func TestMatchSampleRateTellsTheOutput(t *testing.T) {
+	var told []bool
+	defer func(was func(bool), shown bool) { matchDevice, setsDeviceRate = was, shown }(matchDevice, setsDeviceRate)
+	matchDevice, setsDeviceRate = func(on bool) { told = append(told, on) }, true
+	a := newTestApp()
+	a.settingsQuery = "sample rate"
+	tt := ui.NewTester(a.settingsView, 780, 800)
+	settled(tt)
+	top, ok1 := tt.Find("Match Sample Rate")
+	bottom, ok2 := tt.Find("Sets this Mac's audio output to each song's sample rate, where it can, so Hi-Res Lossless isn't converted. Other apps' sound may stop for a moment as it changes.")
+	if !ok1 || !ok2 {
+		t.Fatalf("not found: %q", tt.Texts())
+	}
+	// The row's title is labelled as its switch is: click the switch, at its end.
+	flip := func() {
+		tt.ClickAt(780-28-16-12, (top.Y+bottom.Y+bottom.H)/2)
+		tt.Frame()
+	}
+	flip()
+	flip()
+	if len(told) != 2 || told[0] || !told[1] || !a.settings.MatchSampleRate {
+		t.Errorf("told the output %v, and kept %v", told, a.settings.MatchSampleRate)
+	}
+}
+
 // With MM_FRAMES set, saves the settings' Advanced page with an OTLP endpoint
 // and headers filled in, light and dark, and in Chinese.
 func TestTelemetrySettingsFrames(t *testing.T) {

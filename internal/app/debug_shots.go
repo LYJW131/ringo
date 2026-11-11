@@ -24,6 +24,8 @@ func init() {
 	}
 	shotHook = func(a *app) {
 		a.settings.path = ""
+		// The song it plays leaves the Mac's output device as it is too.
+		matchDevice(false)
 		go func() {
 			n := 0
 			shot := func(name string) {

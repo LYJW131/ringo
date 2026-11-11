@@ -58,17 +58,21 @@ type reopen int
 
 const (
 	mixing      reopen = iota
-	stop               // tests mix by hand, or the latency changed
+	stop               // tests mix by hand, or the latency or the device's setting changed
 	rateChanged        // the newest player playing is of another rate
 )
 
-// mixFor mixes into buf for an output open at latency lat and rate, and
-// reports whether anything plays; it mixes nothing, and says why, once
-// the output is to open again.
-func mixFor(buf []float32, lat Latency, rate int) (busy bool, why reopen) {
+// reopens counts the times the output was told to open again for a
+// setting of its device, under mu.
+var reopens int
+
+// mixFor mixes into buf for an output open at latency lat and rate, the
+// gen-th time it was told to open, and reports whether anything plays; it
+// mixes nothing, and says why, once the output is to open again.
+func mixFor(buf []float32, lat Latency, rate, gen int) (busy bool, why reopen) {
 	mu.Lock()
 	defer mu.Unlock()
-	if testMode || latency != lat {
+	if testMode || latency != lat || reopens != gen {
 		return false, stop
 	}
 	if wantedRate() != rate {
@@ -77,11 +81,12 @@ func mixFor(buf []float32, lat Latency, rate int) (busy bool, why reopen) {
 	return mixLocked(buf), mixing
 }
 
-// outputRate returns the rate for the output to open at.
-func outputRate() int {
+// outputRate returns the rate for the output to open at, and how many
+// times it was told to open again.
+func outputRate() (rate, gen int) {
 	mu.Lock()
 	defer mu.Unlock()
-	return wantedRate()
+	return wantedRate(), reopens
 }
 
 // run opens the device while anything plays, and mixes into it.
@@ -95,7 +100,8 @@ func run() {
 		// rate is what the music asks for, opened what the device runs at:
 		// one that won't run at the music's rate plays it resampled, at
 		// the rate it ran at before.
-		lat, rate := outputLatency(), outputRate()
+		lat := outputLatency()
+		rate, gen := outputRate()
 		opened := rate
 		dev, n, err := openOutput(lat.ahead(), rate)
 		if err != nil && err != errUnsupported && rate != defaultRate {
@@ -117,7 +123,7 @@ func run() {
 		idle, idled, checked := time.Duration(0), false, time.Duration(0)
 		per := frames(int64(n), opened)
 		for {
-			busy, why := mixFor(buf, lat, rate)
+			busy, why := mixFor(buf, lat, rate, gen)
 			if why == rateChanged {
 				// What the device holds of the song before, and its fading
 				// out if it was stopped for this one, is heard before the

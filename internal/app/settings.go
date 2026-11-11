@@ -67,6 +67,9 @@ type settings struct {
 	// Normalize evens out the loudness of tracks, by what their source
 	// measured of each.
 	Normalize bool `json:"normalize"`
+	// MatchSampleRate sets the Mac's audio output to each song's sample
+	// rate (internal/audio), which stops other apps' sound for a moment.
+	MatchSampleRate bool `json:"matchSampleRate"`
 	// Autoplay goes on with music like what played once the queue ends, as
 	// Apple Music's AutoPlay.
 	Autoplay bool `json:"autoplay"`
@@ -96,7 +99,7 @@ type settings struct {
 }
 
 func defaultSettings() settings {
-	return settings{Language: i18n.System, NotchActivity: true, Quality: "hires", Appearance: "system", Volume: 0.8, Normalize: true, AnimatedArt: true, AppIcon: "dock-and-menubar", CacheMB: 2048}
+	return settings{Language: i18n.System, NotchActivity: true, Quality: "hires", Appearance: "system", Volume: 0.8, Normalize: true, MatchSampleRate: true, AnimatedArt: true, AppIcon: "dock-and-menubar", CacheMB: 2048}
 }
 
 func settingsPath() (string, error) {

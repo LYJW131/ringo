@@ -546,6 +546,14 @@ func (a *app) settingsPages(c *ui.Context, p palette) []settingsPage {
 				a.changed()
 			}
 		})
+		if setsDeviceRate {
+			row(T("Match Sample Rate"), T("Sets this Mac's audio output to each song's sample rate, where it can, so Hi-Res Lossless isn't converted. Other apps' sound may stop for a moment as it changes."), func() {
+				if ui.Switch(c.Key("match-rate"), &s.MatchSampleRate).Label(T("Match Sample Rate")).Changed() {
+					matchDevice(s.MatchSampleRate)
+					a.changed()
+				}
+			})
+		}
 	}})
 
 	playback.groups = append(playback.groups, settingsGroup{T("Lyrics"), func(row settingsRow, block settingsBlock) {

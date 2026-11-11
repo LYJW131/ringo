@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"ringo/internal/audio"
 	"ringo/internal/i18n"
 	"ringo/internal/music"
 	"ringo/internal/player"
@@ -236,6 +237,13 @@ func (a *app) redraw() {
 	}
 }
 
+// The audio output sets the Mac's output device to each song's sample
+// rate, where the listener lets it. Tests replace these.
+var (
+	setsDeviceRate = runtime.GOOS == "darwin"
+	matchDevice    = audio.SetMatchesDevice
+)
+
 // shotHook, when set, drives the app to check its design.
 var shotHook func(a *app)
 
@@ -309,6 +317,7 @@ func Run() error {
 		// Before the window: on Windows it lays out its content as it is
 		// made, and the view asks the player what plays.
 		a.art = newArtCache(a.post)
+		matchDevice(a.settings.MatchSampleRate)
 		a.pl = player.New(a.post)
 		a.pl.Quiet = func(fn func()) { mygo.RunOnMain(fn) }
 		a.pl.Source = a.src

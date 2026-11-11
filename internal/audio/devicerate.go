@@ -1,6 +1,9 @@
 package audio
 
-import "slices"
+import (
+	"slices"
+	"sync/atomic"
+)
 
 // On macOS, the output also sets the system's output device to the music's
 // rate where it can: an Audio Queue at 96 kHz on a device at 48 kHz is
@@ -11,6 +14,28 @@ import "slices"
 // app quits (RestoreDevice): at the rate the listener set it to, if they
 // changed it while the music played, and not at all if they changed it
 // after the output last did.
+
+// leaveDevice is whether the output leaves the system's output device at
+// the rate it has, which the listener may choose: setting it stops other
+// apps' sound for a moment.
+var leaveDevice atomic.Bool
+
+// SetMatchesDevice sets whether the output sets the system's output device
+// to the music's rate, which it does unless told not to, on macOS. Told
+// not to, it puts the device back at once; told to again, it opens again,
+// to set the device for what plays.
+func SetMatchesDevice(on bool) {
+	if leaveDevice.Swap(!on) == !on {
+		return
+	}
+	if !on {
+		restoreDevice()
+		return
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	reopens++
+}
 
 // commonRates are the rates a device that takes a range of them is tried at,
 // besides want itself.

@@ -398,3 +398,43 @@ func TestOpensAgainOnANewDevice(t *testing.T) {
 		t.Errorf("opened again at %d, want 96000", got)
 	}
 }
+
+// Told to leave the device, the output puts it back at once; told to set
+// it again, it opens again, which sets it for what plays.
+func TestSetMatchesDevice(t *testing.T) {
+	setup(t)
+	restored := make(chan struct{}, 8)
+	restoreDevice = func() { restored <- struct{}{} }
+	defer func() { restoreDevice = restoreDeviceRate }()
+	opened := make(chan int, 8)
+	openOutput = func(ahead time.Duration, rate int) (device, int, error) {
+		opened <- rate
+		return newLoggedDevice(), nullFrames(rate), nil
+	}
+	defer func() { openOutput = openDevice }()
+	mu.Lock()
+	testMode = false
+	mu.Unlock()
+	defer func() {
+		mu.Lock()
+		testMode = true
+		mu.Unlock()
+	}()
+	defer SetMatchesDevice(true)
+	p := NewSound(96000, 1, make([]float32, 96000)).NewPlayer().SetLoop(true)
+	p.Play()
+	defer p.Close()
+	waitFor(t, "the output to open", opened)
+	SetMatchesDevice(false)
+	waitFor(t, "the device to be put back", restored)
+	SetMatchesDevice(false)
+	select {
+	case <-restored:
+		t.Error("put back again, told the same twice")
+	default:
+	}
+	SetMatchesDevice(true)
+	if got := waitFor(t, "the output to open again", opened); got != 96000 {
+		t.Errorf("opened again at %d, want 96000", got)
+	}
+}

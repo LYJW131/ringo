@@ -257,7 +257,7 @@ func setNominalRate(dev uint32, rate float64) bool {
 // that can't is left as it is, and the queue's rate converted.
 func setDeviceRate(rate int) {
 	// Tests that play leave the machine they run on as it is.
-	if testing.Testing() || loadCoreAudio() != nil {
+	if leaveDevice.Load() || testing.Testing() || loadCoreAudio() != nil {
 		return
 	}
 	dev := defaultOutput()
