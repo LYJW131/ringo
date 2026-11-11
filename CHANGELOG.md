@@ -2,6 +2,24 @@
 
 All notable changes to Ringo are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.2.1]
+
+### Added
+
+- Increase Volume and Decrease Volume in the Controls menu, on Command and the up and down arrows as in Music.
+- The buttons that are an icon alone say what they do in a tip once the pointer rests on them: shuffle, repeat, lyrics, the queue and the volume in the player bar, back and forward, a list's sort options, a new playlist, a song's star and its menu.
+
+### Changed
+
+- What the editors say of an album or a playlist ends its third line in More, which the line fades out under, rather than keeping a line of its own.
+- A page with nothing to show says so in one way, in the middle of it: an empty list, a search without results, a page that didn't load, with Try Again beside what may put it right.
+- Home greets a listener who isn't signed in with Ringo's mark, and says what signing in brings.
+
+### Fixed
+
+- An account without a picture shows where it is, or a figure, at the foot of the sidebar, rather than an empty circle.
+- In the light appearance, a cover that is light already, such as a yellow one, tints its page a pastel rather than its own color at full strength.
+
 ## [0.2.0]
 
 ### Added
@@ -41,5 +59,6 @@ The first version: Apple Music in a desktop app of its own, drawn by MyGo's nati
 - Listening history reported as Apple's web player reports it, which Recently Played follows; it can be turned off.
 - English and Simplified Chinese, in Apple Music's own words.
 
+[0.2.1]: https://github.com/LYJW131/ringo/releases/tag/v0.2.1
 [0.2.0]: https://github.com/LYJW131/ringo/releases/tag/v0.2.0
 [0.1.0]: https://github.com/LYJW131/ringo/releases/tag/v0.1.0
