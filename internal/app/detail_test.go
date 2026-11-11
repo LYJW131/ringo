@@ -198,6 +198,9 @@ func TestAlbumAddToLibrary(t *testing.T) {
 	if _, ok := tt.Find("Favorite"); !ok {
 		t.Fatal("no star at once")
 	}
+	// The pill's words fade as it narrows to the star.
+	tt.Advance(time.Second)
+	tt.Frame()
 	if _, ok := tt.Find("Add to Library"); ok {
 		t.Fatal("still offered to be added")
 	}

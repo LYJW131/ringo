@@ -266,42 +266,76 @@ const notesFade = 56
 // from the library is for its menu. compact, the button to add is its icon
 // alone, its words its label and tooltip. was and favorite are what the
 // source said of it.
+//
+// It is one button whichever it is, so that adding draws it in: the pill
+// narrows to the round button, its words fading as they go, and the plus
+// turns into the star, rather than one button gone and another there.
 func (a *app) libraryButton(c *ui.Context, kind, id string, was, favorite, compact bool) {
 	p := a.pal
-	if a.library.inLibrary(kind, id, was) {
-		on := a.library.isFavorite(kind, id, favorite)
-		icon, color, label := iconStar, p.text, T("Favorite")
+	in := a.library.inLibrary(kind, id, was)
+	add := T("Add to Library")
+	on := in && a.library.isFavorite(kind, id, favorite)
+	icon, size, color, label := iconPlus, float32(14), p.text, add
+	if in {
+		icon, size, label = iconStar, 15, T("Favorite")
 		if on {
 			icon, color, label = iconStarFill, p.accent, T("Undo Favorite")
 		}
-		b := a.roundHeaderButton(c.Key("favorite"), label)
-		b.Tooltip(label).Children(func() { ui.Icon(c, icon).Size(15, 15).TextColor(color) })
-		// It comes where the button that added it was, up from a little smaller.
-		scale := b.AnimateTo("pop", 1, ui.Animation{Spring: ui.SpringOptions{Duration: 450 * time.Millisecond, Bounce: 0.4}})
-		b.Scale(scale, scale)
-		if a.justKept == itemKey(kind, id) {
-			a.justKept = ""
-			b.Jump("pop", 0.6)
-		}
-		if b.Clicked() {
-			b.Jump("pop", 0.8)
-			a.setFavorite(kind, id, !on)
-		}
-		return
 	}
-	label := T("Add to Library")
-	var b ui.Element
-	if compact {
-		b = a.roundHeaderButton(c.Key("library"), label)
-		b.Tooltip(label).Children(func() { ui.Icon(c, iconPlus).Size(14, 14) })
-	} else {
-		b = pillButton(c.Key("library"), iconPlus, label, p.hover.Over(p.bg), p.text)
+	b := ui.ButtonBase(c.Key("library")).Height(roundSize).Shrink(0).Radius(999).AlignItems(ui.Center).Justify(ui.Start).
+		Label(label).FocusRing(false).TextColor(p.text).Clip()
+	full := pillWidth(c, add, true)
+	// The words fade before the pill narrows, so its round end doesn't cut
+	// them as they go, and come back once it has widened.
+	target, words, morph := float32(roundSize), float32(0), libraryMorph
+	fade := ui.Animation{Duration: 110 * time.Millisecond, NonMotion: true}
+	morph.Delay = 70 * time.Millisecond
+	if !in && !compact {
+		target, words, morph = full, 1, libraryMorph
+		fade.Duration, fade.Delay = 160*time.Millisecond, 200*time.Millisecond
 	}
+	w := b.AnimateTo("width", target, morph)
+	b.Width(w)
+	shown := b.AnimateTo("words", words, fade)
+	// How far the button is from round to the pill, as it goes: where the
+	// icon sits.
+	t := max(0, min(1, (w-roundSize)/(full-roundSize)))
+	b.Padding(0, 0, 0, (roundSize-size)/2+(18-(roundSize-size)/2)*t)
+	if in || compact {
+		b.Tooltip(label)
+	}
+	fill := p.hover.Over(p.bg)
+	if b.Hovered() {
+		fill = fill.Mix(ui.RGB(255, 255, 255), 0.12)
+	}
+	b.Background(b.AnimateColor("bg", fill, ui.Animation{Duration: 120 * time.Millisecond}))
+	press := float32(1)
+	if b.Pressed() {
+		press = 0.96
+	}
+	scale := b.AnimateTo("press", press, ui.Snappy) * b.AnimateTo("pop", 1, pressSpring)
+	b.Scale(scale, scale)
+	b.Children(func() {
+		ui.Icon(c.Key("icon"), icon).Size(size, size).Shrink(0).TextColor(color).ContentTransition(ui.ContentTransition{})
+		// The button's label says the words, and the star's once it's that.
+		if t > 0 && shown > 0 {
+			ui.Text(c, add).FontSize(14).FontWeight(600).SingleLine().Shrink(0).Margin(0, 0, 0, 8).
+				Opacity(shown).AccessHidden(true)
+		}
+	})
 	if b.Clicked() {
-		a.justKept = itemKey(kind, id)
-		a.setInLibrary(kind, id, true)
+		if !in {
+			a.setInLibrary(kind, id, true)
+			return
+		}
+		b.Jump("pop", 0.8)
+		a.setFavorite(kind, id, !on)
 	}
 }
+
+// libraryMorph is how the button to add something narrows to its star, and
+// widens again as it's deleted.
+var libraryMorph = ui.Animation{Spring: ui.SpringOptions{Duration: 420 * time.Millisecond, Bounce: 0.12}}
 
 // moreButton is the dots that open a page's menu, menu.
 func (a *app) moreButton(c *ui.Context, menu func(m *ui.Menu)) {
