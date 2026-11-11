@@ -42,18 +42,22 @@ func setRate(rate int) {
 	}
 }
 
-// rewindHeard takes every voice back to where it was heard, as the device
-// dropped what it held of them: those playing go on from there, fading in,
-// and those that play no more leave the voices there, with nothing of them
-// left to fade out, so that the output has nothing to stay open or open
-// again for. Under no lock.
-func rewindHeard() {
+// rewindHeard takes every voice back to where it was last heard, as the
+// device dropped what it held of them: faded frames past the one heard as
+// it began to, which were heard fading out, so that playing again neither
+// plays those twice nor leaves any out. Those playing go on from there,
+// fading in, and those that play no more leave the voices there, with
+// nothing of them left to fade out, so that the output has nothing to
+// stay open or open again for. Under no lock.
+func rewindHeard(faded int64) {
 	mu.Lock()
 	defer mu.Unlock()
+	// No further than what was mixed.
+	last := min(heard()+faded, mixed)
 	n := 0
 	for _, v := range voices {
 		if !v.closed {
-			f := int64(v.position(v.heardAt()))
+			f := int64(v.position(v.posAt(last)))
 			v.src.seek(f)
 			v.reset(f)
 		}
@@ -239,8 +243,12 @@ func (v *voice) mark(out, heard int64) {
 // heardAt returns the source frame the voice was at when the output mixed
 // what is heard now, counted on past its loop's end. Until the output plays
 // what it mixed since a seek, that is where it seeked to.
-func (v *voice) heardAt() float64 {
-	h := heard()
+func (v *voice) heardAt() float64 { return v.posAt(heard()) }
+
+// posAt returns the source frame the voice was at when the output mixed
+// its frame h, counted on past its loop's end, or where it is now for a
+// frame it has no mark past.
+func (v *voice) posAt(h int64) float64 {
 	k := slices.IndexFunc(v.marks, func(m mark) bool { return m.out > h })
 	switch k {
 	case -1:

@@ -19,9 +19,10 @@ type device interface {
 
 // A flusher is a device that can stop at once: flush fades out what it
 // plays over a few tens of milliseconds and drops what it holds, and what
-// is written next is heard as soon as it is written. Only macOS's can.
+// is written next is heard as soon as it is written. It returns how long
+// what it played went on being heard, fading. Only macOS's can.
 type flusher interface {
-	flush() error
+	flush() (faded time.Duration, err error)
 }
 
 // A holder is a device that knows how many frames it holds, written and
@@ -205,10 +206,11 @@ func run() {
 		parked, empty := false, false
 		for {
 			if takeFlush() && f != nil {
-				if f.flush() != nil {
+				faded, err := f.flush()
+				if err != nil {
 					break
 				}
-				rewindHeard()
+				rewindHeard(int64(faded) * int64(opened) / int64(time.Second))
 				parked, empty = true, true
 			}
 			if parked {

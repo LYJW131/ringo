@@ -244,18 +244,21 @@ const (
 )
 
 // flush fades the queue out, pauses it and takes back the buffers it held:
-// it starts again, at its volume, once write has filled them.
-func (d *aqDevice) flush() error {
+// it starts again, at its volume, once write has filled them. What it
+// played is heard for as long as it fades.
+func (d *aqDevice) flush() (time.Duration, error) {
+	var faded time.Duration
 	if d.started {
+		faded = flushRamp
 		audioQueueSetParameter(d.q, kAudioQueueParamVolumeRampTime, float32(flushRamp.Seconds()))
 		audioQueueSetParameter(d.q, kAudioQueueParamVolume, 0)
 		time.Sleep(flushRamp)
 		if st := audioQueuePause(d.q); st != 0 {
-			return fmt.Errorf("audio: AudioQueuePause failed (OSStatus %d)", st)
+			return 0, fmt.Errorf("audio: AudioQueuePause failed (OSStatus %d)", st)
 		}
 	}
 	if st := audioQueueReset(d.q); st != 0 {
-		return fmt.Errorf("audio: AudioQueueReset failed (OSStatus %d)", st)
+		return 0, fmt.Errorf("audio: AudioQueueReset failed (OSStatus %d)", st)
 	}
 	audioQueueSetParameter(d.q, kAudioQueueParamVolumeRampTime, 0)
 	audioQueueSetParameter(d.q, kAudioQueueParamVolume, 1)
@@ -263,7 +266,7 @@ func (d *aqDevice) flush() error {
 	// Its timeline no longer starts with what was written: it holds what
 	// it measured, or what the queue before did.
 	d.sure = true
-	return nil
+	return faded, nil
 }
 
 func (d *aqDevice) close() {

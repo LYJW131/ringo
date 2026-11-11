@@ -7,21 +7,23 @@ import (
 	"time"
 )
 
-// A haltingDevice is a loggedDevice that can stop at once: it says how many
-// writes it had taken when it did, and when it closes.
+// A haltingDevice is a loggedDevice that can stop at once, fading for as
+// long as fades: it says how many writes it had taken when it did, and
+// when it closes.
 type haltingDevice struct {
 	*loggedDevice
 	flushed chan int
 	closed  chan struct{}
+	fades   time.Duration
 }
 
 func newHaltingDevice() *haltingDevice {
-	return &haltingDevice{newLoggedDevice(), make(chan int, 8), make(chan struct{}, 1)}
+	return &haltingDevice{newLoggedDevice(), make(chan int, 8), make(chan struct{}, 1), 0}
 }
 
-func (d *haltingDevice) flush() error {
+func (d *haltingDevice) flush() (time.Duration, error) {
 	d.flushed <- d.count()
-	return nil
+	return d.fades, nil
 }
 
 func (d *haltingDevice) close() {
@@ -43,7 +45,7 @@ func (d tracked) close() {
 // A trackedFlusher is a tracked device that can stop at once.
 type trackedFlusher struct{ tracked }
 
-func (d trackedFlusher) flush() error { return d.device.(flusher).flush() }
+func (d trackedFlusher) flush() (time.Duration, error) { return d.device.(flusher).flush() }
 
 // A trackedHolder is a tracked device that says what it holds.
 type trackedHolder struct{ tracked }
@@ -100,14 +102,16 @@ func rising(n int) []float32 {
 
 // A player paused at once stops where it is heard, not where it is mixed:
 // the device drops what it held and is written nothing while it waits, the
-// position is the frame heard, and playing again goes on from that frame,
-// the first thing the device is written. Before, a pause was heard only
-// after the quarter of a second the device held, and playing again after as
-// much silence.
+// position is the last frame heard, where the device faded out, and playing
+// again goes on from that frame, the first thing the device is written.
+// Before, a pause was heard only after the quarter of a second the device
+// held, and playing again after as much silence; and it went on from the
+// frame heard as the device began to fade, playing the fade twice.
 func TestPausesAtOnce(t *testing.T) {
 	devs := make(chan *haltingDevice, 2)
 	outputTo(t, func(int) device {
 		d := newHaltingDevice()
+		d.fades = 10 * time.Millisecond
 		devs <- d
 		return d
 	})
@@ -128,10 +132,11 @@ func TestPausesAtOnce(t *testing.T) {
 	if want := mixedFrames / nullFrames(defaultRate); at != want {
 		t.Errorf("stopped after %d writes, want %d: it mixed on", at, want)
 	}
-	// 40 ms held, at the interactive latency.
-	heard := mixedFrames - defaultRate*40/1000
+	// 40 ms held, at the interactive latency, of which 10 ms were heard
+	// as it faded.
+	heard := mixedFrames - defaultRate*40/1000 + defaultRate*10/1000
 	if got := int(math.Round(p.Position().Seconds() * defaultRate)); got != heard {
-		t.Errorf("paused at frame %d, want the frame heard, %d", got, heard)
+		t.Errorf("paused at frame %d, want the last frame heard, %d", got, heard)
 	}
 	if p.Playing() {
 		t.Error("still playing")
@@ -241,5 +246,35 @@ func TestStoppedDeviceOpensAgainAtOnce(t *testing.T) {
 	}
 	if n := first.dev.closedAfter() - at; n != 0 {
 		t.Errorf("the device was written %d times after it stopped", n)
+	}
+}
+
+// A device that fades for longer than what it held was heard to the last
+// frame mixed, and no further.
+func TestPauseAtOnceEndsWithWhatWasMixed(t *testing.T) {
+	devs := make(chan *haltingDevice, 2)
+	outputTo(t, func(int) device {
+		d := newHaltingDevice()
+		d.fades = 100 * time.Millisecond
+		devs <- d
+		return d
+	})
+	p := NewSound(defaultRate, 1, rising(defaultRate)).NewPlayer()
+	p.Play()
+	defer p.Close()
+	d := waitFor(t, "the output to open", devs)
+	d.waitWrites(t, 8)
+	<-d.park
+	mixedFrames := (d.count() + 1) * nullFrames(defaultRate)
+	if !p.PauseAtOnce() {
+		t.Fatal("PauseAtOnce: the device can't")
+	}
+	d.resume <- struct{}{}
+	waitFor(t, "the device to stop at once", d.flushed)
+	// Asked once the device stopped: Position waits for the output's lock.
+	for start := time.Now(); p.Playing() || int(math.Round(p.Position().Seconds()*defaultRate)) != mixedFrames; time.Sleep(time.Millisecond) {
+		if time.Since(start) > time.Minute {
+			t.Fatalf("paused at frame %.0f, want the last mixed, %d", p.Position().Seconds()*defaultRate, mixedFrames)
+		}
 	}
 }
