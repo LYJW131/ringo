@@ -3,8 +3,10 @@ package audio
 import "slices"
 
 // On macOS, the output also sets the system's output device to the music's
-// rate where it can, as Apple Music does: an Audio Queue at 96 kHz on a
-// device at 48 kHz is converted to 48 kHz on its way out. The device is
+// rate where it can: an Audio Queue at 96 kHz on a device at 48 kHz is
+// converted to 48 kHz on its way out. Apple's Music leaves the device as it
+// is, by what its listeners say, and they set it in Audio MIDI Setup or
+// with a tool that follows the music, as this does. The device is
 // put back at the rate it had once the output closes for being idle, or the
 // app quits (RestoreDevice): at the rate the listener set it to, if they
 // changed it while the music played, and not at all if they changed it
