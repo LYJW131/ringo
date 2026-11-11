@@ -13,6 +13,7 @@ Only write a test for behaviour that can actually break. If the code under test 
 - Logic that doesn't need a view: parsing lyrics and Apple's answers, formatting times and counts, the player's queue, seeking, fading and cache, decoding streams and images.
 - A regression you just fixed. Say in the test's comment what went wrong.
 - Frame budgets, in `perf_test.go`, so idle views don't start asking for frames they don't need.
+- What stays on screen while what it shows changes: a song giving way to the next, lyrics or a cover that come late or never, a page loading again. Walk the change a frame at a time and check the thing is drawn in every one. A view tested only at rest can vanish and come back in between, as the stage's record did between two songs.
 
 **Don't write tests that:**
 
@@ -29,5 +30,6 @@ Only write a test for behaviour that can actually break. If the code under test 
 - Swap the clipboard and dialogs through package variables such as `copyText`, and restore the real one with `defer`.
 - See what comes back from the source's goroutine with `posts` and `runPost`.
 - Look at visuals instead of asserting on them. The `MM_FRAMES` tests save PNGs into that directory and skip when it isn't set. Check pixels only for coverage, such as whether a layer still covers the window.
+- Save frames of a change as well as of a view at rest, and of a screen full of the thing as well as of one: what happens between two states, and what many of a thing do to each other, is what frames at rest don't show.
 - Start each test with a one-sentence comment saying the behaviour it checks, in the style of the code.
 - Run a new UI test with `-count=5`. Fix or delete a flaky test; don't retry it.
