@@ -3,6 +3,7 @@ package audio
 import (
 	"slices"
 	"sync/atomic"
+	"time"
 )
 
 // On macOS, the output also sets the system's output device to the music's
@@ -35,6 +36,26 @@ func SetMatchesDevice(on bool) {
 	mu.Lock()
 	defer mu.Unlock()
 	reopens++
+}
+
+// A device is heard some time after it is given a frame, which it reports
+// in frames at its rate: a few milliseconds for built-in speakers, 160 ms
+// for AirPods, two seconds over AirPlay. latencyMost is the most taken at
+// its word: past it a device reports nonsense, and is taken to add none,
+// as one that reports none.
+const latencyMost = 3 * time.Second
+
+// reportedLatency returns how long after a device at rate is given a frame
+// it is heard, by the frames of latency it reports in all, or 0 where what
+// it reports can't be so.
+func reportedLatency(frames uint32, rate float64) time.Duration {
+	if frames == 0 || rate <= 0 {
+		return 0
+	}
+	if d := time.Duration(float64(frames) / rate * float64(time.Second)); d <= latencyMost {
+		return d
+	}
+	return 0
 }
 
 // commonRates are the rates a device that takes a range of them is tried at,

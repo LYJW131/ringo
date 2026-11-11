@@ -101,6 +101,10 @@ type aqDevice struct {
 	queued  int // buffers enqueued before the queue started
 	started bool
 
+	// latency is how long after the system's device is given a frame it
+	// is heard, as it reports (deviceLatency): past the queue's timeline.
+	latency time.Duration
+
 	// What it holds after a write, measured on the queue's own timeline
 	// (holds): the frames written, the writes since it started, the
 	// measures taken, and what they came to, once sure.
@@ -135,14 +139,16 @@ const (
 	aqMeasures = 16 // measures taken, the middle one kept
 )
 
-// holds returns the frames the queue holds just after a write: its buffers
-// and what it holds past them, as it measured, or as the queue before did
-// until it has.
+// holds returns the frames written and not yet heard just after a write:
+// what the queue holds, its buffers and what it holds past them, as it
+// measured, or as the queue before did until it has; and what the device
+// holds past the queue's timeline, by the latency it reports.
 func (d *aqDevice) holds() (int64, bool) {
+	past := int64(d.latency.Seconds() * float64(d.rate))
 	if d.measured > 0 {
-		return d.measured, true
+		return d.measured + past, true
 	}
-	return int64(d.buffers*aqFrames) + int64(aqPipeline*float64(d.rate)), d.sure
+	return int64(d.buffers*aqFrames) + int64(aqPipeline*float64(d.rate)) + past, d.sure
 }
 
 // measure notes, after a write, how many frames the queue holds: those
@@ -189,6 +195,10 @@ func openDevice(ahead time.Duration, rate int) (device, int, error) {
 	}
 	n := max(2, int((int64(ahead)*int64(rate)/int64(time.Second)+aqFrames-1)/aqFrames))
 	d := &aqDevice{free: make(chan *audioQueueBuffer, n), buffers: n, rate: rate}
+	if loadCoreAudio() == nil {
+		// Of the device as it is now: the output opens again on another.
+		d.latency = deviceLatency(defaultOutput())
+	}
 	if st := audioQueueNewOutput(&desc, aqCallback, 0, 0, 0, 0, &d.q); st != 0 {
 		return nil, 0, fmt.Errorf("audio: AudioQueueNewOutput failed (OSStatus %d)", st)
 	}
@@ -245,11 +255,12 @@ const (
 
 // flush fades the queue out, pauses it and takes back the buffers it held:
 // it starts again, at its volume, once write has filled them. What it
-// played is heard for as long as it fades.
+// played is heard for as long as it fades, and as long again as the device
+// takes to play what it was given already, which can't be taken back.
 func (d *aqDevice) flush() (time.Duration, error) {
 	var faded time.Duration
 	if d.started {
-		faded = flushRamp
+		faded = flushRamp + d.latency
 		audioQueueSetParameter(d.q, kAudioQueueParamVolumeRampTime, float32(flushRamp.Seconds()))
 		audioQueueSetParameter(d.q, kAudioQueueParamVolume, 0)
 		time.Sleep(flushRamp)
@@ -398,6 +409,42 @@ func setDeviceRate(rate int) {
 	// waited for is still put back.
 	gaveRate[dev] = want
 	setNominalRate(dev, want)
+}
+
+const (
+	kAudioObjectPropertyScopeOutput  = 0x6F757470 // 'outp'
+	kAudioDevicePropertyLatency      = 0x6C746E63 // 'ltnc'
+	kAudioDevicePropertySafetyOffset = 0x73616674 // 'saft'
+	kAudioDevicePropertyStreams      = 0x73746D23 // 'stm#'
+	kAudioStreamPropertyLatency      = 0x6C746E63 // 'ltnc'
+)
+
+// deviceLatency returns how long after the device is given a frame it is
+// heard: its latency, its safety offset and its first output stream's
+// latency, which it reports in frames at its rate (reportedLatency).
+func deviceLatency(dev uint32) time.Duration {
+	if dev == 0 {
+		return 0
+	}
+	frames := func(id, selector, scope uint32) uint32 {
+		var v uint32
+		size := uint32(unsafe.Sizeof(v))
+		if audioObjectGetPropertyData(id, &audioObjectPropertyAddress{selector, scope, 0}, 0, 0, &size, unsafe.Pointer(&v)) != 0 {
+			return 0
+		}
+		return v
+	}
+	total := frames(dev, kAudioDevicePropertyLatency, kAudioObjectPropertyScopeOutput) +
+		frames(dev, kAudioDevicePropertySafetyOffset, kAudioObjectPropertyScopeOutput)
+	streams := &audioObjectPropertyAddress{kAudioDevicePropertyStreams, kAudioObjectPropertyScopeOutput, 0}
+	var size uint32
+	if audioObjectGetPropertyDataSize(dev, streams, 0, 0, &size) == 0 && size >= 4 {
+		ids := make([]uint32, size/4)
+		if audioObjectGetPropertyData(dev, streams, 0, 0, &size, unsafe.Pointer(&ids[0])) == 0 {
+			total += frames(ids[0], kAudioStreamPropertyLatency, kAudioObjectPropertyScopeGlobal)
+		}
+	}
+	return reportedLatency(total, nominalRate(dev))
 }
 
 // outputDevice returns the system's output device, which the Audio Queue

@@ -4,6 +4,7 @@ import (
 	"math"
 	"sync"
 	"testing"
+	"time"
 )
 
 // A holdingDevice is a loggedDevice that says how many frames it holds
@@ -88,5 +89,26 @@ func TestPositionFollowsWhatTheDeviceComesToHold(t *testing.T) {
 	d.waitWrites(t, d.count()+3)
 	if heard, mixedFrames := positionAt(p, d.loggedDevice); heard != mixedFrames-(2880+half) {
 		t.Errorf("heard at frame %d with %d mixed, after it was sure of 2880", heard, mixedFrames)
+	}
+}
+
+// A device's latency is what it reports, in frames at its rate, unless it
+// reports none, or more than could be so.
+func TestReportedLatency(t *testing.T) {
+	for _, c := range []struct {
+		frames uint32
+		rate   float64
+		want   time.Duration
+	}{
+		{7680, 48000, 160 * time.Millisecond}, // AirPods Max
+		{798, 48000, 16625 * time.Microsecond},
+		{88200, 44100, 2 * time.Second}, // AirPlay
+		{0, 48000, 0},
+		{7680, 0, 0},
+		{144001, 48000, 0}, // past three seconds
+	} {
+		if got := reportedLatency(c.frames, c.rate); got != c.want {
+			t.Errorf("reportedLatency(%d, %v) = %v, want %v", c.frames, c.rate, got, c.want)
+		}
 	}
 }
