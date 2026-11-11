@@ -112,7 +112,7 @@ func (a *app) emptyHome(c *ui.Context) {
 // under the pointer, where a play button shows on it.
 func (a *app) playlistCard(c *ui.Context, pl *music.Playlist) {
 	id := pl.ID
-	if a.coverCard(c, pl.Name, pl.ImageURL, playlistLine(pl), func() { a.loadPlaylist(id, true) }) {
+	if a.coverCard(c, pl.Name, pl.ImageURL, playlistLine(pl), a.playlistPlay(id)) {
 		a.open(route{page: pagePlaylist, id: id})
 	}
 }
@@ -133,14 +133,14 @@ func playlistLine(pl *music.Playlist) string {
 
 // coverCard is a playlist's card, or a show's or a station's: its cover over
 // its name and a line under that. The button on the cover, if there's something
-// for it to call, calls play; it reports whether the rest was clicked.
-func (a *app) coverCard(c *ui.Context, name, cover, sub string, play func()) bool {
+// for it to do, does play; it reports whether the rest was clicked.
+func (a *app) coverCard(c *ui.Context, name, cover, sub string, play *coverPlay) bool {
 	return a.coverCardWith(c, name, cover, iconNote, sub, play)
 }
 
 // coverCardWith is a card that shows icon if there's no cover to show, as a
 // source needn't have one.
-func (a *app) coverCardWith(c *ui.Context, name, cover string, icon *ui.SVG, sub string, play func()) bool {
+func (a *app) coverCardWith(c *ui.Context, name, cover string, icon *ui.SVG, sub string, play *coverPlay) bool {
 	p := a.pal
 	// From the top: a grid stretches the cards of a row as tall as the
 	// tallest, whose name or line under it takes two lines.
@@ -204,9 +204,10 @@ func (a *app) blankIcon(c *ui.Context, icon *ui.SVG, shown float32) {
 
 // coverPlayButton plays a playlist or a show from its card, without
 // opening it.
-func (a *app) coverPlayButton(c *ui.Context, shown bool, play func()) {
+func (a *app) coverPlayButton(c *ui.Context, shown bool, cp *coverPlay) {
+	white := ui.RGB(255, 255, 255)
 	b := ui.ButtonBase(c.Key("play")).Absolute().Bottom(10).Right(10).Size(38, 38).Radius(999).Center().
-		Background(a.pal.accent).TextColor(ui.RGB(255, 255, 255)).Label(T("Play")).FocusRing(false).
+		Background(a.pal.accent).TextColor(white).Label(T("Play")).FocusRing(false).
 		Shadow(0, 4, 12, 0, ui.RGBA(0, 0, 0, 0.3))
 	pose := ui.Pose{Fade: 1, Scale: 0.8, Y: 6}
 	if shown || b.Hovered() {
@@ -217,9 +218,50 @@ func (a *app) coverPlayButton(c *ui.Context, shown bool, play func()) {
 	}
 	b.AnimatePose(pose, ui.Snappy)
 	b.Children(func() { ui.Icon(c, iconPlay).Size(15, 15).Margin(0, 0, 0, 2) })
-	if b.Clicked() {
-		play()
+	if cp.ahead != nil {
+		aheadOnHover(c, b, shown || b.Hovered(), cp.ahead)
 	}
+	if b.Clicked() {
+		cp.play()
+	}
+}
+
+// What a cover's play button plays is loaded as the pointer rests on the
+// cover for aheadAfter, and with it the source gets its first songs ready
+// (applemusic's prefetch.go): the button is then a click away, and the song
+// a moment, where a song nobody played yet would wait seconds for its keys.
+// Passing over covers on the way elsewhere loads nothing.
+const aheadAfter = 200 * time.Millisecond
+
+type hoverAhead struct {
+	since time.Time
+	done  bool
+}
+
+// aheadOnHover calls ahead once on has been true of b for aheadAfter, and
+// again after it has been false.
+func aheadOnHover(c *ui.Context, b ui.Element, on bool, ahead func()) {
+	h := ui.Local(b, "ahead", func() hoverAhead { return hoverAhead{} })
+	if h == nil {
+		return
+	}
+	if !on {
+		*h = hoverAhead{}
+		return
+	}
+	if h.done {
+		return
+	}
+	now := c.Now()
+	if h.since.IsZero() {
+		h.since = now
+	}
+	if wait := aheadAfter - now.Sub(h.since); wait > 0 {
+		c.After(wait)
+		return
+	}
+	h.done = true
+	ahead()
 }
 
 // playlistPage shows a playlist as Apple Music does: its header, its songs

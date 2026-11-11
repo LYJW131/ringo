@@ -89,6 +89,11 @@ type library struct {
 	browses   map[string]*browseData
 	searched  route // the search last shown, which the sidebar goes back to
 
+	// toPlay is the album or playlist whose cover's play button was clicked
+	// while it loaded, which plays as it comes, unless another was clicked
+	// since.
+	toPlay music.Origin
+
 	// favorites and kept are what the listener made a favorite, or added to
 	// their library, or undid, in the app, by itemKey: over what the
 	// source's answers said, which it may say again only as they load
@@ -118,6 +123,7 @@ func (l *library) forget() {
 	l.plAt = map[string]time.Time{}
 	l.freshPl = map[string]bool{}
 	l.plErr = map[string]string{}
+	l.toPlay = music.Origin{}
 	l.artists = map[string]*artistData{}
 	l.albums = map[string]*albumData{}
 	l.browses = map[string]*browseData{}

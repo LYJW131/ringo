@@ -565,6 +565,7 @@ func (a *app) loadPlaylist(id string, thenPlay bool) {
 	lib := a.library
 	if pl := lib.playlists[id]; pl != nil {
 		if thenPlay {
+			lib.toPlay = music.Origin{}
 			a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks), playlistOrigin(pl))
 		}
 		if !lib.freshPl[id] && time.Since(lib.plAt[id]) > listsFresh {
@@ -572,6 +573,23 @@ func (a *app) loadPlaylist(id string, thenPlay bool) {
 		}
 		return
 	}
+	if thenPlay {
+		// Played as it comes, whoever asked for it first (fetchPlaylist).
+		lib.toPlay = music.Origin{Kind: music.FromPlaylist, ID: id}
+	}
+	a.fetchPlaylist(id, false)
+}
+
+// playlistAhead loads a playlist under the pointer, before its cover's play
+// button is clicked, quietly (fetchAlbum).
+func (a *app) playlistAhead(id string) {
+	if a.library.playlists[id] == nil {
+		a.fetchPlaylist(id, true)
+	}
+}
+
+func (a *app) fetchPlaylist(id string, quiet bool) {
+	lib := a.library
 	if lib.loadingPl[id] {
 		return
 	}
@@ -582,12 +600,21 @@ func (a *app) loadPlaylist(id string, thenPlay bool) {
 		pl, err := answered(lib.src.Playlist(id))
 		a.post(func() {
 			delete(lib.loadingPl, id)
+			play := lib.toPlay == music.Origin{Kind: music.FromPlaylist, ID: id}
+			if play {
+				lib.toPlay = music.Origin{}
+			}
 			if err != nil {
-				lib.plErr[id] = a.problem(err, T("Couldn't load this playlist"))
+				if play {
+					a.actionFailed(err, T("Couldn't load this playlist"))
+				}
+				if !quiet || play || a.route.page == pagePlaylist && a.route.id == id {
+					lib.plErr[id] = a.problem(err, T("Couldn't load this playlist"))
+				}
 				return
 			}
 			lib.playlists[id], lib.plAt[id] = pl, at
-			if thenPlay {
+			if play {
 				a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks), playlistOrigin(pl))
 			}
 			a.keepPages()

@@ -506,43 +506,58 @@ func itemStation(it *music.Item) *music.Station {
 	return &music.Station{ID: it.ID, Name: it.Title, ImageURL: it.ImageURL}
 }
 
+// coverPlay is what a cover's play button does: play plays it, and ahead,
+// if there's one, gets it ready while the pointer rests on the cover.
+type coverPlay struct {
+	play  func()
+	ahead func()
+}
+
 // playItem plays an item from its card without opening it, for what its
 // card has a play button for: an album, a playlist or a station.
-func (a *app) playItem(it *music.Item) func() {
+func (a *app) playItem(it *music.Item) *coverPlay {
 	switch it.Kind {
 	case music.ItemAlbum:
 		id := itemID(it, it.Album != nil, func() string { return it.Album.ID })
-		return func() { a.playAlbum(id) }
+		return a.albumPlay(id)
 	case music.ItemPlaylist:
 		id := itemID(it, it.Playlist != nil, func() string { return it.Playlist.ID })
-		return func() { a.loadPlaylist(id, true) }
+		return a.playlistPlay(id)
 	case music.ItemStation:
-		return func() { a.playStation(itemStation(it)) }
+		return a.stationPlay(itemStation(it))
 	}
 	return nil
 }
 
+func (a *app) albumPlay(id string) *coverPlay {
+	return &coverPlay{
+		play:  func() { a.playAlbum(id) },
+		ahead: func() { a.fetchAlbum(id, true) },
+	}
+}
+
+func (a *app) playlistPlay(id string) *coverPlay {
+	return &coverPlay{
+		play:  func() { a.loadPlaylist(id, true) },
+		ahead: func() { a.playlistAhead(id) },
+	}
+}
+
+func (a *app) stationPlay(st *music.Station) *coverPlay {
+	return &coverPlay{play: func() { a.playStation(st) }}
+}
+
 // playAlbum plays an album from its first song, loading it first if it
-// hasn't.
+// hasn't, or waiting for it if it's on its way.
 func (a *app) playAlbum(id string) {
 	lib := a.library
 	if d := lib.albums[id]; d != nil && d.album != nil {
+		lib.toPlay = music.Origin{}
 		a.pl.PlayQueue(d.album.Tracks, firstPlayable(d.album.Tracks), albumOrigin(id))
 		return
 	}
-	go func() {
-		al, err := answered(lib.src.Album(id))
-		a.post(func() {
-			if err != nil {
-				a.actionFailed(err, T("Couldn't load this album"))
-				return
-			}
-			if d := lib.albums[id]; d == nil || d.album == nil {
-				lib.albums[id] = &albumData{album: al}
-			}
-			a.pl.PlayQueue(al.Tracks, firstPlayable(al.Tracks), albumOrigin(id))
-		})
-	}()
+	lib.toPlay = albumOrigin(id)
+	a.fetchAlbum(id, true)
 }
 
 // itemMenu is the menu of an item, as far as it has one: a song's, an

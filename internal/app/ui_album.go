@@ -17,7 +17,13 @@ type albumData struct {
 	err     string
 }
 
-func (a *app) loadAlbum(id string) {
+func (a *app) loadAlbum(id string) { a.fetchAlbum(id, false) }
+
+// fetchAlbum loads an album, for its page, or quietly, for its cover's play
+// button: what fails quietly is forgotten, unless the listener has the
+// album's page open by then or clicked play, and is asked again as they do.
+// Once it's in, it plays if its play button was clicked meanwhile (toPlay).
+func (a *app) fetchAlbum(id string, quiet bool) {
 	lib := a.library
 	d := lib.albums[id]
 	if d == nil {
@@ -32,11 +38,27 @@ func (a *app) loadAlbum(id string) {
 		al, err := answered(lib.src.Album(id))
 		a.post(func() {
 			d.loading = false
+			play := lib.toPlay == albumOrigin(id)
+			if play {
+				lib.toPlay = music.Origin{}
+			}
 			if err != nil {
+				if play {
+					a.actionFailed(err, T("Couldn't load this album"))
+				}
+				if quiet && (a.route.page != pageAlbum || a.route.id != id) {
+					if lib.albums[id] == d {
+						delete(lib.albums, id)
+					}
+					return
+				}
 				d.err = a.problem(err, T("Couldn't load this album"))
 				return
 			}
 			d.album = al
+			if play {
+				a.pl.PlayQueue(al.Tracks, firstPlayable(al.Tracks), albumOrigin(id))
+			}
 		})
 	}()
 }
