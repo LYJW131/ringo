@@ -458,7 +458,7 @@ func (n *notch) expanded(c *ui.Context, tr *music.Track, open, left float32) {
 					a.artistLinks(c, tr, white.Alpha(0.55), white).FontSize(12.5).SingleLine()
 				}
 			})
-			a.likeButton(c.Key("like"), tr, 17, white.Alpha(0.6))
+			a.likeButtonAs(c.Key("like"), tr, 17, white.Alpha(0.6), bareLook)
 			n.levels(c, tr, 26, 22, 5)
 		})
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
@@ -468,7 +468,7 @@ func (n *notch) expanded(c *ui.Context, tr *music.Track, open, left float32) {
 			ui.Text(c, "-"+clock(pl.Duration()-at)).FontSize(10.5).FontFeatures("tnum").TextColor(white.Alpha(0.5)).Width(34).TextAlign(ui.End)
 		})
 		ui.Box(c).Margin(-6, 0, 0, 0).Children(func() {
-			a.transport(c, transportLook{color: white, dim: white.Alpha(0.4), on: a.pal.accent, size: 20})
+			a.transport(c, transportLook{color: white, dim: white.Alpha(0.4), on: a.pal.accent, size: 20, bare: true})
 		})
 	})
 }

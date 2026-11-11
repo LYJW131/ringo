@@ -180,7 +180,11 @@ func (a *app) tickTimes(c *ui.Context) {
 // percent over it. The wheel over the speaker turns it up and down
 // without opening it.
 func (a *app) volumeButton(c *ui.Context, color ui.Color) {
-	b := iconButton(c.Key("volume-button"), volumeIcon(a.volume), 16, color, T("Volume"))
+	b := bareIconButton(c.Key("volume-button"), volumeIcon(a.volume), 16, color, T("Volume"))
+	if !a.volumeOpen {
+		// Open, the popover is where the tip would show.
+		b.Tooltip(T("Volume"))
+	}
 	if b.Clicked() {
 		a.volumeOpen = !a.volumeOpen
 	}

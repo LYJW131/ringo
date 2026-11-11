@@ -48,6 +48,9 @@ const glassPad = 7
 var (
 	// plainLook is a page's, and the player bar's: iconButton.
 	plainLook = buttonLook{8, iconButton}
+	// bareLook is the notch's: plainLook without tips, which its window
+	// has no room for.
+	bareLook = buttonLook{8, bareIconButton}
 	// glassLook is Now Playing's: glassButton.
 	glassLook = buttonLook{glassPad, glassButton}
 )
@@ -157,6 +160,8 @@ type transportLook struct {
 	color, dim, on ui.Color
 	size           float32
 	glass, spread  bool
+	// bare leaves the buttons without tips (bareIconButton).
+	bare bool
 }
 
 // transport is the row of controls: shuffle, previous, play, next, repeat.
@@ -179,11 +184,17 @@ func (a *app) transport(c *ui.Context, l transportLook) {
 		if on {
 			color = l.on
 		}
+		if l.bare {
+			return bareIconButton(c, icon, l.size*0.62, color, label)
+		}
 		return iconButton(c, icon, l.size*0.62, color, label)
 	}
 	step := func(c *ui.Context, icon *ui.SVG, label string) ui.Element {
 		if l.glass {
 			return glyphButton(c, icon, l.size*1.05, l.size*0.4, l.color, label)
+		}
+		if l.bare {
+			return bareIconButton(c, icon, l.size*0.85, l.color, label)
 		}
 		return iconButton(c, icon, l.size*0.85, l.color, label)
 	}

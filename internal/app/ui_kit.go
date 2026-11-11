@@ -73,8 +73,16 @@ func paletteFor(t *ui.Theme) palette {
 }
 
 // iconButton is a borderless button showing an icon, which a soft circle
-// marks under the pointer and which gives a little as it is pressed.
+// marks under the pointer and which gives a little as it is pressed. With
+// no words of its own, it says what it does in a tip once the pointer rests
+// on it, as the buttons of a toolbar do.
 func iconButton(c *ui.Context, icon *ui.SVG, size float32, color ui.Color, label string) ui.Element {
+	return bareIconButton(c, icon, size, color, label).Tooltip(label)
+}
+
+// bareIconButton is iconButton without its tip, for where one has no room
+// to show, as in the notch, or would cover what the button opened.
+func bareIconButton(c *ui.Context, icon *ui.SVG, size float32, color ui.Color, label string) ui.Element {
 	b := roundButton(c, size, color, label)
 	b.Children(func() { ui.Icon(c, icon).Size(size, size) })
 	return b

@@ -328,7 +328,7 @@ func (a *app) paneFade(c *ui.Context, e ui.Element) {
 func (a *app) npChrome(c *ui.Context, w float32, pointerIn bool) {
 	a.npRise(ui.Row(c.Key("top-strip")).Absolute().Top(0).Left(0).Right(0).Height(topBar(c)).Justify(ui.Center).AlignItems(ui.Center).DragWindow(), 0).Children(func() {
 		reveal(ui.Box(c.Key("close-reveal")), pointerIn).Children(func() {
-			if iconButton(c.Key("close"), iconDown, 22, white.Alpha(0.7), T("Close")).Clicked() {
+			if bareIconButton(c.Key("close"), iconDown, 22, white.Alpha(0.7), T("Close")).Clicked() {
 				a.nowPlaying = false
 			}
 		})
