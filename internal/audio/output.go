@@ -52,6 +52,9 @@ var (
 	currentDevice = outputDevice
 	// parkFor is the clock a device holding nothing waits by.
 	parkFor = func(d time.Duration) <-chan time.Time { return time.After(d) }
+	// standIn is the device that plays nothing in place of one that
+	// didn't open, or opened and wouldn't play.
+	standIn = func(retry bool, rate int) device { return newNullDevice(retry, rate) }
 
 	wake     = make(chan struct{}, 1)
 	runOnce  sync.Once
@@ -158,6 +161,13 @@ func outputRate() (rate, gen int) {
 func run() {
 	// Devices that need it, as COM's, stay on one thread.
 	runtime.LockOSThread()
+	// failed is why the device last opened played nothing: it opened, and
+	// then took less than it holds before it failed, as the Audio Queue of
+	// a Mac with no output does when it is started. Opened again at once
+	// it would fail again, each time with a quarter of a second of the
+	// music, which then played out in a moment; so it is stood in for, as
+	// one that didn't open.
+	var failed error
 	for {
 		for !active() {
 			<-wake
@@ -168,8 +178,14 @@ func run() {
 		lat := outputLatency()
 		rate, gen := outputRate()
 		opened := rate
-		dev, n, err := openOutput(lat.ahead(), rate)
-		if err != nil && err != errUnsupported && rate != defaultRate {
+		var (
+			dev device
+			n   int
+			err error
+		)
+		if failed != nil {
+			err, failed = failed, nil
+		} else if dev, n, err = openOutput(lat.ahead(), rate); err != nil && err != errUnsupported && rate != defaultRate {
 			opened = defaultRate
 			dev, n, err = openOutput(lat.ahead(), opened)
 		}
@@ -177,7 +193,7 @@ func run() {
 		seen := currentDevice()
 		if err != nil {
 			setErr(err)
-			dev, n = newNullDevice(err != errUnsupported, opened), nullFrames(opened)
+			dev, n = standIn(err != errUnsupported, opened), nullFrames(opened)
 			// It holds nothing: what it takes is heard as it takes it.
 			setHeld(0)
 		}
@@ -195,6 +211,8 @@ func run() {
 			setHeld(held)
 		}
 		buf := make([]float32, n*channels)
+		// written is the frames the device took, for one that fails.
+		real, written := err == nil, int64(0)
 		idle, idled, checked := time.Duration(0), false, time.Duration(0)
 		per := frames(int64(n), opened)
 		f, _ := dev.(flusher)
@@ -254,9 +272,16 @@ func run() {
 				break
 			}
 			if err := dev.write(buf); err != nil {
-				// Lost, or a null device trying the real one again.
+				// Lost, or a null device trying the real one again; or
+				// one that never played, whose players go back to where
+				// they were before it took anything of them.
+				if real && written < held {
+					failed = err
+					rewindHeard(0)
+				}
 				break
 			}
+			written += int64(n)
 			empty = false
 			if !sure {
 				var frames int64
