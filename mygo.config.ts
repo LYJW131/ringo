@@ -4,7 +4,7 @@ export default () => ({
   name: "Ringo",
   identifier: "io.github.lyjw131.ringo",
   slug: "ringo",
-  version: "0.2.1",
+  version: "0.2.2",
   out: "build",
   resources: ["LICENSE", "THIRD_PARTY_NOTICES.md", "licenses/LGPL-2.1.txt"],
   macos: {

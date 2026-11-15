@@ -2,6 +2,27 @@
 
 All notable changes to Ringo are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.2.2]
+
+### Added
+
+- Pinned, at the top of the sidebar's library: what you pinned in Apple Music, each opening its page, or a song its album. Pin and unpin songs, albums, playlists and artists of your library from their menus, and drag the pins to another order.
+- Vinyl, a fourth style of the stage's lyrics: a record turns at its edge, the lines are spokes of a wheel around it, and each word lights up as it is sung.
+- Covers that move play wherever they show large: at the head of a page, on a large card, and in Now Playing.
+- The audio output opens at each song's own sample rate, so Hi-Res Lossless reaches the system as it is rather than at 48 kHz. On macOS it sets the output device to that rate too, and puts it back; Match Sample Rate, in the Playback settings, leaves the device as it is.
+
+### Changed
+
+- On macOS, a pause is silent at once, and playing again is heard at once, where both waited for what the device held ahead.
+- Add to Library on an album's page narrows into its star, and widens back when the album is deleted from the library.
+
+### Fixed
+
+- Lyrics keep time on Bluetooth headphones, counting what the device itself holds before it plays.
+- The output follows the Mac's output device as it changes, setting the new one to the music's rate.
+- A device that won't run at a song's rate plays it at 48 kHz instead of not at all, on Windows and Linux.
+- An album's page says it's in the library once all its songs are, and no longer once none is.
+
 ## [0.2.1]
 
 ### Added
