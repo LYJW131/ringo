@@ -20,6 +20,7 @@ Ringo is a desktop client for Apple Music: one Go program, its windows drawn by 
 - Tests against a real account read only, and print nothing that says whose it is. Tests that change an account run only with `APPLE_MUSIC_WRITE_TOKEN_FILE`, and put back what they changed.
 - Comments say why, in plain sentences, in the tone of the file they're in.
 - Commits are in English, a sentence for a subject, the body saying what changed and why.
+- When Ringo gains a feature, look at the table comparing it with the plugin in [the plugin's](https://github.com/LYJW131/mygo-music-apple-music) README ("与 Ringo 对照" in `README.md`, "Compared with Ringo" in `README.en.md`), and add or change its row there if it has one to have.
 
 ## Checking a change
 
@@ -36,7 +37,7 @@ What only Apple can answer is tested live, and skipped without its variable:
 | `LIVE=1` | The catalog's pages, signed out, in two storefronts |
 | `APPLE_MUSIC_TOKEN_FILE` | Signed in, reading only: the account, a song decrypted, lyrics, Home, the library's pages |
 | `APPLE_MUSIC_WRAPPER` with it | A song played lossless through that wrapper |
-| `APPLE_MUSIC_WRITE_TOKEN_FILE` | Favorites, the library and autoplay, and an album and a playlist reported as played, on an account kept for testing |
+| `APPLE_MUSIC_WRITE_TOKEN_FILE` | Favorites, the library, pins and autoplay, and an album and a playlist reported as played, on an account kept for testing |
 | Both token files, and `APPLE_MUSIC_WRAPPER` | Two accounts added, switched between and removed, and one the wrapper holds switched to: reading only, the second file as a second account |
 
 To look at the app with what Apple really answers, build it and run it with `MM_SHOTS` set to a directory: it walks its pages, saves a picture of each there, plays a song without sound and quits (`internal/app/debug_shots.go`). The sidebar is transparent in those pictures, as the window's material shows through it: lay them over a dark color before judging them.
