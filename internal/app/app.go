@@ -108,7 +108,7 @@ type app struct {
 	// was left rather than at its top.
 	returning route
 
-	libraryCollapsed, mineCollapsed bool
+	libraryCollapsed, mineCollapsed, pinsCollapsed bool
 
 	query     string
 	searchBox ui.Handle

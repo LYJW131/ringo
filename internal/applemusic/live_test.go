@@ -202,6 +202,14 @@ func TestLiveSignedIn(t *testing.T) {
 		return out, nil
 	})
 	step("home", func() (string, error) { h, err := s.Home(); return sectionsOr(h), err })
+	step("pins", func() (string, error) {
+		pins, err := s.Pins()
+		kinds := make([]string, len(pins))
+		for i, p := range pins {
+			kinds[i] = p.Kind
+		}
+		return strings.Join(kinds, " "), err
+	})
 	step("recentlyAdded", func() (string, error) { h, err := s.Browse(music.PageRecentlyAdded); return sectionsOr(h), err })
 	// Nothing is reported as played: the test leaves the account's listening
 	// history as it found it.

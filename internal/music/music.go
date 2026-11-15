@@ -634,6 +634,9 @@ type Source interface {
 	Artist(id string) (*ArtistPage, error)
 	Liked(offset int) (*Page, error)
 	Recent() ([]Track, error)
+	// Pins are what the listener pinned to the top of their library, in
+	// their order: albums, playlists, artists and songs, as Items.
+	Pins() ([]Item, error)
 
 	// Home is what the Home page shows.
 	Home() (*Browse, error)

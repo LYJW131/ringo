@@ -71,6 +71,7 @@ func (a *app) sidebar(c *ui.Context) {
 			if items := a.libraryItems(); len(items) > 0 {
 				a.sidebarGroup(c.Key("library"), T("Library"), &a.libraryCollapsed, nil)
 				if !a.libraryCollapsed {
+					a.sidebarPins(c.Key("pins"))
 					for _, n := range items {
 						a.navItem(c, n.icon, n.label, n.route)
 					}
@@ -223,4 +224,93 @@ func (a *app) playlistRows(c *ui.Context, lists []music.Playlist, mine bool) {
 			a.open(route{page: pagePlaylist, id: pl.ID})
 		}
 	}
+}
+
+// sidebarPins heads the library with what the listener pinned, as Music
+// does: a row that opens and closes them, its arrow in the margin before
+// the icons, and under it a row of each, set in from the pages' rows.
+func (a *app) sidebarPins(c *ui.Context) {
+	pins := a.library.pins
+	if len(pins) == 0 {
+		return
+	}
+	p := a.pal
+	b := ui.ButtonBase(c.Key("toggle")).Height(32).PaddingX(10).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).
+		FocusRing(false).Role(ui.RoleDisclosure).Label(T("Pinned"))
+	b.Expanded(!a.pinsCollapsed)
+	bg := ui.Transparent
+	if b.Hovered() {
+		bg = p.hover
+	}
+	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: hoverFade}))
+	b.Children(func() {
+		arrow := iconDown
+		if a.pinsCollapsed {
+			arrow = iconForward
+		}
+		ui.Icon(c, arrow).Size(8, 8).TextColor(p.faint).Absolute().Left(-6).Top(12)
+		ui.Icon(c, iconPin).Size(17, 17).TextColor(p.accent)
+		ui.Text(c, T("Pinned")).FontSize(13.5).FontWeight(500).TextColor(p.text).SingleLine().Shrink(1).MinWidth(0)
+	})
+	if b.Clicked() {
+		a.pinsCollapsed = !a.pinsCollapsed
+	}
+	if a.pinsCollapsed {
+		return
+	}
+	for i := range pins {
+		it := &pins[i]
+		r, ok := pinRoute(it)
+		if !ok {
+			continue
+		}
+		selected := !a.nowPlaying && a.route.page == r.page && a.route.id == r.id
+		// Set in from the pages' rows above, as Music's are: the cover
+		// where their icons end, the name a little past theirs.
+		row := ui.ButtonBase(c.Key(i)).Height(32).PaddingX(18).Gap(8).Radius(8).AlignItems(ui.Center).Justify(ui.Start).
+			FocusRing(false).Label(it.Title)
+		bg := ui.Transparent
+		switch {
+		case selected:
+			bg = p.press
+		case row.Hovered():
+			bg = p.hover
+		}
+		row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: hoverFade}))
+		row.Children(func() {
+			radius := float32(4)
+			if it.Kind == music.ItemArtist {
+				radius = 11
+			}
+			a.cover(c, it.ImageURL, 80, 22, radius)
+			ui.Text(c, it.Title).FontSize(13).SingleLine().Shrink(1).MinWidth(0)
+		})
+		if menu := a.itemMenu(it); menu != nil {
+			row.ContextMenu(menu)
+		}
+		if row.Clicked() {
+			a.open(r)
+		}
+	}
+}
+
+// pinRoute is the page a pin opens, as the web player's do: an album, a
+// playlist or an artist its own, and a song or a video the album it's on.
+func pinRoute(it *music.Item) (route, bool) {
+	switch it.Kind {
+	case music.ItemAlbum:
+		return route{page: pageAlbum, id: itemID(it, it.Album != nil, func() string { return it.Album.ID })}, true
+	case music.ItemPlaylist:
+		return route{page: pagePlaylist, id: itemID(it, it.Playlist != nil, func() string { return it.Playlist.ID })}, true
+	case music.ItemArtist:
+		if it.Page != "" {
+			return route{page: pageBrowse, id: it.Page}, true
+		}
+		return route{page: pageArtist, id: itemID(it, it.Artist != nil, func() string { return it.Artist.ID })}, true
+	case music.ItemSong, music.ItemVideo:
+		if it.Track != nil && it.Track.Album.ID != "" {
+			return route{page: pageAlbum, id: it.Track.Album.ID}, true
+		}
+	}
+	return route{}, false
 }

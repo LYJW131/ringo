@@ -115,6 +115,7 @@ var ringoChinese = map[string]string{
 	"No Results":                        "没有搜索结果",
 	"No items":                          "无项目",
 	"OK":                                "好",
+	"Pinned":                            "置顶内容",
 	"Play Last":                         "最后播放",
 	"Play Next":                         "插播",
 	"Playback Progress":                 "播放进度",

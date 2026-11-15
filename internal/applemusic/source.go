@@ -324,6 +324,11 @@ func (s *Source) Liked(offset int) (*music.Page, error) {
 	return s.liked(offset, false)
 }
 
+func (s *Source) Pins() ([]music.Item, error) {
+	defer s.asked(true)()
+	return s.pins()
+}
+
 func (s *Source) Recent() ([]music.Track, error) {
 	defer s.asked(true)()
 	return s.recent()

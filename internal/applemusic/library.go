@@ -744,3 +744,18 @@ func (s *Source) movePlaylistTrack(id string, from, to int) error {
 	s.noteEdit(id, func(e *playlistEdit) { e.tracks = order })
 	return nil
 }
+
+// pins are what the listener pinned in their library, asked for as the web
+// player does: a song with its album, which a pinned song opens, and an
+// artist with what the catalog has of them, for their picture.
+func (s *Source) pins() ([]music.Item, error) {
+	b, err := s.me("/library/pins", s.mapped(params{
+		"meta": "libraryPin", "limit": "100",
+		"include[library-songs]": "albums", "include[library-music-videos]": "albums",
+		"include[library-artists]": "catalog", "fields[artists]": "artwork",
+	}), reqOpts{})
+	if err != nil {
+		return nil, err
+	}
+	return s.items(b, b.Data), nil
+}

@@ -50,6 +50,9 @@ type library struct {
 
 	mine, saved []music.Playlist // the listener's playlists: made, and saved
 	mineAt      time.Time        // when they were last asked for
+	// pins are what the listener pinned in their library, which the
+	// sidebar lists at the top of it, as Music does.
+	pins []music.Item
 
 	liked      map[string]bool // the tracks known to be liked, or not
 	wantLikes  []string        // the tracks a heart showed for, to ask about

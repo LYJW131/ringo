@@ -1,6 +1,7 @@
 package app
 
 import (
+	"log"
 	"slices"
 	"strings"
 	"time"
@@ -64,6 +65,7 @@ func (a *app) loadMine() {
 		return
 	}
 	lib.mineAt = time.Now()
+	a.loadPins()
 	go func() {
 		lists, err := lib.src.Playlists()
 		a.post(func() {
@@ -89,6 +91,24 @@ func (a *app) loadMine() {
 			}
 			a.keepPages()
 			a.warmPages()
+		})
+	}()
+}
+
+// loadPins loads what the listener pinned, alongside their playlists. As
+// pins are only a way to what's elsewhere in the sidebar, failing to load
+// them says nothing, and those shown stay.
+func (a *app) loadPins() {
+	lib := a.library
+	go func() {
+		pins, err := lib.src.Pins()
+		a.post(func() {
+			if err != nil {
+				log.Printf("pins: %v", err)
+				return
+			}
+			lib.pins = pins
+			a.keepPages()
 		})
 	}()
 }

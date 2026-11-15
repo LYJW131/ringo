@@ -1,10 +1,14 @@
 package app
 
 import (
+	"fmt"
+	"image"
+	"image/draw"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
 
+	"ringo/internal/i18n"
 	"ringo/internal/music"
 )
 
@@ -132,5 +136,78 @@ func TestSidebarLibraryOnceSignedIn(t *testing.T) {
 	}
 	if a.route.id != music.PageRecentlyAdded {
 		t.Errorf("opened %+v", a.route)
+	}
+}
+
+// A pinned song opens the album it's on, a pinned album its own page, and
+// the Pinned row hides the pins and shows them again.
+func TestSidebarPins(t *testing.T) {
+	a := editTestApp()
+	a.library.pins = []music.Item{
+		{Kind: music.ItemSong, ID: "i.1", Title: "生命線", Track: &music.Track{ID: "i.1", Album: music.Album{ID: "l.7"}}},
+		{Kind: music.ItemAlbum, ID: "l.8", Title: "HALO - EP", Album: &music.Album{ID: "l.8"}},
+	}
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+
+	if err := tt.Click("生命線"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.route != (route{page: pageAlbum, id: "l.7"}) {
+		t.Errorf("the pinned song opened %+v, want its album l.7", a.route)
+	}
+	if err := tt.Click("HALO - EP"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.route != (route{page: pageAlbum, id: "l.8"}) {
+		t.Errorf("the pinned album opened %+v, want l.8", a.route)
+	}
+
+	if err := tt.Click("Pinned"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("生命線"); ok {
+		t.Error("the collapsed pins still show")
+	}
+	if err := tt.Click("Pinned"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("生命線"); !ok {
+		t.Error("the pins don't show again")
+	}
+}
+
+// With MM_FRAMES set, saves the sidebar with pins, in Chinese, dark and
+// light: open with a pinned album's page showing, and closed.
+func TestSidebarPinsFrames(t *testing.T) {
+	dir := framesDir(t)
+	i18n.SetLanguage(i18n.Chinese)
+	defer i18n.SetLanguage(i18n.English)
+	for _, dark := range []bool{true, false} {
+		for _, closed := range []bool{false, true} {
+			a := editTestApp()
+			a.library.pins = []music.Item{
+				{Kind: music.ItemSong, ID: "i.1", Title: "生命線", Track: &music.Track{ID: "i.1", Album: music.Album{ID: "l.7"}}},
+				{Kind: music.ItemPlaylist, ID: "p.1", Title: "N", Playlist: &music.Playlist{ID: "p.1"}},
+				{Kind: music.ItemAlbum, ID: "l.8", Title: "HALO - EP", Album: &music.Album{ID: "l.8"}},
+				{Kind: music.ItemArtist, ID: "r.1", Title: "ずっと真夜中でいいのに。", Page: "library-artist:r.1"},
+				{Kind: music.ItemAlbum, ID: "l.9", Title: "Ao No Hako (Original Soundtrack)", Album: &music.Album{ID: "l.9"}},
+			}
+			a.pinsCollapsed = closed
+			a.route = route{page: pageAlbum, id: "l.8"}
+			tt := ui.NewTester(a.view, 1000, 800)
+			tt.SetDark(dark)
+			settled(tt)
+			img := tt.Image()
+			s := float32(img.Bounds().Dx()) / 1000
+			crop := image.Rect(0, 0, int((sidebarWidth+20)*s), img.Bounds().Dy())
+			out := image.NewRGBA(image.Rect(0, 0, crop.Dx(), crop.Dy()))
+			draw.Draw(out, out.Bounds(), img, crop.Min, draw.Src)
+			saveFrame(t, dir, fmt.Sprintf("pins-dark%v-closed%v.png", dark, closed), out)
+		}
 	}
 }

@@ -25,7 +25,7 @@ import (
 // dropped, with what it showed, as the source says who that is.
 //
 // What: Home, the first part of each page of the sidebar, the first part of
-// the favorite songs, the listener's playlists, and up to pagesPlaylists
+// the favorite songs, the listener's playlists and pins, and up to pagesPlaylists
 // playlists of at most pagesTracks songs. Not the pictures, which the cover
 // cache keeps, but where to find them, and no token: a source's answers don't
 // hold one, and the file holds nothing else of the account than the hash.
@@ -55,6 +55,7 @@ type pageFile struct {
 	Recent    []music.Track              `json:",omitempty"`
 	Mine      []music.Playlist           `json:",omitempty"`
 	Saved     []music.Playlist           `json:",omitempty"`
+	Pins      []music.Item               `json:",omitempty"`
 	Browses   map[string]*music.Browse   `json:",omitempty"`
 	Liked     []music.Track              `json:",omitempty"`
 	LikedMore bool                       `json:",omitempty"`
@@ -108,7 +109,7 @@ func (a *app) stagePages() {
 	}
 	lib.staged = &f
 	lib.home, lib.recent, lib.homeKept = f.Home, f.Recent, f.Home != nil || len(f.Recent) > 0
-	lib.mine, lib.saved = f.Mine, f.Saved
+	lib.mine, lib.saved, lib.pins = f.Mine, f.Saved, f.Pins
 	for page, b := range f.Browses {
 		if b != nil {
 			lib.browses[page] = &browseData{page: b, next: paged{loaded: true, more: b.Next != ""}}
@@ -156,7 +157,7 @@ func (a *app) dropStaged() {
 	if lib.homeKept {
 		lib.home, lib.recent, lib.homeKept = nil, nil, false
 	}
-	lib.mine, lib.saved = nil, nil
+	lib.mine, lib.saved, lib.pins = nil, nil, nil
 	if lib.pages != nil {
 		trashPages(lib.pages.path)
 	}
@@ -248,7 +249,7 @@ func (a *app) savePages(wait bool) {
 // or nil if there's nothing to keep.
 func (a *app) encodePages(account string) []byte {
 	lib := a.library
-	f := pageFile{Version: pagesVersion, Lang: i18n.Language(), Account: account, Home: lib.home, Mine: lib.mine, Saved: lib.saved}
+	f := pageFile{Version: pagesVersion, Lang: i18n.Language(), Account: account, Home: lib.home, Mine: lib.mine, Saved: lib.saved, Pins: lib.pins}
 	f.Recent = lib.recent[:min(len(lib.recent), pagesRecent)]
 	for page, d := range lib.browses {
 		// What's gone on past its first part isn't kept as that. Nor is what
