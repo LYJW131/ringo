@@ -1,9 +1,11 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"image/draw"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -197,6 +199,9 @@ func TestSidebarPinsFrames(t *testing.T) {
 				{Kind: music.ItemArtist, ID: "r.1", Title: "ずっと真夜中でいいのに。", Page: "library-artist:r.1"},
 				{Kind: music.ItemAlbum, ID: "l.9", Title: "Ao No Hako (Original Soundtrack)", Album: &music.Album{ID: "l.9"}},
 			}
+			for i := range a.library.pins {
+				a.library.pins[i].Pin = &music.PinPlace{ID: a.library.pins[i].ID}
+			}
 			a.pinsCollapsed = closed
 			a.route = route{page: pageAlbum, id: "l.8"}
 			tt := ui.NewTester(a.view, 1000, 800)
@@ -208,6 +213,136 @@ func TestSidebarPinsFrames(t *testing.T) {
 			out := image.NewRGBA(image.Rect(0, 0, crop.Dx(), crop.Dy()))
 			draw.Draw(out, out.Bounds(), img, crop.Min, draw.Src)
 			saveFrame(t, dir, fmt.Sprintf("pins-dark%v-closed%v.png", dark, closed), out)
+			if closed {
+				continue
+			}
+			// A pin dragged halfway up, over another.
+			f, _ := tt.Find("Ao No Hako (Original Soundtrack)")
+			o, _ := tt.Find("N")
+			x, y := f.X+f.W/2, f.Y+f.H/2
+			tt.Press(x, y)
+			tt.Frame()
+			for k := 1; k <= 4; k++ {
+				tt.Move(x, y+(o.Y+o.H*0.25-y)*float32(k)/4)
+				tt.Frame()
+			}
+			img = tt.Image()
+			out = image.NewRGBA(image.Rect(0, 0, crop.Dx(), crop.Dy()))
+			draw.Draw(out, out.Bounds(), img, crop.Min, draw.Src)
+			saveFrame(t, dir, fmt.Sprintf("pins-dark%v-dragging.png", dark), out)
+			tt.Release(x, o.Y+o.H*0.25)
+			settled(tt)
+			img = tt.Image()
+			out = image.NewRGBA(image.Rect(0, 0, crop.Dx(), crop.Dy()))
+			draw.Draw(out, out.Bounds(), img, crop.Min, draw.Src)
+			saveFrame(t, dir, fmt.Sprintf("pins-dark%v-dropped.png", dark), out)
 		}
 	}
+}
+
+// pinned gives the app of editTestApp three pins, and sees what the source
+// is asked of them.
+func pinned(a *app) (moves chan [2]string, pins chan string) {
+	place := func(id string) *music.PinPlace { return &music.PinPlace{ID: id, Position: "at-" + id} }
+	a.library.pins = []music.Item{
+		{Kind: music.ItemSong, ID: "1", Title: "生命線", Track: &music.Track{ID: "1", Album: music.Album{ID: "l.7"}}, Pin: place("i.1")},
+		{Kind: music.ItemPlaylist, ID: "p.1", Title: "N", Playlist: &music.Playlist{ID: "p.1"}, Pin: place("p.1")},
+		{Kind: music.ItemAlbum, ID: "l.8", Title: "HALO - EP", Album: &music.Album{ID: "l.8"}, Pin: place("l.8")},
+	}
+	moves, pins = make(chan [2]string, 4), make(chan string, 4)
+	f := fake(a)
+	f.movePin = func(id, after string) error { moves <- [2]string{id, after}; return nil }
+	f.pin = func(kind, id string, on bool) error { pins <- fmt.Sprint(kind, " ", id, " ", on); return nil }
+	f.pins = func() ([]music.Item, error) { return a.library.pins, nil }
+	return moves, pins
+}
+
+func pinTitles(a *app) string {
+	var out []string
+	for _, it := range a.library.pins {
+		out = append(out, it.Title)
+	}
+	return strings.Join(out, " ")
+}
+
+// Dragging a pin of the sidebar above another moves it there at once, and
+// asks the source to put it after the one now above it, or at the top.
+func TestSidebarPinDrag(t *testing.T) {
+	a := editTestApp()
+	moves, _ := pinned(a)
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	tt.Frame()
+	queueDrag(tt, "HALO - EP", "N", false)
+	if got := pinTitles(a); got != "生命線 HALO - EP N" {
+		t.Fatalf("the pins are %s", got)
+	}
+	if m := wait(t, moves, "the move"); m != [2]string{"l.8", "at-i.1"} {
+		t.Errorf("asked to move %v", m)
+	}
+	queueDrag(tt, "N", "生命線", false)
+	if got := pinTitles(a); got != "N 生命線 HALO - EP" {
+		t.Fatalf("the pins are %s", got)
+	}
+	if m := wait(t, moves, "the move"); m != [2]string{"p.1", ""} {
+		t.Errorf("asked to move %v to the top", m)
+	}
+}
+
+// Unpinning from a pin's menu takes it from the sidebar at once, and a
+// source that refuses has it back.
+func TestSidebarUnpin(t *testing.T) {
+	a := editTestApp()
+	ch := posts(a)
+	_, pins := pinned(a)
+	refuse := errors.New("offline")
+	f := fake(a)
+	f.pin = func(kind, id string, on bool) error { pins <- fmt.Sprint(kind, " ", id, " ", on); return refuse }
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if err := tt.RightClick("生命線"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Unpin Song"); err != nil {
+		t.Fatalf("%v: %q", err, tt.Menu())
+	}
+	if got := pinTitles(a); got != "N HALO - EP" {
+		t.Errorf("after unpinning, the pins are %s", got)
+	}
+	if p := wait(t, pins, "the unpinning"); p != "song 1 false" {
+		t.Errorf("asked %s", p)
+	}
+	until(t, ch, func() bool { return a.toast != "" })
+	if got := pinTitles(a); got != "生命線 N HALO - EP" {
+		t.Errorf("refused, the pins are %s", got)
+	}
+}
+
+// An album of the library that isn't pinned offers to be pinned, which asks
+// the source and lists the pins anew.
+func TestPinAlbumFromItsMenu(t *testing.T) {
+	a := editTestApp()
+	ch := posts(a)
+	_, pins := pinned(a)
+	asked := make(chan bool, 2)
+	fake(a).pins = func() ([]music.Item, error) { asked <- true; return a.library.pins, nil }
+	m := ui.NewTester(func(c *ui.Context) {
+		ui.ButtonBase(c.Key("card")).Label("card").Size(100, 100).ContextMenu(a.albumItems(music.Album{ID: "l.9", Saved: true}))
+	}, 300, 300)
+	m.Frame()
+	if err := m.RightClick("card"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.ChooseMenuItem("Pin Album"); err != nil {
+		t.Fatalf("%v: %q", err, m.Menu())
+	}
+	if p := wait(t, pins, "the pinning"); p != "album l.9 true" {
+		t.Errorf("asked %s", p)
+	}
+	go func() {
+		for fn := range ch {
+			fn()
+		}
+	}()
+	wait(t, asked, "the pins again")
 }

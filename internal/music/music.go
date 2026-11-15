@@ -637,6 +637,12 @@ type Source interface {
 	// Pins are what the listener pinned to the top of their library, in
 	// their order: albums, playlists, artists and songs, as Items.
 	Pins() ([]Item, error)
+	// Pin pins what an Item's kind and ID name, in the listener's library,
+	// after their other pins, or unpins it.
+	Pin(kind, id string, on bool) error
+	// MovePin moves the pin of id, a PinPlace's ID, to just after the pin
+	// whose Position is after, or to the top if after is "".
+	MovePin(id, after string) error
 
 	// Home is what the Home page shows.
 	Home() (*Browse, error)

@@ -2,6 +2,7 @@ package applemusic
 
 import (
 	"errors"
+	"net/url"
 	"regexp"
 	"slices"
 	"sort"
@@ -42,6 +43,9 @@ func (s *Source) forgetLibrary() {
 	s.subMu.Lock()
 	s.subscribed = nil
 	s.subMu.Unlock()
+	s.pinMu.Lock()
+	s.pinned = nil
+	s.pinMu.Unlock()
 }
 
 func (s *Source) favorites() (id string, known bool) {
@@ -747,7 +751,9 @@ func (s *Source) movePlaylistTrack(id string, from, to int) error {
 
 // pins are what the listener pinned in their library, asked for as the web
 // player does: a song with its album, which a pinned song opens, and an
-// artist with what the catalog has of them, for their picture.
+// artist with what the catalog has of them, for their picture. Each says
+// where it is among them, and the library's ID it's pinned by, which for a
+// song isn't the ID the app knows it by: those are kept, to unpin it by.
 func (s *Source) pins() ([]music.Item, error) {
 	b, err := s.me("/library/pins", s.mapped(params{
 		"meta": "libraryPin", "limit": "100",
@@ -757,5 +763,65 @@ func (s *Source) pins() ([]music.Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.items(b, b.Data), nil
+	out := []music.Item{}
+	pinned := map[string]string{}
+	for _, r := range b.all(b.Data) {
+		it, ok := s.item(b, r)
+		if !ok {
+			continue
+		}
+		it.Pin = &music.PinPlace{ID: r.ID}
+		if r.Meta != nil && r.Meta.LibraryPin != nil {
+			it.Pin.Position = r.Meta.LibraryPin.PositionUUID
+		}
+		pinned[it.ID] = r.ID
+		out = append(out, it)
+	}
+	s.pinMu.Lock()
+	s.pinned = pinned
+	s.pinMu.Unlock()
+	return out, nil
+}
+
+// pin pins what kind and id name, or unpins it, by the library's own ID:
+// id itself if it's one, else the one it was last listed pinned by, else
+// the library's for what of the catalog it is. Apple puts a new pin after
+// the others, and answers as if it did for one already pinned, or unpinned
+// for one that wasn't. It refuses one past the most it keeps.
+func (s *Source) pin(kind, id string, on bool) error {
+	own := id
+	if typeOf(kind, id) == catalogTypes[kind] {
+		s.pinMu.Lock()
+		own = s.pinned[id]
+		s.pinMu.Unlock()
+		if own == "" {
+			if r := s.inLibrary(catalogTypes[kind], id); r != nil {
+				own = r.ID
+			}
+		}
+	}
+	if own == "" {
+		if !on {
+			return nil
+		}
+		return fail("unsupported", i18n.T("Add it to your library to pin it."))
+	}
+	method := "DELETE"
+	if on {
+		method = "POST"
+	}
+	_, err := s.me("/library/pins/"+url.PathEscape(own), nil, reqOpts{method: method})
+	if on && err != nil && strings.Contains(err.Error(), "HTTP 400") {
+		return fail("unsupported", i18n.T("You've pinned as many items as you can. Unpin one to pin another."))
+	}
+	return err
+}
+
+// movePin moves the pin of id after the one at after, or to the top.
+func (s *Source) movePin(id, after string) error {
+	if after == "" {
+		after = "top"
+	}
+	_, err := s.me("/library/pins/"+url.PathEscape(id), params{"after": after}, reqOpts{method: "POST"})
+	return err
 }

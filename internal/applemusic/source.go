@@ -98,6 +98,11 @@ type Source struct {
 
 	libMu sync.Mutex
 	lib   libraryState
+
+	// pinned is the library's ID each pin was last listed pinned by, by the
+	// ID the app knows it by.
+	pinMu  sync.Mutex
+	pinned map[string]string
 	// edits are changes to the listener's playlists that Apple took but may
 	// not answer with yet, by playlist (playlistEdit).
 	edits map[string]*playlistEdit
@@ -327,6 +332,16 @@ func (s *Source) Liked(offset int) (*music.Page, error) {
 func (s *Source) Pins() ([]music.Item, error) {
 	defer s.asked(true)()
 	return s.pins()
+}
+
+func (s *Source) Pin(kind, id string, on bool) error {
+	defer s.asked(true)()
+	return s.pin(kind, id, on)
+}
+
+func (s *Source) MovePin(id, after string) error {
+	defer s.asked(true)()
+	return s.movePin(id, after)
 }
 
 func (s *Source) Recent() ([]music.Track, error) {

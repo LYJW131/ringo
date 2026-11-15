@@ -575,6 +575,8 @@ func (nothing) Artist(string) (*music.ArtistPage, error)       { return nil, mus
 func (nothing) Liked(int) (*music.Page, error)                 { return nil, music.ErrUnsupported }
 func (nothing) Recent() ([]music.Track, error)                 { return nil, music.ErrUnsupported }
 func (nothing) Pins() ([]music.Item, error)                    { return nil, music.ErrUnsupported }
+func (nothing) Pin(kind, id string, on bool) error             { return music.ErrUnsupported }
+func (nothing) MovePin(id, after string) error                 { return music.ErrUnsupported }
 func (nothing) Home() (*music.Browse, error)                   { return nil, music.ErrUnsupported }
 func (nothing) Browse(string) (*music.Browse, error)           { return nil, music.ErrUnsupported }
 func (nothing) IsLiked([]string) (map[string]bool, error)      { return nil, music.ErrUnsupported }

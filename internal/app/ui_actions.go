@@ -190,16 +190,21 @@ func (a *app) share(url string) {
 func (a *app) listItems(m *ui.Menu, kind, id, name, url string, saved, favorite, stays bool, more func()) {
 	// What stays in the library, as an album with uploads, isn't offered
 	// to be taken out.
-	if !(stays && a.library.inLibrary(kind, id, saved)) {
-		if a.library.inLibrary(kind, id, saved) {
+	in := a.library.inLibrary(kind, id, saved || a.library.pinnedAt(kind, id) >= 0)
+	if !(stays && in) {
+		if in {
 			if m.Item(T("Delete From Library")).Chosen() {
 				a.setInLibrary(kind, id, false)
 			}
 		} else if m.Item(T("Add to Library")).Chosen() {
 			a.setInLibrary(kind, id, true)
 		}
-		m.Separator()
 	}
+	// What's in the library can be pinned there, as Music's can.
+	if in {
+		a.pinItem(m, kind, id)
+	}
+	m.Separator()
 	if m.Item(T("Play Next")).Chosen() {
 		a.tracksOf(kind, id, func(tracks []music.Track, from music.Origin) { a.enqueue(tracks, true, name, from) })
 	}
@@ -263,6 +268,8 @@ func (a *app) playlistItemsOf(pl music.Playlist) func(m *ui.Menu) {
 		saved := pl.Saved || a.isSaved(&pl)
 		if pl.Mine || pl.Fixed || a.ownList(pl.ID) {
 			// Their own is in their library already, for good.
+			a.pinItem(m, music.ItemPlaylist, pl.ID)
+			m.Separator()
 			if m.Item(T("Play Next")).Chosen() {
 				a.tracksOf(music.ItemPlaylist, pl.ID, func(tracks []music.Track, from music.Origin) { a.enqueue(tracks, true, pl.Name, from) })
 			}
@@ -284,6 +291,10 @@ func (a *app) playlistItemsOf(pl music.Playlist) func(m *ui.Menu) {
 // them a favorite.
 func (a *app) artistItems(ar music.Artist) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
+		// An artist of the library, or one pinned, can be pinned or unpinned.
+		if isLibraryArtist(ar.ID) || a.library.pinnedAt(music.ItemArtist, ar.ID) >= 0 {
+			a.pinItem(m, music.ItemArtist, ar.ID)
+		}
 		a.shareAndFavorite(m, music.ItemArtist, ar.ID, ar.URL, ar.Favorite)
 	}
 }

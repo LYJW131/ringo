@@ -105,6 +105,9 @@ type Item struct {
 	Page  string    `json:"page,omitempty"`
 	URL   string    `json:"url,omitempty"`
 
+	// Pin is where it is among the listener's pins, of an Item Pins lists.
+	Pin *PinPlace `json:"pin,omitempty"`
+
 	Track    *Track    `json:"track,omitempty"` // of ItemSong and ItemVideo
 	Album    *Album    `json:"album,omitempty"`
 	Playlist *Playlist `json:"playlist,omitempty"`
@@ -160,4 +163,12 @@ const (
 
 func wideReplacer(w, h int) *strings.Replacer {
 	return strings.NewReplacer("{w}", strconv.Itoa(w), "{h}", strconv.Itoa(h), "{c}", "sr", "{f}", "jpg")
+}
+
+// PinPlace is where something is among the listener's pins.
+type PinPlace struct {
+	// ID is the library's own ID it's pinned by, which MovePin takes.
+	ID string `json:"id"`
+	// Position is Apple's mark of its place, which a pin is moved after.
+	Position string `json:"position"`
 }

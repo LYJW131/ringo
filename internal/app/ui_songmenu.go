@@ -59,10 +59,12 @@ func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 		kind := trackKind(tr)
 		group := false
 		if lib.canKeep(tr) {
-			if in, _ := a.songInLibrary(tr); in {
+			// What's pinned is in the library, whatever's known of it else.
+			if in, _ := a.songInLibrary(tr); in || lib.pinnedAt(kind, tr.ID) >= 0 {
 				if m.Item(T("Delete From Library")).Chosen() {
 					a.setInLibrary(kind, tr.ID, false)
 				}
+				a.pinItem(m, kind, tr.ID)
 			} else if m.Item(T("Add to Library")).Chosen() {
 				a.setInLibrary(kind, tr.ID, true)
 			}

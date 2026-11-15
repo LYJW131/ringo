@@ -73,6 +73,8 @@ type fakeSource struct {
 	liked       func(offset int) (*music.Page, error)
 	recent      func() ([]music.Track, error)
 	pins        func() ([]music.Item, error)
+	pin         func(kind, id string, on bool) error
+	movePin     func(id, after string) error
 	home        func() (*music.Browse, error)
 	browse      func(page string) (*music.Browse, error)
 	isLiked     func(ids []string) (map[string]bool, error)
@@ -175,6 +177,20 @@ func (s *fakeSource) Pins() ([]music.Item, error) {
 		return nil, nil
 	}
 	return s.pins()
+}
+
+func (s *fakeSource) Pin(kind, id string, on bool) error {
+	if s.pin == nil {
+		return nil
+	}
+	return s.pin(kind, id, on)
+}
+
+func (s *fakeSource) MovePin(id, after string) error {
+	if s.movePin == nil {
+		return nil
+	}
+	return s.movePin(id, after)
 }
 
 func (s *fakeSource) Recent() ([]music.Track, error) {

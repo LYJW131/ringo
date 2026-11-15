@@ -258,16 +258,21 @@ func (a *app) sidebarPins(c *ui.Context) {
 	if a.pinsCollapsed {
 		return
 	}
-	for i := range pins {
+	// A list, for the pins to be dragged to another place, as Music's are.
+	a.pinList.Reorder = func(rows []int, to int) {
+		if len(rows) == 1 {
+			a.movePin(rows[0], to)
+		}
+	}
+	a.pinList.Key = func(i int) any { return pinKey(&pins[i]) }
+	n := len(pins)
+	ui.List(c.Key("list"), &a.pinList, n, func(i int) {
 		it := &pins[i]
 		r, ok := pinRoute(it)
-		if !ok {
-			continue
-		}
-		selected := !a.nowPlaying && a.route.page == r.page && a.route.id == r.id
+		selected := ok && !a.nowPlaying && a.route.page == r.page && a.route.id == r.id
 		// Set in from the pages' rows above, as Music's are: the cover
 		// where their icons end, the name a little past theirs.
-		row := ui.ButtonBase(c.Key(i)).Height(32).PaddingX(18).Gap(8).Radius(8).AlignItems(ui.Center).Justify(ui.Start).
+		row := ui.ButtonBase(c.Key(pinKey(it))).Height(32).PaddingX(18).Gap(8).Radius(8).AlignItems(ui.Center).Justify(ui.Start).
 			FocusRing(false).Label(it.Title)
 		bg := ui.Transparent
 		switch {
@@ -288,10 +293,18 @@ func (a *app) sidebarPins(c *ui.Context) {
 		if menu := a.itemMenu(it); menu != nil {
 			row.ContextMenu(menu)
 		}
-		if row.Clicked() {
+		if ok && row.Clicked() {
 			a.open(r)
 		}
+	}).Height(float32(n)*32 + float32(max(n-1, 0))*2).Gap(2).Shrink(0)
+}
+
+// pinKey is what a pin is known by among them, as it moves.
+func pinKey(it *music.Item) string {
+	if it.Pin != nil {
+		return it.Pin.ID
 	}
+	return it.Kind + ":" + it.ID
 }
 
 // pinRoute is the page a pin opens, as the web player's do: an album, a

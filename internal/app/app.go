@@ -142,7 +142,8 @@ type app struct {
 	lyricSoft   bool // blurs the lyrics wherever they paint, for a look at them
 	lyricTrack  string
 	queueList   ui.ListState
-	queueAt     int // the row of the queue pane last scrolled to, -1 while it is hidden
+	pinList     ui.ListState // the sidebar's pins
+	queueAt     int          // the row of the queue pane last scrolled to, -1 while it is hidden
 
 	radioStarting string // the radio asked for its first songs, or ""
 

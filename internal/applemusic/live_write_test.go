@@ -258,3 +258,78 @@ func TestLivePlaylistEdits(t *testing.T) {
 		return err == nil && !slices.ContainsFunc(lists, func(p *resource) bool { return p != nil && p.ID == id })
 	})
 }
+
+// Two albums or playlists of the library pinned, after the pins there were;
+// the second moved to the top and back after the first; both unpinned, and
+// the pins as they were.
+func TestLivePins(t *testing.T) {
+	s := writeSource(t)
+	if _, err := s.Account(); err != nil {
+		t.Fatal(err)
+	}
+	ids := func(pins []music.Item) []string {
+		var out []string
+		for _, p := range pins {
+			out = append(out, p.Pin.ID)
+		}
+		return out
+	}
+	before, err := s.Pins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mine []string
+	for _, path := range []string{"/library/albums", "/library/playlists"} {
+		b, err := s.me(path, params{"limit": "5"}, reqOpts{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range b.Data {
+			if !slices.Contains(ids(before), r.ID) {
+				mine = append(mine, r.ID)
+			}
+		}
+	}
+	if len(mine) < 2 {
+		t.Skip("the library has fewer than two albums and playlists not pinned")
+	}
+	a, b := mine[0], mine[1]
+	kind := func(id string) string {
+		if strings.HasPrefix(id, "p.") {
+			return music.ItemPlaylist
+		}
+		return music.ItemAlbum
+	}
+	t.Cleanup(func() {
+		s.Pin(kind(a), a, false)
+		s.Pin(kind(b), b, false)
+	})
+	pinsAre := func(what string, want []string) {
+		t.Helper()
+		waitFor(t, what, func() bool {
+			pins, err := s.Pins()
+			return err == nil && slices.Equal(ids(pins), want)
+		})
+	}
+	for _, id := range []string{a, b} {
+		if err := s.Pin(kind(id), id, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pinsAre("pinned after the others", append(slices.Clone(ids(before)), a, b))
+	if err := s.MovePin(b, ""); err != nil {
+		t.Fatal(err)
+	}
+	pinsAre("moved to the top", append([]string{b}, append(slices.Clone(ids(before)), a)...))
+	pins, _ := s.Pins()
+	if err := s.MovePin(b, pins[len(pins)-1].Pin.Position); err != nil {
+		t.Fatal(err)
+	}
+	pinsAre("moved back after the other", append(slices.Clone(ids(before)), a, b))
+	for _, id := range []string{a, b} {
+		if err := s.Pin(kind(id), id, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pinsAre("as they were", ids(before))
+}

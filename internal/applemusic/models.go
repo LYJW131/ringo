@@ -250,6 +250,10 @@ type resource struct {
 	Meta *struct {
 		Popularity float64 `json:"popularity"`
 		Reason     text    `json:"reason"`
+		// LibraryPin is where a pin is among the listener's pins.
+		LibraryPin *struct {
+			PositionUUID string `json:"positionUUID"`
+		} `json:"libraryPin"`
 	} `json:"meta"`
 }
 
