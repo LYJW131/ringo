@@ -135,8 +135,13 @@ func TestPausesAtOnce(t *testing.T) {
 	// 40 ms held, at the interactive latency, of which 10 ms were heard
 	// as it faded.
 	heard := mixedFrames - defaultRate*40/1000 + defaultRate*10/1000
-	if got := int(math.Round(p.Position().Seconds() * defaultRate)); got != heard {
-		t.Errorf("paused at frame %d, want the last frame heard, %d", got, heard)
+	// The device says it stopped before the output moves the player back
+	// to where it faded out, so a position asked at once was, now and then,
+	// the one before it, 10 ms short: it is asked until it settles.
+	for start := time.Now(); int(math.Round(p.Position().Seconds()*defaultRate)) != heard; time.Sleep(time.Millisecond) {
+		if time.Since(start) > time.Minute {
+			t.Fatalf("paused at frame %.0f, want the last frame heard, %d", p.Position().Seconds()*defaultRate, heard)
+		}
 	}
 	if p.Playing() {
 		t.Error("still playing")
