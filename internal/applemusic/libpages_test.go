@@ -165,3 +165,41 @@ func TestLibraryPageIsKeptAMinute(t *testing.T) {
 		t.Errorf("asked %d times in all, want 2 after a minute and a half", got)
 	}
 }
+
+// A playlist of the listener's own that Home's Recently Played lists by its
+// catalog ID comes with no artwork, and showed none; its cover is the one
+// their library has for it, which names that ID as its globalId.
+func TestRecentlyPlayedOwnPlaylistHasLibraryCover(t *testing.T) {
+	const cover = "https://store-037.blobstore.apple.com/sq-mq-us-037/abcdef01-2345-6789-abcd-ef0123456789/image?sig=1"
+	ts := newTestSource(t, func(r *http.Request) *http.Response {
+		switch r.URL.Path {
+		case "/v1/me/recommendations":
+			return answer(200, map[string]any{"data": []any{map[string]any{
+				"id": "6-27s5hU6azhJY", "type": "personal-recommendation",
+				"attributes":    map[string]any{"title": map[string]any{"stringForDisplay": "Recently Played"}, "display": map[string]any{"kind": "MusicCoverShelf"}},
+				"relationships": map[string]any{"contents": map[string]any{"data": []any{map[string]any{"id": "pl.u-mine", "type": "playlists", "attributes": map[string]any{"name": "Mine"}}}}},
+			}}})
+		case "/v1/me/library/playlists":
+			return answer(200, map[string]any{"data": []any{map[string]any{
+				"id": "p.mine", "type": "library-playlists",
+				"attributes": map[string]any{"name": "Mine", "artwork": map[string]any{"url": cover}, "playParams": map[string]any{"id": "p.mine", "kind": "playlist", "globalId": "pl.u-mine"}},
+			}}})
+		}
+		return answer(404, "")
+	})
+	ts.storage.set(userTokenKey, "token")
+	ts.storage.set(storefrontKey, "us")
+	ts.storage.set(coversKey, map[string]int64{coverName(cover): 1})
+	home, err := ts.listenNow()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(home.Sections) == 0 || len(home.Sections[0].Items) == 0 {
+		t.Fatalf("Home has %+v", home.Sections)
+	}
+	it := home.Sections[0].Items[0]
+	want := fileURL(ts.coverPath(coverName(cover)))
+	if it.ImageURL != want || it.Playlist == nil || it.Playlist.ImageURL != want {
+		t.Errorf("the playlist shows %q, want the library's cover %q", it.ImageURL, want)
+	}
+}

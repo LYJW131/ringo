@@ -88,6 +88,40 @@ func (s *Source) keptArt(a *artwork) string {
 	return ""
 }
 
+// ownCover is the cover of the listener's own playlist that Apple names by
+// its catalog ID, id, as their library has it. Home's Recently Played lists
+// a playlist the listener shared that way, with no artwork: the cover they
+// chose is only on the library's copy, which names id as its globalId.
+func (s *Source) ownCover(id string) string {
+	if !strings.HasPrefix(id, "pl.u-") || !s.signedIn() {
+		return ""
+	}
+	// The playlists as the sidebar last had them do; asking Apple again
+	// for every page that shows one would cost a request each time.
+	s.keptMu.Lock()
+	e, _ := s.entries.get("playlists")
+	s.keptMu.Unlock()
+	lists, ok := []*resource(nil), false
+	if e != nil && !e.at.IsZero() {
+		lists, ok = e.value.([]*resource)
+	}
+	if !ok {
+		var err error
+		if lists, err = s.libraryPlaylists(false); err != nil {
+			return ""
+		}
+	}
+	for _, l := range lists {
+		if l == nil {
+			continue
+		}
+		if a := l.attrs(); a.PlayParams != nil && string(a.PlayParams.GlobalID) == id {
+			return s.keptArt(a.Artwork)
+		}
+	}
+	return ""
+}
+
 var coverObject = regexp.MustCompile(`(?i)/([0-9a-f]{8}-[0-9a-f-]{27})/image\b`)
 
 // coverName is the blobstore object's own name, which stays as long as the

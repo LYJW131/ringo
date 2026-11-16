@@ -41,6 +41,9 @@ func (s *Source) item(b *body, r *resource) (music.Item, bool) {
 		it.TallVideoURL, it.TallURL = tallMotion(a, "")
 	case "playlists", "library-playlists":
 		p := s.toPlaylist(r)
+		if p.ImageURL == "" && a.Artwork == nil {
+			p.ImageURL = s.ownCover(r.ID)
+		}
 		it.Kind, it.Playlist, it.Subtitle, it.ImageURL = music.ItemPlaylist, &p, a.CuratorName, p.ImageURL
 		it.VideoURL = p.VideoURL
 		it.Artists = a.ArtistNames
