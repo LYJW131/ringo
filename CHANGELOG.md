@@ -2,6 +2,12 @@
 
 All notable changes to Ringo are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.2.3]
+
+### Fixed
+
+- A playlist of your own shows its cover in Home's Recently Played, where it showed an empty one.
+
 ## [0.2.2]
 
 ### Added
